@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .db import supabase
 from .config import settings
+from .routes import router
 
 app = FastAPI(
     title="AI Construction OS API",
@@ -17,6 +18,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(router)
 
 @app.get("/health")
 def health():
