@@ -150,3 +150,35 @@ Each dimension should include value, unit if visible, and what it measures.
 Each symbol should include type, meaning only if clearly identifiable, and evidence.
 Findings must be evidence-based observations requiring professional review; never approve a design or declare a structure safe/unsafe.
 Do not invent values hidden or unreadable in the image."""
+
+def analyze_drawing_page(image_bytes: bytes, discipline: str = "general") -> dict[str, Any]:
+    """Analyze one rendered drawing page with OpenAI vision."""
+    if not settings.openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY is not configured")
+    import base64
+    encoded = base64.b64encode(image_bytes).decode("ascii")
+    client = OpenAI(api_key=settings.openai_api_key)
+    response = client.chat.completions.create(
+        model=VISION_ANALYSIS_MODEL,
+        messages=[
+            {"role": "system", "content": "You are a construction drawing visual-analysis engine. Never invent unreadable information. Findings require professional review."},
+            {"role": "user", "content": [
+                {"type": "text", "text": build_visual_analysis_prompt(discipline)},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encoded}", "detail": "high"}},
+            ]},
+        ],
+        temperature=0,
+        response_format={"type": "json_object"},
+    )
+    raw = response.choices[0].message.content or "{}"
+    result = json.loads(raw)
+    result.setdefault("elements", [])
+    result.setdefault("dimensions", [])
+    result.setdefault("symbols", [])
+    result.setdefault("findings", [])
+    result.setdefault("warnings", [])
+    try:
+        result["confidence"] = max(0.0, min(1.0, float(result.get("confidence", 0))))
+    except (TypeError, ValueError):
+        result["confidence"] = 0.0
+    return result
