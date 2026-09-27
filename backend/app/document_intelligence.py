@@ -24,6 +24,7 @@ Classify construction documents and extract useful structured facts.
 Never invent facts. Only extract information explicitly present in the supplied text.
 Use null for unavailable scalar values, [] for unavailable lists.
 Preserve original units, currencies, dates and identifiers.
+Engineering findings are observations for professional review, not design approval.
 Return valid JSON only."""
 
 def _fallback_type(filename: str) -> str:
@@ -51,7 +52,7 @@ def extract_construction_data(filename: str, text: str) -> dict[str, Any]:
             "confidence": 0.0,
             "summary": "No extractable text was found.",
             "data": {},
-            "warnings": ["The document contains no extractable text; OCR may be required."],
+            "warnings": ["The document contains no extractable text; OCR or visual drawing analysis may be required."],
         }
 
     content = text[:MAX_EXTRACTION_CHARS]
@@ -67,6 +68,23 @@ def extract_construction_data(filename: str, text: str) -> dict[str, Any]:
             "dates": {},
             "requirements": [],
             "items": [],
+            "engineering": {
+                "discipline": "architecture, structural, civil, geotechnical, mechanical, electrical, plumbing, fire, or general",
+                "drawing_number": "string or null",
+                "drawing_title": "string or null",
+                "revision": "string or null",
+                "scale": "string or null",
+                "sheet_size": "string or null",
+                "levels": [],
+                "dimensions": [],
+                "materials": [],
+                "standards": [],
+                "elements": [],
+                "technical_notes": [],
+                "design_parameters": {},
+                "coordination_items": [],
+                "review_findings": []
+            },
             "risks_or_obligations": [],
             "other": {},
         },
@@ -83,9 +101,15 @@ Extraction rules:
 - For BOQs, prioritize item code, description, unit, quantity, rate, amount.
 - For contracts, prioritize parties, contract value, currency, start/end dates, duration, payment terms, retention, liquidated damages, obligations.
 - For tenders, prioritize employer, submission deadline, eligibility, required documents, evaluation criteria, bid security.
-- For drawings/specifications, prioritize project/title information, dimensions, materials, standards and technical requirements.
-- For schedules, prioritize activities, durations, dates, dependencies and milestones.
-- For invoices/payments, prioritize supplier, invoice number, dates, amounts, taxes and payment status.
+- For drawings/specifications, treat the engineering section as the primary structured output.
+- For engineering documents, identify the discipline only when supported by the text.
+- Extract drawing number/title, revision, scale and sheet size when explicitly present.
+- Extract levels, dimensions and design parameters with their original units.
+- Extract explicitly named materials and standards/codes; never infer a material or code.
+- Extract identifiable engineering elements such as columns, beams, slabs, walls, roads, culverts, pipes, foundations, rooms or equipment only when the text supports them.
+- Record coordination items when the document explicitly references another drawing, discipline, detail or conflicting requirement.
+- Record review findings only as evidence-based observations from the supplied text. Do not declare a structure safe/unsafe or approve a design.
+- If a PDF appears to be a scanned drawing with little/no machine-readable text, include a warning that visual/OCR analysis is required.
 - Put uncertain or incomplete extraction notes in warnings.
 - Do not calculate missing values.
 
@@ -110,5 +134,6 @@ DOCUMENT TEXT:
         result["confidence"] = 0.0
     result.setdefault("summary", "")
     result.setdefault("data", {})
+    result["data"].setdefault("engineering", {})
     result.setdefault("warnings", [])
     return result
