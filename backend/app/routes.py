@@ -35,6 +35,28 @@ def _document_for_member(document_id: str, user_id: str, client):
     _project_for_member(document.data["project_id"], user_id, client)
     return document.data
 
+
+@router.get("/projects/{project_id}/design/assets")
+def list_design_assets(project_id: str, token: str = Depends(get_access_token)):
+    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+    result = client.table("design_assets").select("id,project_id,document_id,name,discipline,asset_type,revision,sheet_number,status,metadata,created_at,updated_at").eq("project_id", project_id).order("created_at", desc=True).execute()
+    return {"data": result.data or []}
+
+@router.post("/projects/{project_id}/design/assets")
+def create_design_asset(project_id: str, payload: dict, token: str = Depends(get_access_token)):
+    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Design asset name is required")
+    row = {"project_id": project_id, "name": name, "discipline": str(payload.get("discipline") or "general"), "asset_type": str(payload.get("asset_type") or "drawing"), "revision": payload.get("revision"), "sheet_number": payload.get("sheet_number"), "status": str(payload.get("status") or "uploaded"), "metadata": payload.get("metadata") or {}}
+    if payload.get("document_id"):
+        _document_for_member(str(payload["document_id"]), user["id"], client)
+        row["document_id"] = str(payload["document_id"])
+    result = client.table("design_assets").insert(row).execute()
+    return result.data[0] if result.data else row
+
 @router.get("/projects")
 def list_projects(token: str = Depends(get_access_token)):
     user = get_current_user(token); client = supabase; client.postgrest.auth(token)
