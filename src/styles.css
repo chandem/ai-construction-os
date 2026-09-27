@@ -300,6 +300,30 @@ textarea:focus {
   line-height: 1.5;
 }
 
+.project-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.project-summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef1f4;
+  color: #4b5560;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.project-summary span b {
+  color: var(--ink);
+  font-weight: 700;
+}
+
 .messages {
   flex: 1;
   overflow: auto;
