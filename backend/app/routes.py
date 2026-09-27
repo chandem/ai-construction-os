@@ -152,7 +152,7 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
         # Promote drawing/specification intelligence into the design domain.
         if extraction["document_type"] == "drawing_specification":
             engineering = extraction.get("data", {}).get("engineering", {})
-            client.table("design_assets").insert({
+            design_asset_result = client.table("design_assets").insert({
                 "project_id": project_id,
                 "document_id": document_id,
                 "name": engineering.get("drawing_title") or safe_name,
@@ -177,6 +177,20 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
                     "ai_warnings": extraction.get("warnings", []),
                 },
             }).execute()
+            if design_asset_result.data:
+                asset_id = design_asset_result.data[0]["id"]
+                client.table("design_reviews").insert({
+                    "project_id": project_id,
+                    "design_asset_id": asset_id,
+                    "review_type": "ai_document_review",
+                    "status": "completed",
+                    "summary": extraction.get("summary", ""),
+                    "findings": engineering.get("review_findings", []),
+                    "source_pages": [],
+                    "model": EXTRACTION_MODEL if "EXTRACTION_MODEL" in globals() else "gpt-4.1-mini",
+                    "confidence": extraction.get("confidence", 0),
+                    "reviewed_at": datetime.now(timezone.utc).isoformat(),
+                }).execute()
 
         if chunks:
             rows = [
