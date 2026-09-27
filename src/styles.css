@@ -464,3 +464,35 @@ textarea:focus {
     padding: 28px 20px 22px;
   }
 }
+
+
+/* AI Document Center */
+.eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--muted);margin-bottom:5px}
+.side-action{display:block;width:100%;margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:white;color:var(--ink);font-weight:650;text-align:left}
+.side-action:hover:not(:disabled),.upload-button:hover:not(:disabled){background:#f5f7f8}
+.documents-panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:8px}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.panel-head h2{margin:0;font-size:18px}
+.panel-head p{margin:4px 0 0;color:var(--muted);font-size:12px}
+.upload-button{border:1px solid var(--line-strong);background:white;border-radius:10px;padding:10px 13px;font-weight:700;color:var(--ink)}
+.document-list{margin-top:14px;border-top:1px solid var(--line)}
+.document-row{display:flex;align-items:center;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line)}
+.doc-icon{width:40px;height:40px;border-radius:9px;background:#eef1f4;display:grid;place-items:center;font-size:9px;font-weight:800;color:#56636e;flex:0 0 auto}
+.doc-main{min-width:0;flex:1}
+.doc-main b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-main span{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+.status{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:5px 8px;border-radius:999px;background:#eef1f4;color:#596671}
+.status-processed,.status-completed{background:var(--success-bg);color:var(--success-ink)}
+.status-processing{background:#f1f4f6;color:#53606b}
+.status-failed{background:var(--error-bg);color:var(--error-ink)}
+.document-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;min-height:120px;color:var(--muted);font-size:12px}
+.document-empty b{color:var(--ink);font-size:13px}
+.document-empty span{max-width:430px;line-height:1.5}
+.document-icon{font-size:25px;margin-bottom:2px}
+.notice{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:var(--success-bg);color:var(--success-ink);font-size:12px}
+@media (max-width:750px){
+  .panel-head{align-items:flex-start;flex-direction:column}
+  .upload-button{width:100%}
+  .document-row{align-items:flex-start}
+  .status{margin-left:auto}
+}
