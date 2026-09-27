@@ -95,9 +95,358 @@ function AuthScreen() {
   );
 }
 
-// DASHBOARD_VERSION - truncated for size; full file at artifacts
 function App() {
-  return <div className="app"><header><div><strong>AI Construction OS</strong><span>Restoring…</span></div></header><main className="center"><section className="card"><h1>Restoring dashboard build</h1><p className="muted">Full main.tsx is being restored. Please re-pull after the next commit.</p></section></main></div>;
+  const [session, setSession] = React.useState<any>(null);
+  const [projects, setProjects] = React.useState<Project[]>([]);
+  const [projectId, setProjectId] = React.useState("");
+  const [documents, setDocuments] = React.useState<Document[]>([]);
+  const [designAssets, setDesignAssets] = React.useState<DesignAsset[]>([]);
+  const [conversations, setConversations] = React.useState<Conversation[]>([]);
+  const [conversationId, setConversationId] = React.useState("");
+  const [messages, setMessages] = React.useState<Message[]>([]);
+  const [input, setInput] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [projectsLoading, setProjectsLoading] = React.useState(false);
+  const [documentsLoading, setDocumentsLoading] = React.useState(false);
+  const [designLoading, setDesignLoading] = React.useState(false);
+  const [conversationsLoading, setConversationsLoading] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+  const [creatingProject, setCreatingProject] = React.useState(false);
+  const [showCreateProject, setShowCreateProject] = React.useState(false);
+  const [newProjectName, setNewProjectName] = React.useState("");
+  const [newProjectCode, setNewProjectCode] = React.useState("");
+  const [error, setError] = React.useState("");
+  const [notice, setNotice] = React.useState("");
+  const [showDocuments, setShowDocuments] = React.useState(true);
+  const [showDesign, setShowDesign] = React.useState(true);
+  const [extraction, setExtraction] = React.useState<any>(null);
+  const [selectedAsset, setSelectedAsset] = React.useState<DesignAsset | null>(null);
+  const [assetReviews, setAssetReviews] = React.useState<DesignReview[]>([]);
+  const [assetReviewsLoading, setAssetReviewsLoading] = React.useState(false);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => subscription.unsubscribe();
+  }, []);
+
+  React.useEffect(() => {
+    if (session) loadProjects();
+    else { setProjects([]); setProjectId(""); }
+  }, [session]);
+
+  React.useEffect(() => {
+    if (session && projectId) { loadDocuments(); loadConversations(); loadDesignAssets(); }
+    else { setDocuments([]); setConversations([]); setDesignAssets([]); setConversationId(""); setMessages([]); setExtraction(null); setSelectedAsset(null); setAssetReviews([]); }
+  }, [session, projectId]);
+
+  React.useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
+
+  async function loadProjects() {
+    if (!session) return;
+    if (!API) { setError("API base URL is not configured (VITE_API_BASE_URL)."); return; }
+    setProjectsLoading(true); setError("");
+    try {
+      const r = await fetch(API + "/api/v1/projects", { headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error(await readError(r, "Could not load projects."));
+      const j = await r.json(); const data = j.data || [];
+      setProjects(data);
+      if (!projectId && data[0]) setProjectId(data[0].id);
+      if (data.length === 0) setShowCreateProject(true);
+    } catch (e: any) { setError(e.message || "Could not load projects."); }
+    finally { setProjectsLoading(false); }
+  }
+
+  async function createProject(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!session || creatingProject) return;
+    const name = newProjectName.trim();
+    if (!name) { setError("Enter a project name."); return; }
+    setCreatingProject(true); setError(""); setNotice("");
+    try {
+      const r = await fetch(API + "/api/v1/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token },
+        body: JSON.stringify({ name, code: newProjectCode.trim() || null }),
+      });
+      if (!r.ok) throw new Error(await readError(r, "Could not create project."));
+      const j = await r.json(); const created = j.data;
+      setProjects((c) => [created, ...c]); setProjectId(created.id);
+      setNewProjectName(""); setNewProjectCode(""); setShowCreateProject(false);
+      setMessages([]); setConversationId(""); setNotice(`Project "${created.name}" created.`);
+    } catch (err: any) { setError(err.message || "Could not create project."); }
+    finally { setCreatingProject(false); }
+  }
+
+  async function loadDocuments() {
+    if (!session || !projectId) return;
+    setDocumentsLoading(true);
+    try {
+      const r = await fetch(API + "/api/v1/projects/" + projectId + "/documents", { headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error(await readError(r, "Could not load documents."));
+      setDocuments((await r.json()).data || []);
+    } catch (e: any) { setError(e.message || "Could not load documents."); }
+    finally { setDocumentsLoading(false); }
+  }
+
+  async function loadDesignAssets() {
+    if (!session || !projectId) return;
+    setDesignLoading(true);
+    try {
+      const r = await fetch(API + "/api/v1/projects/" + projectId + "/design/assets", { headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error(await readError(r, "Could not load design assets."));
+      setDesignAssets((await r.json()).data || []);
+    } catch (e: any) { console.warn(e.message || e); }
+    finally { setDesignLoading(false); }
+  }
+
+  async function viewExtraction(documentId: string) {
+    if (!session || !documentId) return;
+    setError(""); setExtraction(null); setSelectedAsset(null); setAssetReviews([]);
+    try {
+      const r = await fetch(API + "/api/v1/documents/" + documentId + "/extraction", { headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error(await readError(r, "No AI extraction available for this document."));
+      setExtraction(await r.json());
+    } catch (e: any) { setError(e.message || "Could not load extraction."); }
+  }
+
+  async function viewDesignAsset(asset: DesignAsset) {
+    if (!session || !asset?.id) return;
+    setError(""); setExtraction(null); setSelectedAsset(asset); setAssetReviews([]); setAssetReviewsLoading(true);
+    try {
+      const r = await fetch(API + "/api/v1/design/assets/" + asset.id + "/reviews", { headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error(await readError(r, "Could not load design reviews."));
+      setAssetReviews((await r.json()).data || []);
+    } catch (e: any) { setError(e.message || "Could not load design asset."); }
+    finally { setAssetReviewsLoading(false); }
+  }
+
+  async function loadConversations() {
+    if (!session || !projectId) return;
+    setConversationsLoading(true);
+    try {
+      const r = await fetch(API + "/api/v1/projects/" + projectId + "/ai/conversations", { headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error(await readError(r, "Could not load conversations."));
+      setConversations((await r.json()).data || []);
+    } catch (e: any) { console.warn(e.message || e); }
+    finally { setConversationsLoading(false); }
+  }
+
+  async function openConversation(id: string) {
+    if (!session || !id) return;
+    setConversationId(id); setError(""); setLoading(true);
+    try {
+      const r = await fetch(API + "/api/v1/ai/conversations/" + id + "/messages", { headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error(await readError(r, "Could not load messages."));
+      const rows = ((await r.json()).data || []) as { role: string; content: string }[];
+      setMessages(rows.filter((m) => m.role === "user" || m.role === "assistant").map((m) => ({ role: m.role as "user" | "assistant", content: m.content })));
+    } catch (e: any) { setError(e.message || "Could not load conversation."); }
+    finally { setLoading(false); }
+  }
+
+  function startNewChat() { setConversationId(""); setMessages([]); setError(""); setNotice(""); }
+
+  async function uploadDocument(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file || !session || !projectId || uploading) return;
+    setUploading(true); setError(""); setNotice("");
+    try {
+      const form = new FormData(); form.append("file", file);
+      const r = await fetch(API + "/api/v1/projects/" + projectId + "/documents", { method: "POST", headers: { Authorization: "Bearer " + session.access_token }, body: form });
+      if (!r.ok) throw new Error(await readError(r, "Upload failed."));
+      const j = await r.json();
+      setNotice(file.name + " uploaded and processed. " + (j.chunks ?? 0) + " knowledge chunks created.");
+      await loadDocuments(); await loadDesignAssets();
+    } catch (e: any) { setError(e.message || "Document upload failed."); }
+    finally { setUploading(false); }
+  }
+
+  async function send() {
+    if (!input.trim() || !projectId || loading || !session) return;
+    const question = input.trim(); setInput(""); setError("");
+    setMessages((m) => [...m, { role: "user", content: question }]); setLoading(true);
+    try {
+      const body: { message: string; conversation_id?: string } = { message: question };
+      if (conversationId) body.conversation_id = conversationId;
+      const r = await fetch(API + "/api/v1/projects/" + projectId + "/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(await readError(r, "AI request failed."));
+      const j = await r.json();
+      if (j.conversation_id) setConversationId(j.conversation_id);
+      setMessages((m) => [...m, { role: "assistant", content: j.answer, sources: j.sources || [] }]);
+      if (j.conversation_id && j.title) {
+        setConversations((list) => {
+          const exists = list.some((c) => c.id === j.conversation_id);
+          if (exists) return list.map((c) => (c.id === j.conversation_id ? { ...c, title: j.title } : c));
+          return [{ id: j.conversation_id, title: j.title, created_at: new Date().toISOString() }, ...list];
+        });
+      } else await loadConversations();
+    } catch (e: any) { setError(e.message || "AI request failed."); }
+    finally { setLoading(false); }
+  }
+
+  async function signOut() { await supabase.auth.signOut(); setMessages([]); setConversationId(""); }
+
+  const selectedProject = projects.find((p) => p.id === projectId) || null;
+  if (!session) return <AuthScreen />;
+
+  return (
+    <div className="app">
+      <header>
+        <div><strong>AI Construction OS</strong><span>Construction Intelligence Platform</span></div>
+        <button onClick={signOut}>Sign out</button>
+      </header>
+      <main className="workspace">
+        <aside>
+          <h2>Project</h2>
+          <label>Select project</label>
+          <select value={projectId} onChange={(e) => { setProjectId(e.target.value); setMessages([]); setConversationId(""); setError(""); setNotice(""); }}>
+            <option value="">{projectsLoading ? "Loading projects..." : "Select project"}</option>
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}{p.code ? " · " + p.code : ""}</option>)}
+          </select>
+          <button className="side-action" type="button" onClick={() => setShowCreateProject((v) => !v)}>{showCreateProject ? "− Hide new project" : "+ New project"}</button>
+          {showCreateProject && (
+            <form className="create-project" onSubmit={createProject}>
+              <label>Project name</label>
+              <input type="text" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="e.g. Addis Ring Road Package 2" disabled={creatingProject} />
+              <label>Project code (optional)</label>
+              <input type="text" value={newProjectCode} onChange={(e) => setNewProjectCode(e.target.value)} placeholder="e.g. ARR-P2" disabled={creatingProject} />
+              <button className="button primary compact" disabled={creatingProject || !newProjectName.trim()}>{creatingProject ? "Creating..." : "Create project"}</button>
+            </form>
+          )}
+          {!projectsLoading && projects.length === 0 && (<div className="hint"><b>Get started</b><br />Create your first project, then upload construction documents to build project knowledge.</div>)}
+          <div className="chat-history">
+            <div className="chat-history-head"><span>Chat history</span><button type="button" onClick={startNewChat} disabled={!projectId}>New</button></div>
+            {conversationsLoading && <div className="chat-history-empty">Loading…</div>}
+            {!conversationsLoading && conversations.length === 0 && <div className="chat-history-empty">No conversations yet</div>}
+            <div className="chat-history-list">
+              {conversations.map((c) => (
+                <button key={c.id} type="button" className={"chat-history-item" + (c.id === conversationId ? " active" : "")} onClick={() => openConversation(c.id)}>
+                  <b>{c.title || "Construction AI chat"}</b>
+                  <span>{c.created_at ? new Date(c.created_at).toLocaleString() : ""}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="hint"><b>Construction AI</b><br />Ask about contracts, BOQ, costs, schedules, materials, quality, safety, drawings and project documents.</div>
+          <button className="side-action" onClick={() => setShowDocuments((v) => !v)} disabled={!projectId} type="button">📄 {showDocuments ? "Hide" : "Show"} documents</button>
+          <button className="side-action" onClick={() => setShowDesign((v) => !v)} disabled={!projectId} type="button">📐 {showDesign ? "Hide" : "Show"} design assets</button>
+          <button className="side-action" onClick={() => fileRef.current?.click()} disabled={!projectId || uploading} type="button">⬆ {uploading ? "Uploading..." : "Upload document"}</button>
+          <input ref={fileRef} hidden type="file" accept=".pdf,.docx,.xlsx,.xls,.txt,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv" onChange={uploadDocument} />
+        </aside>
+        <section className="chat">
+          <div className="chathead">
+            <h1>Construction AI Assistant</h1>
+            <p>{conversationId ? "Continuing a saved conversation grounded in project documents." : "Ask questions grounded in the selected project's construction knowledge."}</p>
+            {projectId && (
+              <div className="project-summary">
+                <span><b>{selectedProject?.name || "Project"}</b>{selectedProject?.code ? " · " + selectedProject.code : ""}</span>
+                <span>{documents.length} docs</span>
+                <span>{designAssets.length} design</span>
+                <span>{conversations.length} chats</span>
+              </div>
+            )}
+          </div>
+          {error && <div className="error">{error}</div>}
+          {notice && <div className="success">{notice}</div>}
+          {showDocuments && (
+            <section className="documents-panel">
+              <div className="panel-head">
+                <div><div className="eyebrow">PROJECT DOCUMENTS</div><h2>AI Document Center</h2><p>{documents.length} document{documents.length === 1 ? "" : "s"} in this project</p></div>
+                <button className="upload-button" onClick={() => fileRef.current?.click()} disabled={!projectId || uploading} type="button">{uploading ? "Processing..." : "Upload document"}</button>
+              </div>
+              {documentsLoading ? <div className="document-empty">Loading documents...</div> : documents.length === 0 ? (
+                <div className="document-empty"><div className="document-icon">▣</div><b>No project documents yet</b><span>Upload a contract, BOQ, specification, report or other project file to build project knowledge.</span></div>
+              ) : (
+                <div className="document-list">
+                  {documents.map((d) => (
+                    <button className="document-row" key={d.id} type="button" onClick={() => viewExtraction(d.id)} title="View AI extraction">
+                      <div className="doc-icon">DOC</div>
+                      <div className="doc-main"><b>{d.name}</b><span>{d.mime_type || "Document"} · {d.created_at ? new Date(d.created_at).toLocaleDateString() : ""}</span></div>
+                      <span className={"status status-" + (d.status || "unknown")}>{d.status || "unknown"}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+          {showDesign && (
+            <section className="documents-panel design-panel">
+              <div className="panel-head"><div><div className="eyebrow">ENGINEERING</div><h2>Design Assets</h2><p>{designAssets.length} asset{designAssets.length === 1 ? "" : "s"} from drawings and specs</p></div></div>
+              {designLoading ? <div className="document-empty">Loading design assets...</div> : designAssets.length === 0 ? (
+                <div className="document-empty"><div className="document-icon">📐</div><b>No design assets yet</b><span>Upload drawings or specifications and AI will promote them into design assets when detected.</span></div>
+              ) : (
+                <div className="document-list">
+                  {designAssets.map((a) => (
+                    <button className={"document-row" + (selectedAsset?.id === a.id ? " active" : "")} key={a.id} type="button" onClick={() => viewDesignAsset(a)} title="View design reviews">
+                      <div className="doc-icon">DSN</div>
+                      <div className="doc-main"><b>{a.name}</b><span>{[a.discipline, a.asset_type, a.revision ? "Rev " + a.revision : null, a.sheet_number].filter(Boolean).join(" · ")}</span></div>
+                      <span className={"status status-" + (a.status || "unknown")}>{a.status || "unknown"}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+          {selectedAsset && (
+            <section className="extraction-panel">
+              <div className="panel-head">
+                <div><div className="eyebrow">DESIGN ASSET</div><h2>{selectedAsset.name}</h2><p>{[selectedAsset.discipline, selectedAsset.asset_type, selectedAsset.revision ? "Rev " + selectedAsset.revision : null].filter(Boolean).join(" · ") || "AI design review"}</p></div>
+                <button className="upload-button" type="button" onClick={() => { setSelectedAsset(null); setAssetReviews([]); }}>Close</button>
+              </div>
+              {assetReviewsLoading && <div className="document-empty">Loading reviews…</div>}
+              {!assetReviewsLoading && assetReviews.length === 0 && <div className="document-empty">No AI reviews for this asset yet.</div>}
+              {!assetReviewsLoading && assetReviews.length > 0 && (
+                <div className="review-list">
+                  {assetReviews.map((r) => (
+                    <div className="review-card" key={r.id}>
+                      <div className="review-card-head"><b>{r.review_type || "AI review"}</b><span className={"status status-" + (r.status || "unknown")}>{r.status || "unknown"}</span></div>
+                      {r.summary && <p className="review-summary">{r.summary}</p>}
+                      {typeof r.confidence === "number" && <span className="review-meta">Confidence {(r.confidence * 100).toFixed(0)}%</span>}
+                      {r.findings != null && <pre className="extraction-json">{JSON.stringify(r.findings, null, 2)}</pre>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {selectedAsset.metadata && Object.keys(selectedAsset.metadata).length > 0 && (
+                <details className="metadata-details"><summary>Asset metadata</summary><pre className="extraction-json">{JSON.stringify(selectedAsset.metadata, null, 2)}</pre></details>
+              )}
+              {selectedAsset.document_id && <button className="side-action" type="button" onClick={() => viewExtraction(selectedAsset.document_id!)}>View linked document extraction</button>}
+            </section>
+          )}
+          {extraction && (
+            <section className="extraction-panel">
+              <div className="panel-head">
+                <div><div className="eyebrow">AI EXTRACTION</div><h2>{extraction.extraction_type || "Document insights"}</h2><p>{extraction.data?.summary || "Structured facts extracted from the selected document."}</p></div>
+                <button className="upload-button" type="button" onClick={() => setExtraction(null)}>Close</button>
+              </div>
+              {extraction.data && <pre className="extraction-json">{JSON.stringify(extraction.data, null, 2)}</pre>}
+            </section>
+          )}
+          <div className="messages">
+            {messages.length === 0 && !loading && (<div className="empty"><div className="spark">✦</div><h3>Ask your project anything</h3><p>Try: “What does the contract say about the completion period?”</p></div>)}
+            {messages.map((m, i) => (
+              <article key={i} className={"message " + m.role}>
+                <div>{m.content}</div>
+                {m.sources?.length ? <div className="sources"><b>Sources</b>{m.sources.map((s, si) => <span key={si}>{s.citation}</span>)}</div> : null}
+              </article>
+            ))}
+            {loading && <div className="message assistant typing">Thinking…</div>}
+            <div ref={messagesEndRef} />
+          </div>
+          <div className="composer">
+            <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder={projectId ? "Ask about this project…" : "Select a project first"} disabled={!projectId || loading} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
+            <button type="button" onClick={send} disabled={!projectId || loading || !input.trim()}>Send</button>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
