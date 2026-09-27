@@ -26,6 +26,13 @@ def _project_for_member(project_id: str, user_id: str, client):
         raise HTTPException(status_code=403, detail="You are not a member of this project organization")
     return project.data
 
+def _document_for_member(document_id: str, user_id: str, client):
+    document = client.table("documents").select("id,project_id").eq("id", document_id).single().execute()
+    if not document.data:
+        raise HTTPException(status_code=404, detail="Document not found")
+    _project_for_member(document.data["project_id"], user_id, client)
+    return document.data
+
 @router.get("/projects")
 def list_projects(token: str = Depends(get_access_token)):
     user = get_current_user(token); client = supabase; client.postgrest.auth(token)
@@ -84,12 +91,13 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
         return {"document_id": document_id, "job_id": job_id, "knowledge_document_id": knowledge_id, "status": "completed", "chunks": len(chunks), "embeddings": len(embeddings)}
     except Exception as exc:
         if job_id:
-            client.table("document_processing_jobs").update({"status": "failed", "error_message": str(exc), "completed_at": datetime.now(timezone.utc).isoformat()}).eq("id", job_id).execute()
+            client.table("document_processing_jobs").update({"status": "failed", "progress": 100, "error_message": str(exc), "completed_at": datetime.now(timezone.utc).isoformat()}).eq("id", job_id).execute()
         raise HTTPException(status_code=500, detail=f"Document processing failed: {exc}") from exc
 
 @router.get("/documents/{document_id}/status")
 def document_status(document_id: str, token: str = Depends(get_access_token)):
-    get_current_user(token); client = supabase; client.postgrest.auth(token)
+    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    _document_for_member(document_id, user["id"], client)
     result = client.table("document_processing_jobs").select("id,document_id,status,processor,progress,error_message,started_at,completed_at,created_at").eq("document_id", document_id).order("created_at", desc=True).limit(1).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Processing job not found")
