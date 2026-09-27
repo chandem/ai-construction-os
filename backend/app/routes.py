@@ -131,6 +131,35 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
             "data": extraction,
         }).execute()
 
+        # Promote drawing/specification intelligence into the design domain.
+        if extraction["document_type"] == "drawing_specification":
+            engineering = extraction.get("data", {}).get("engineering", {})
+            client.table("design_assets").insert({
+                "project_id": project_id,
+                "document_id": document_id,
+                "name": engineering.get("drawing_title") or safe_name,
+                "discipline": engineering.get("discipline") or "general",
+                "asset_type": "drawing_specification",
+                "revision": engineering.get("revision"),
+                "sheet_number": engineering.get("drawing_number"),
+                "status": "ai_analyzed",
+                "metadata": {
+                    "scale": engineering.get("scale"),
+                    "sheet_size": engineering.get("sheet_size"),
+                    "levels": engineering.get("levels", []),
+                    "dimensions": engineering.get("dimensions", []),
+                    "materials": engineering.get("materials", []),
+                    "standards": engineering.get("standards", []),
+                    "elements": engineering.get("elements", []),
+                    "technical_notes": engineering.get("technical_notes", []),
+                    "design_parameters": engineering.get("design_parameters", {}),
+                    "coordination_items": engineering.get("coordination_items", []),
+                    "review_findings": engineering.get("review_findings", []),
+                    "ai_confidence": extraction.get("confidence", 0),
+                    "ai_warnings": extraction.get("warnings", []),
+                },
+            }).execute()
+
         if chunks:
             rows = [
                 {
