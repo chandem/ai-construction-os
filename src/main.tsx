@@ -15,8 +15,6 @@ type Document = {
   mime_type?: string | null;
   status?: string | null;
   created_at?: string;
-  updated_at?: string;
-  storage_path?: string | null;
 };
 type Source = {
   document_id: string;
@@ -29,6 +27,11 @@ type Message = {
   role: "user" | "assistant";
   content: string;
   sources?: Source[];
+};
+type Conversation = {
+  id: string;
+  title?: string | null;
+  created_at?: string;
 };
 
 function formatApiError(detail: unknown, fallback: string): string {
@@ -44,13 +47,6 @@ function formatApiError(detail: unknown, fallback: string): string {
       })
       .filter(Boolean);
     if (parts.length) return parts.join(" ");
-  }
-  if (detail && typeof detail === "object") {
-    try {
-      return JSON.stringify(detail);
-    } catch {
-      /* ignore */
-    }
   }
   return fallback;
 }
@@ -77,7 +73,9 @@ function AuthScreen() {
     setError("");
     setSuccess("");
     if (!supabaseUrl || !supabaseKey) {
-      return setError("Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.");
+      return setError(
+        "Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY."
+      );
     }
     if (!email.trim() || !password) {
       return setError("Please enter your email and password.");
@@ -161,9 +159,7 @@ function AuthScreen() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
-            autoComplete={
-              mode === "login" ? "current-password" : "new-password"
-            }
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
           />
           {error && <div className="error">{error}</div>}
           {success && <div className="success">{success}</div>}
@@ -188,11 +184,14 @@ function App() {
   const [projects, setProjects] = React.useState<Project[]>([]);
   const [projectId, setProjectId] = React.useState("");
   const [documents, setDocuments] = React.useState<Document[]>([]);
+  const [conversations, setConversations] = React.useState<Conversation[]>([]);
+  const [conversationId, setConversationId] = React.useState("");
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [projectsLoading, setProjectsLoading] = React.useState(false);
   const [documentsLoading, setDocumentsLoading] = React.useState(false);
+  const [conversationsLoading, setConversationsLoading] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [creatingProject, setCreatingProject] = React.useState(false);
   const [showCreateProject, setShowCreateProject] = React.useState(false);
@@ -202,6 +201,7 @@ function App() {
   const [notice, setNotice] = React.useState("");
   const [showDocuments, setShowDocuments] = React.useState(true);
   const fileRef = React.useRef<HTMLInputElement>(null);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -220,9 +220,20 @@ function App() {
   }, [session]);
 
   React.useEffect(() => {
-    if (session && projectId) loadDocuments();
-    else setDocuments([]);
+    if (session && projectId) {
+      loadDocuments();
+      loadConversations();
+    } else {
+      setDocuments([]);
+      setConversations([]);
+      setConversationId("");
+      setMessages([]);
+    }
   }, [session, projectId]);
+
+  React.useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
   async function loadProjects() {
     if (!session) return;
@@ -252,17 +263,14 @@ function App() {
   async function createProject(e?: React.FormEvent) {
     e?.preventDefault();
     if (!session || creatingProject) return;
-
     const name = newProjectName.trim();
     if (!name) {
       setError("Enter a project name.");
       return;
     }
-
     setCreatingProject(true);
     setError("");
     setNotice("");
-
     try {
       const r = await fetch(API + "/api/v1/projects", {
         method: "POST",
@@ -270,14 +278,10 @@ function App() {
           "Content-Type": "application/json",
           Authorization: "Bearer " + session.access_token,
         },
-        body: JSON.stringify({
-          name,
-          code: newProjectCode.trim() || null,
-        }),
+        body: JSON.stringify({ name, code: newProjectCode.trim() || null }),
       });
       if (!r.ok) throw new Error(await readError(r, "Could not create project."));
       const j = await r.json();
-
       const created = j.data;
       setProjects((current) => [created, ...current]);
       setProjectId(created.id);
@@ -285,6 +289,7 @@ function App() {
       setNewProjectCode("");
       setShowCreateProject(false);
       setMessages([]);
+      setConversationId("");
       setNotice(`Project "${created.name}" created.`);
     } catch (err: any) {
       setError(err.message || "Could not create project.");
@@ -310,6 +315,59 @@ function App() {
     }
   }
 
+  async function loadConversations() {
+    if (!session || !projectId) return;
+    setConversationsLoading(true);
+    try {
+      const r = await fetch(
+        API + "/api/v1/projects/" + projectId + "/ai/conversations",
+        { headers: { Authorization: "Bearer " + session.access_token } }
+      );
+      if (!r.ok) throw new Error(await readError(r, "Could not load conversations."));
+      const j = await r.json();
+      setConversations(j.data || []);
+    } catch (e: any) {
+      // Non-fatal: chat still works without history list
+      console.warn(e.message || e);
+    } finally {
+      setConversationsLoading(false);
+    }
+  }
+
+  async function openConversation(id: string) {
+    if (!session || !id) return;
+    setConversationId(id);
+    setError("");
+    setLoading(true);
+    try {
+      const r = await fetch(API + "/api/v1/ai/conversations/" + id + "/messages", {
+        headers: { Authorization: "Bearer " + session.access_token },
+      });
+      if (!r.ok) throw new Error(await readError(r, "Could not load messages."));
+      const j = await r.json();
+      const rows = (j.data || []) as { role: string; content: string }[];
+      setMessages(
+        rows
+          .filter((m) => m.role === "user" || m.role === "assistant")
+          .map((m) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          }))
+      );
+    } catch (e: any) {
+      setError(e.message || "Could not load conversation.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function startNewChat() {
+    setConversationId("");
+    setMessages([]);
+    setError("");
+    setNotice("");
+  }
+
   async function uploadDocument(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -320,14 +378,11 @@ function App() {
     try {
       const form = new FormData();
       form.append("file", file);
-      const r = await fetch(
-        API + "/api/v1/projects/" + projectId + "/documents",
-        {
-          method: "POST",
-          headers: { Authorization: "Bearer " + session.access_token },
-          body: form,
-        }
-      );
+      const r = await fetch(API + "/api/v1/projects/" + projectId + "/documents", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + session.access_token },
+        body: form,
+      });
       if (!r.ok) throw new Error(await readError(r, "Upload failed."));
       const j = await r.json();
       setNotice(
@@ -352,20 +407,29 @@ function App() {
     setMessages((m) => [...m, { role: "user", content: question }]);
     setLoading(true);
     try {
+      const body: { message: string; conversation_id?: string } = {
+        message: question,
+      };
+      if (conversationId) body.conversation_id = conversationId;
+
       const r = await fetch(API + "/api/v1/projects/" + projectId + "/ai/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer " + session.access_token,
         },
-        body: JSON.stringify({ message: question }),
+        body: JSON.stringify(body),
       });
       if (!r.ok) throw new Error(await readError(r, "AI request failed."));
       const j = await r.json();
+      if (j.conversation_id) {
+        setConversationId(j.conversation_id);
+      }
       setMessages((m) => [
         ...m,
         { role: "assistant", content: j.answer, sources: j.sources || [] },
       ]);
+      await loadConversations();
     } catch (e: any) {
       setError(e.message || "AI request failed.");
     } finally {
@@ -376,6 +440,7 @@ function App() {
   async function signOut() {
     await supabase.auth.signOut();
     setMessages([]);
+    setConversationId("");
   }
 
   if (!session) return <AuthScreen />;
@@ -399,6 +464,7 @@ function App() {
             onChange={(e) => {
               setProjectId(e.target.value);
               setMessages([]);
+              setConversationId("");
               setError("");
               setNotice("");
             }}
@@ -458,6 +524,41 @@ function App() {
             </div>
           )}
 
+          <div className="chat-history">
+            <div className="chat-history-head">
+              <span>Chat history</span>
+              <button type="button" onClick={startNewChat} disabled={!projectId}>
+                New
+              </button>
+            </div>
+            {conversationsLoading && (
+              <div className="chat-history-empty">Loading…</div>
+            )}
+            {!conversationsLoading && conversations.length === 0 && (
+              <div className="chat-history-empty">No conversations yet</div>
+            )}
+            <div className="chat-history-list">
+              {conversations.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={
+                    "chat-history-item" +
+                    (c.id === conversationId ? " active" : "")
+                  }
+                  onClick={() => openConversation(c.id)}
+                >
+                  <b>{c.title || "Construction AI chat"}</b>
+                  <span>
+                    {c.created_at
+                      ? new Date(c.created_at).toLocaleString()
+                      : ""}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="hint">
             <b>Construction AI</b>
             <br />
@@ -494,8 +595,9 @@ function App() {
           <div className="chathead">
             <h1>Construction AI Assistant</h1>
             <p>
-              Ask questions grounded in the selected project's construction
-              knowledge.
+              {conversationId
+                ? "Continuing a saved conversation grounded in project documents."
+                : "Ask questions grounded in the selected project's construction knowledge."}
             </p>
           </div>
 
@@ -519,9 +621,7 @@ function App() {
                   {uploading ? "Processing..." : "Upload document"}
                 </button>
               </div>
-
               {notice && <div className="success">{notice}</div>}
-
               {documentsLoading ? (
                 <div className="document-empty">Loading documents...</div>
               ) : documents.length === 0 ? (
@@ -547,11 +647,7 @@ function App() {
                             : ""}
                         </span>
                       </div>
-                      <span
-                        className={
-                          "status status-" + (d.status || "unknown")
-                        }
-                      >
+                      <span className={"status status-" + (d.status || "unknown")}>
                         {d.status || "unknown"}
                       </span>
                     </div>
@@ -562,7 +658,7 @@ function App() {
           )}
 
           <div className="messages">
-            {messages.length === 0 && (
+            {messages.length === 0 && !loading && (
               <div className="empty">
                 <div className="spark">✦</div>
                 <h3>Ask your project anything</h3>
@@ -595,6 +691,7 @@ function App() {
                 </div>
               </article>
             )}
+            <div ref={messagesEndRef} />
           </div>
 
           <div className="composer">
