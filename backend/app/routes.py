@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 
 from .auth import get_access_token, get_current_user
 from .db import supabase
@@ -13,20 +14,43 @@ from .document_intelligence import extract_construction_data, analyze_drawing_pa
 
 router = APIRouter(prefix="/api/v1")
 BUCKET = "construction-documents"
-ALLOWED_TYPES = {"application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain", "text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel"}
+ALLOWED_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/plain",
+    "text/csv",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel",
+}
+
+
+class CreateProjectRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    code: str | None = Field(default=None, max_length=50)
+    description: str | None = Field(default=None, max_length=2000)
+
 
 @router.get("/auth/me")
 def me(token: str = Depends(get_access_token)):
     return get_current_user(token)
 
+
 def _project_for_member(project_id: str, user_id: str, client):
     project = client.table("projects").select("id,organization_id").eq("id", project_id).single().execute()
     if not project.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    membership = client.table("organization_members").select("organization_id").eq("organization_id", project.data["organization_id"]).eq("user_id", user_id).limit(1).execute()
+    membership = (
+        client.table("organization_members")
+        .select("organization_id")
+        .eq("organization_id", project.data["organization_id"])
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
     if not membership.data:
         raise HTTPException(status_code=403, detail="You are not a member of this project organization")
     return project.data
+
 
 def _document_for_member(document_id: str, user_id: str, client):
     document = client.table("documents").select("id,project_id").eq("id", document_id).single().execute()
@@ -36,65 +60,205 @@ def _document_for_member(document_id: str, user_id: str, client):
     return document.data
 
 
+def _ensure_organization(user: dict, client) -> str:
+    """Return an organization id the user can create projects in.
+
+    If the user has no membership yet, create a personal organization and
+    add them as owner so onboarding works out of the box.
+    """
+    memberships = (
+        client.table("organization_members")
+        .select("organization_id,role")
+        .eq("user_id", user["id"])
+        .execute()
+    )
+    if memberships.data:
+        return memberships.data[0]["organization_id"]
+
+    email = (user.get("email") or "user").split("@")[0]
+    org_name = f"{email.title()}'s Organization"
+
+    org = client.table("organizations").insert({"name": org_name}).execute()
+    if not org.data:
+        raise HTTPException(status_code=500, detail="Could not create organization")
+
+    org_id = org.data[0]["id"]
+    member = (
+        client.table("organization_members")
+        .insert({"organization_id": org_id, "user_id": user["id"], "role": "owner"})
+        .execute()
+    )
+    if not member.data:
+        raise HTTPException(status_code=500, detail="Could not create organization membership")
+
+    return org_id
+
 
 @router.get("/projects/{project_id}/design/reviews")
 def list_design_reviews(project_id: str, token: str = Depends(get_access_token)):
-    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
     _project_for_member(project_id, user["id"], client)
-    result = client.table("design_reviews").select("id,project_id,design_asset_id,review_type,status,summary,findings,source_pages,model,confidence,reviewed_at,created_at,updated_at").eq("project_id", project_id).order("created_at", desc=True).execute()
+    result = (
+        client.table("design_reviews")
+        .select(
+            "id,project_id,design_asset_id,review_type,status,summary,findings,source_pages,model,confidence,reviewed_at,created_at,updated_at"
+        )
+        .eq("project_id", project_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
     return {"data": result.data or []}
+
 
 @router.get("/design/assets/{asset_id}/reviews")
 def list_asset_reviews(asset_id: str, token: str = Depends(get_access_token)):
-    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
     asset = client.table("design_assets").select("id,project_id").eq("id", asset_id).maybe_single().execute()
     if not asset.data:
         raise HTTPException(status_code=404, detail="Design asset not found")
     _project_for_member(asset.data["project_id"], user["id"], client)
-    result = client.table("design_reviews").select("id,project_id,design_asset_id,review_type,status,summary,findings,source_pages,model,confidence,reviewed_at,created_at,updated_at").eq("design_asset_id", asset_id).order("created_at", desc=True).execute()
+    result = (
+        client.table("design_reviews")
+        .select(
+            "id,project_id,design_asset_id,review_type,status,summary,findings,source_pages,model,confidence,reviewed_at,created_at,updated_at"
+        )
+        .eq("design_asset_id", asset_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
     return {"data": result.data or []}
+
 
 @router.get("/projects/{project_id}/design/assets")
 def list_design_assets(project_id: str, token: str = Depends(get_access_token)):
-    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
     _project_for_member(project_id, user["id"], client)
-    result = client.table("design_assets").select("id,project_id,document_id,name,discipline,asset_type,revision,sheet_number,status,metadata,created_at,updated_at").eq("project_id", project_id).order("created_at", desc=True).execute()
+    result = (
+        client.table("design_assets")
+        .select(
+            "id,project_id,document_id,name,discipline,asset_type,revision,sheet_number,status,metadata,created_at,updated_at"
+        )
+        .eq("project_id", project_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
     return {"data": result.data or []}
+
 
 @router.post("/projects/{project_id}/design/assets")
 def create_design_asset(project_id: str, payload: dict, token: str = Depends(get_access_token)):
-    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
     _project_for_member(project_id, user["id"], client)
     name = str(payload.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Design asset name is required")
-    row = {"project_id": project_id, "name": name, "discipline": str(payload.get("discipline") or "general"), "asset_type": str(payload.get("asset_type") or "drawing"), "revision": payload.get("revision"), "sheet_number": payload.get("sheet_number"), "status": str(payload.get("status") or "uploaded"), "metadata": payload.get("metadata") or {}}
+    row = {
+        "project_id": project_id,
+        "name": name,
+        "discipline": str(payload.get("discipline") or "general"),
+        "asset_type": str(payload.get("asset_type") or "drawing"),
+        "revision": payload.get("revision"),
+        "sheet_number": payload.get("sheet_number"),
+        "status": str(payload.get("status") or "uploaded"),
+        "metadata": payload.get("metadata") or {},
+    }
     if payload.get("document_id"):
         _document_for_member(str(payload["document_id"]), user["id"], client)
         row["document_id"] = str(payload["document_id"])
     result = client.table("design_assets").insert(row).execute()
     return result.data[0] if result.data else row
 
+
 @router.get("/projects")
 def list_projects(token: str = Depends(get_access_token)):
-    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
     memberships = client.table("organization_members").select("organization_id").eq("user_id", user["id"]).execute()
     org_ids = [row["organization_id"] for row in (memberships.data or [])]
     if not org_ids:
         return {"data": []}
-    result = client.table("projects").select("*").in_("organization_id", org_ids).order("created_at", desc=True).execute()
+    result = (
+        client.table("projects")
+        .select("*")
+        .in_("organization_id", org_ids)
+        .order("created_at", desc=True)
+        .execute()
+    )
     return {"data": result.data or []}
+
+
+@router.post("/projects")
+def create_project(payload: CreateProjectRequest, token: str = Depends(get_access_token)):
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
+
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Project name is required")
+
+    code = (payload.code or "").strip() or None
+    description = (payload.description or "").strip() or None
+
+    org_id = _ensure_organization(user, client)
+
+    row = {
+        "organization_id": org_id,
+        "name": name,
+        "code": code,
+        "description": description,
+        "status": "active",
+        "created_by": user["id"],
+    }
+
+    try:
+        result = client.table("projects").insert(row).execute()
+    except Exception as exc:
+        # Retry without optional columns that may not exist in older schemas.
+        fallback = {"organization_id": org_id, "name": name}
+        if code:
+            fallback["code"] = code
+        try:
+            result = client.table("projects").insert(fallback).execute()
+        except Exception as inner:
+            raise HTTPException(status_code=500, detail=f"Could not create project: {inner}") from inner
+
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Project was not created")
+
+    return {"data": result.data[0]}
+
 
 @router.get("/projects/{project_id}/documents")
 def list_documents(project_id: str, token: str = Depends(get_access_token)):
-    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
     _project_for_member(project_id, user["id"], client)
-    result = client.table("documents").select("id,name,mime_type,status,created_at,updated_at,storage_path").eq("project_id", project_id).order("created_at", desc=True).execute()
+    result = (
+        client.table("documents")
+        .select("id,name,mime_type,status,created_at,updated_at,storage_path")
+        .eq("project_id", project_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
     return {"data": result.data or []}
+
 
 @router.post("/projects/{project_id}/documents")
 async def upload_document(project_id: str, file: UploadFile = File(...), token: str = Depends(get_access_token)):
-    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
     _project_for_member(project_id, user["id"], client)
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(status_code=415, detail="Unsupported document format")
@@ -105,7 +269,14 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
         raise HTTPException(status_code=413, detail="File exceeds the 50 MB limit")
 
     file_sha256 = hashlib.sha256(data).hexdigest()
-    duplicate = client.table("documents").select("id,name,status").eq("project_id", project_id).eq("file_sha256", file_sha256).limit(1).execute()
+    duplicate = (
+        client.table("documents")
+        .select("id,name,status")
+        .eq("project_id", project_id)
+        .eq("file_sha256", file_sha256)
+        .limit(1)
+        .execute()
+    )
     if duplicate.data:
         raise HTTPException(status_code=409, detail="This document is already uploaded to this project")
 
@@ -115,17 +286,47 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
     job_id = None
 
     try:
-        client.storage.from_(BUCKET).upload(storage_path, data, {"content-type": file.content_type or "application/octet-stream", "upsert": "false"})
-        doc = client.table("documents").insert({"id": document_id, "project_id": project_id, "uploaded_by": user["id"], "name": safe_name, "storage_path": storage_path, "mime_type": file.content_type, "status": "processing", "file_size_bytes": len(data), "file_sha256": file_sha256}).execute()
+        client.storage.from_(BUCKET).upload(
+            storage_path,
+            data,
+            {"content-type": file.content_type or "application/octet-stream", "upsert": "false"},
+        )
+        doc = client.table("documents").insert(
+            {
+                "id": document_id,
+                "project_id": project_id,
+                "uploaded_by": user["id"],
+                "name": safe_name,
+                "storage_path": storage_path,
+                "mime_type": file.content_type,
+                "status": "processing",
+                "file_size_bytes": len(data),
+                "file_sha256": file_sha256,
+            }
+        ).execute()
         if not doc.data:
             raise RuntimeError("Document record was not created")
 
-        job = client.table("document_processing_jobs").insert({"document_id": document_id, "status": "processing", "processor": "construction-text-embedding-v1", "progress": 10}).execute()
+        job = client.table("document_processing_jobs").insert(
+            {
+                "document_id": document_id,
+                "status": "processing",
+                "processor": "construction-text-embedding-v1",
+                "progress": 10,
+            }
+        ).execute()
         if not job.data:
             raise RuntimeError("Processing job was not created")
         job_id = job.data[0]["id"]
 
-        knowledge = client.table("ai_knowledge_documents").insert({"document_id": document_id, "project_id": project_id, "processing_job_id": job_id, "status": "pending"}).execute()
+        knowledge = client.table("ai_knowledge_documents").insert(
+            {
+                "document_id": document_id,
+                "project_id": project_id,
+                "processing_job_id": job_id,
+                "status": "pending",
+            }
+        ).execute()
         if not knowledge.data:
             raise RuntimeError("Knowledge document was not created")
         knowledge_id = knowledge.data[0]["id"]
@@ -139,93 +340,103 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
         embeddings = embed_texts([chunk["content"] for chunk in chunks]) if chunks else []
         client.table("document_processing_jobs").update({"progress": 75}).eq("id", job_id).execute()
 
-        client.table("ai_knowledge_documents").update({"extracted_text": text_content, "page_count": page_count, "status": "ready"}).eq("id", knowledge_id).execute()
+        client.table("ai_knowledge_documents").update(
+            {"extracted_text": text_content, "page_count": page_count, "status": "ready"}
+        ).eq("id", knowledge_id).execute()
 
-        # AI construction intelligence: classify the document and persist structured facts.
         extraction = extract_construction_data(safe_name, text_content)
-        client.table("ai_extractions").insert({
-            "document_id": document_id,
-            "extraction_type": extraction["document_type"],
-            "data": extraction,
-        }).execute()
+        client.table("ai_extractions").insert(
+            {
+                "document_id": document_id,
+                "extraction_type": extraction["document_type"],
+                "data": extraction,
+            }
+        ).execute()
 
-        # Promote drawing/specification intelligence into the design domain.
         if extraction["document_type"] == "drawing_specification":
             engineering = extraction.get("data", {}).get("engineering", {})
-            design_asset_result = client.table("design_assets").insert({
-                "project_id": project_id,
-                "document_id": document_id,
-                "name": engineering.get("drawing_title") or safe_name,
-                "discipline": engineering.get("discipline") or "general",
-                "asset_type": "drawing_specification",
-                "revision": engineering.get("revision"),
-                "sheet_number": engineering.get("drawing_number"),
-                "status": "ai_analyzed",
-                "metadata": {
-                    "scale": engineering.get("scale"),
-                    "sheet_size": engineering.get("sheet_size"),
-                    "levels": engineering.get("levels", []),
-                    "dimensions": engineering.get("dimensions", []),
-                    "materials": engineering.get("materials", []),
-                    "standards": engineering.get("standards", []),
-                    "elements": engineering.get("elements", []),
-                    "technical_notes": engineering.get("technical_notes", []),
-                    "design_parameters": engineering.get("design_parameters", {}),
-                    "coordination_items": engineering.get("coordination_items", []),
-                    "review_findings": engineering.get("review_findings", []),
-                    "ai_confidence": extraction.get("confidence", 0),
-                    "ai_warnings": extraction.get("warnings", []),
-                },
-            }).execute()
+            design_asset_result = client.table("design_assets").insert(
+                {
+                    "project_id": project_id,
+                    "document_id": document_id,
+                    "name": engineering.get("drawing_title") or safe_name,
+                    "discipline": engineering.get("discipline") or "general",
+                    "asset_type": "drawing_specification",
+                    "revision": engineering.get("revision"),
+                    "sheet_number": engineering.get("drawing_number"),
+                    "status": "ai_analyzed",
+                    "metadata": {
+                        "scale": engineering.get("scale"),
+                        "sheet_size": engineering.get("sheet_size"),
+                        "levels": engineering.get("levels", []),
+                        "dimensions": engineering.get("dimensions", []),
+                        "materials": engineering.get("materials", []),
+                        "standards": engineering.get("standards", []),
+                        "elements": engineering.get("elements", []),
+                        "technical_notes": engineering.get("technical_notes", []),
+                        "design_parameters": engineering.get("design_parameters", {}),
+                        "coordination_items": engineering.get("coordination_items", []),
+                        "review_findings": engineering.get("review_findings", []),
+                        "ai_confidence": extraction.get("confidence", 0),
+                        "ai_warnings": extraction.get("warnings", []),
+                    },
+                }
+            ).execute()
             if design_asset_result.data:
                 asset_id = design_asset_result.data[0]["id"]
-                client.table("design_reviews").insert({
-                    "project_id": project_id,
-                    "design_asset_id": asset_id,
-                    "review_type": "ai_document_review",
-                    "status": "completed",
-                    "summary": extraction.get("summary", ""),
-                    "findings": engineering.get("review_findings", []),
-                    "source_pages": [],
-                    "model": "gpt-4.1-mini",
-                    "confidence": extraction.get("confidence", 0),
-                    "reviewed_at": datetime.now(timezone.utc).isoformat(),
-                }).execute()
+                client.table("design_reviews").insert(
+                    {
+                        "project_id": project_id,
+                        "design_asset_id": asset_id,
+                        "review_type": "ai_document_review",
+                        "status": "completed",
+                        "summary": extraction.get("summary", ""),
+                        "findings": engineering.get("review_findings", []),
+                        "source_pages": [],
+                        "model": "gpt-4.1-mini",
+                        "confidence": extraction.get("confidence", 0),
+                        "reviewed_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ).execute()
 
-                # Visual analysis for PDFs: render up to three pages initially to keep
-                # upload latency bounded; the async worker can process remaining pages later.
-                if (safe_name.lower().endswith(".pdf")
-                        and extraction["document_type"] == "drawing_specification"):
+                if safe_name.lower().endswith(".pdf") and extraction["document_type"] == "drawing_specification":
                     try:
                         import fitz
+
                         pdf = fitz.open(stream=data, filetype="pdf")
                         for page_index in range(min(3, pdf.page_count)):
                             page = pdf.load_page(page_index)
                             pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
-                            visual = analyze_drawing_page(pix.tobytes("png"), engineering.get("discipline") or "general")
-                            client.table("design_visual_analyses").insert({
+                            visual = analyze_drawing_page(
+                                pix.tobytes("png"), engineering.get("discipline") or "general"
+                            )
+                            client.table("design_visual_analyses").insert(
+                                {
+                                    "project_id": project_id,
+                                    "design_asset_id": asset_id,
+                                    "document_id": document_id,
+                                    "page_number": page_index + 1,
+                                    "analysis_status": "completed",
+                                    "elements": visual.get("elements", []),
+                                    "dimensions": visual.get("dimensions", []),
+                                    "symbols": visual.get("symbols", []),
+                                    "findings": visual.get("findings", []),
+                                    "model": "gpt-5.6-luna",
+                                    "confidence": visual.get("confidence", 0),
+                                    "error_message": None,
+                                }
+                            ).execute()
+                    except Exception as visual_exc:
+                        client.table("design_visual_analyses").insert(
+                            {
                                 "project_id": project_id,
                                 "design_asset_id": asset_id,
                                 "document_id": document_id,
-                                "page_number": page_index + 1,
-                                "analysis_status": "completed",
-                                "elements": visual.get("elements", []),
-                                "dimensions": visual.get("dimensions", []),
-                                "symbols": visual.get("symbols", []),
-                                "findings": visual.get("findings", []),
+                                "analysis_status": "failed",
+                                "error_message": str(visual_exc),
                                 "model": "gpt-5.6-luna",
-                                "confidence": visual.get("confidence", 0),
-                                "error_message": None,
-                            }).execute()
-                    except Exception as visual_exc:
-                        client.table("design_visual_analyses").insert({
-                            "project_id": project_id,
-                            "design_asset_id": asset_id,
-                            "document_id": document_id,
-                            "analysis_status": "failed",
-                            "error_message": str(visual_exc),
-                            "model": "gpt-5.6-luna",
-                        }).execute()
+                            }
+                        ).execute()
 
         if chunks:
             rows = [
@@ -243,19 +454,37 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
             client.table("ai_knowledge_chunks").insert(rows).execute()
 
         now = datetime.now(timezone.utc).isoformat()
-        client.table("document_processing_jobs").update({"status": "completed", "progress": 100, "completed_at": now}).eq("id", job_id).execute()
+        client.table("document_processing_jobs").update(
+            {"status": "completed", "progress": 100, "completed_at": now}
+        ).eq("id", job_id).execute()
         client.table("documents").update({"status": "processed"}).eq("id", document_id).execute()
 
-        return {"document_id": document_id, "job_id": job_id, "knowledge_document_id": knowledge_id, "status": "completed", "chunks": len(chunks), "embeddings": len(embeddings)}
+        return {
+            "document_id": document_id,
+            "job_id": job_id,
+            "knowledge_document_id": knowledge_id,
+            "status": "completed",
+            "chunks": len(chunks),
+            "embeddings": len(embeddings),
+        }
     except Exception as exc:
         if job_id:
-            client.table("document_processing_jobs").update({"status": "failed", "progress": 100, "error_message": str(exc), "completed_at": datetime.now(timezone.utc).isoformat()}).eq("id", job_id).execute()
+            client.table("document_processing_jobs").update(
+                {
+                    "status": "failed",
+                    "progress": 100,
+                    "error_message": str(exc),
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ).eq("id", job_id).execute()
         raise HTTPException(status_code=500, detail=f"Document processing failed: {exc}") from exc
 
 
 @router.get("/documents/{document_id}/extraction")
 def document_extraction(document_id: str, token: str = Depends(get_access_token)):
-    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
     _document_for_member(document_id, user["id"], client)
     result = (
         client.table("ai_extractions")
@@ -269,11 +498,21 @@ def document_extraction(document_id: str, token: str = Depends(get_access_token)
         raise HTTPException(status_code=404, detail="AI extraction not found")
     return result.data[0]
 
+
 @router.get("/documents/{document_id}/status")
 def document_status(document_id: str, token: str = Depends(get_access_token)):
-    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
     _document_for_member(document_id, user["id"], client)
-    result = client.table("document_processing_jobs").select("id,document_id,status,processor,progress,error_message,started_at,completed_at,created_at").eq("document_id", document_id).order("created_at", desc=True).limit(1).execute()
+    result = (
+        client.table("document_processing_jobs")
+        .select("id,document_id,status,processor,progress,error_message,started_at,completed_at,created_at")
+        .eq("document_id", document_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
     if not result.data:
         raise HTTPException(status_code=404, detail="Processing job not found")
     return result.data[0]
