@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from .auth import get_access_token, get_current_user
 from .db import supabase
-from .document_processing import chunk_text, extract_text
+from .document_processing import chunk_text_with_metadata, extract_pages
 from .embeddings import embed_texts
 
 router = APIRouter(prefix="/api/v1")
@@ -61,33 +61,58 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
         raise HTTPException(status_code=400, detail="Empty file")
     if len(data) > 50 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File exceeds the 50 MB limit")
-    document_id = str(uuid4()); safe_name = Path(file.filename or "document").name; storage_path = f"{project_id}/{document_id}/{safe_name}"
+
+    document_id = str(uuid4())
+    safe_name = Path(file.filename or "document").name
+    storage_path = f"{project_id}/{document_id}/{safe_name}"
     job_id = None
+
     try:
         client.storage.from_(BUCKET).upload(storage_path, data, {"content-type": file.content_type or "application/octet-stream", "upsert": "false"})
         doc = client.table("documents").insert({"id": document_id, "project_id": project_id, "uploaded_by": user["id"], "name": safe_name, "storage_path": storage_path, "mime_type": file.content_type, "status": "processing"}).execute()
         if not doc.data:
             raise RuntimeError("Document record was not created")
+
         job = client.table("document_processing_jobs").insert({"document_id": document_id, "status": "processing", "processor": "construction-text-embedding-v1", "progress": 10}).execute()
         if not job.data:
             raise RuntimeError("Processing job was not created")
         job_id = job.data[0]["id"]
+
         knowledge = client.table("ai_knowledge_documents").insert({"document_id": document_id, "project_id": project_id, "processing_job_id": job_id, "status": "pending"}).execute()
         if not knowledge.data:
             raise RuntimeError("Knowledge document was not created")
         knowledge_id = knowledge.data[0]["id"]
-        text_content, page_count = extract_text(safe_name, file.content_type or "", data)
-        chunks = chunk_text(text_content)
+
+        pages = extract_pages(safe_name, file.content_type or "", data)
+        text_content = "\n\n".join(text for text, _ in pages)
+        page_count = len(pages) if any(page_number is not None for _, page_number in pages) else None
+        chunks = chunk_text_with_metadata(pages)
+
         client.table("document_processing_jobs").update({"progress": 40}).eq("id", job_id).execute()
-        embeddings = embed_texts(chunks) if chunks else []
+        embeddings = embed_texts([chunk["content"] for chunk in chunks]) if chunks else []
         client.table("document_processing_jobs").update({"progress": 75}).eq("id", job_id).execute()
+
         client.table("ai_knowledge_documents").update({"extracted_text": text_content, "page_count": page_count, "status": "ready"}).eq("id", knowledge_id).execute()
+
         if chunks:
-            rows = [{"knowledge_document_id": knowledge_id, "document_id": document_id, "chunk_index": i, "content": chunk, "page_number": None, "metadata": {"source": safe_name, "processor": "construction-text-embedding-v1"}, "embedding": embeddings[i]} for i, chunk in enumerate(chunks)]
+            rows = [
+                {
+                    "knowledge_document_id": knowledge_id,
+                    "document_id": document_id,
+                    "chunk_index": i,
+                    "content": chunk["content"],
+                    "page_number": chunk["page_number"],
+                    "metadata": {"source": safe_name, "processor": "construction-text-embedding-v1"},
+                    "embedding": embeddings[i],
+                }
+                for i, chunk in enumerate(chunks)
+            ]
             client.table("ai_knowledge_chunks").insert(rows).execute()
+
         now = datetime.now(timezone.utc).isoformat()
         client.table("document_processing_jobs").update({"status": "completed", "progress": 100, "completed_at": now}).eq("id", job_id).execute()
         client.table("documents").update({"status": "processed"}).eq("id", document_id).execute()
+
         return {"document_id": document_id, "job_id": job_id, "knowledge_document_id": knowledge_id, "status": "completed", "chunks": len(chunks), "embeddings": len(embeddings)}
     except Exception as exc:
         if job_id:
