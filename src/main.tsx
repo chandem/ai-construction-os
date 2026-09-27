@@ -3,10 +3,9 @@ import { createRoot } from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
 import "./styles.css";
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-);
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
+const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseKey);
 const API = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
 type Project = { id: string; name: string; code?: string | null };
@@ -32,6 +31,39 @@ type Message = {
   sources?: Source[];
 };
 
+function formatApiError(detail: unknown, fallback: string): string {
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "msg" in item) {
+          return String((item as { msg: string }).msg);
+        }
+        return "";
+      })
+      .filter(Boolean);
+    if (parts.length) return parts.join(" ");
+  }
+  if (detail && typeof detail === "object") {
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      /* ignore */
+    }
+  }
+  return fallback;
+}
+
+async function readError(response: Response, fallback: string): Promise<string> {
+  try {
+    const json = await response.json();
+    return formatApiError(json.detail ?? json.message, fallback);
+  } catch {
+    return fallback;
+  }
+}
+
 function AuthScreen() {
   const [mode, setMode] = React.useState<"login" | "signup">("login");
   const [email, setEmail] = React.useState("");
@@ -44,6 +76,9 @@ function AuthScreen() {
     e.preventDefault();
     setError("");
     setSuccess("");
+    if (!supabaseUrl || !supabaseKey) {
+      return setError("Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.");
+    }
     if (!email.trim() || !password) {
       return setError("Please enter your email and password.");
     }
@@ -191,13 +226,17 @@ function App() {
 
   async function loadProjects() {
     if (!session) return;
+    if (!API) {
+      setError("API base URL is not configured (VITE_API_BASE_URL).");
+      return;
+    }
     setProjectsLoading(true);
     setError("");
     try {
       const r = await fetch(API + "/api/v1/projects", {
         headers: { Authorization: "Bearer " + session.access_token },
       });
-      if (!r.ok) throw new Error("Could not load projects.");
+      if (!r.ok) throw new Error(await readError(r, "Could not load projects."));
       const j = await r.json();
       const data = j.data || [];
       setProjects(data);
@@ -236,14 +275,8 @@ function App() {
           code: newProjectCode.trim() || null,
         }),
       });
+      if (!r.ok) throw new Error(await readError(r, "Could not create project."));
       const j = await r.json();
-      if (!r.ok) {
-        throw new Error(
-          typeof j.detail === "string"
-            ? j.detail
-            : "Could not create project."
-        );
-      }
 
       const created = j.data;
       setProjects((current) => [created, ...current]);
@@ -267,7 +300,7 @@ function App() {
       const r = await fetch(API + "/api/v1/projects/" + projectId + "/documents", {
         headers: { Authorization: "Bearer " + session.access_token },
       });
-      if (!r.ok) throw new Error("Could not load documents.");
+      if (!r.ok) throw new Error(await readError(r, "Could not load documents."));
       const j = await r.json();
       setDocuments(j.data || []);
     } catch (e: any) {
@@ -295,8 +328,8 @@ function App() {
           body: form,
         }
       );
+      if (!r.ok) throw new Error(await readError(r, "Upload failed."));
       const j = await r.json();
-      if (!r.ok) throw new Error(j.detail || "Upload failed.");
       setNotice(
         file.name +
           " uploaded and processed. " +
@@ -327,8 +360,8 @@ function App() {
         },
         body: JSON.stringify({ message: question }),
       });
+      if (!r.ok) throw new Error(await readError(r, "AI request failed."));
       const j = await r.json();
-      if (!r.ok) throw new Error(j.detail || "AI request failed.");
       setMessages((m) => [
         ...m,
         { role: "assistant", content: j.answer, sources: j.sources || [] },
