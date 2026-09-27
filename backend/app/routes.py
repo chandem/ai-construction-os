@@ -9,7 +9,7 @@ from .auth import get_access_token, get_current_user
 from .db import supabase
 from .document_processing import chunk_text_with_metadata, extract_pages
 from .embeddings import embed_texts
-from .document_intelligence import extract_construction_data
+from .document_intelligence import extract_construction_data, analyze_drawing_page
 
 router = APIRouter(prefix="/api/v1")
 BUCKET = "construction-documents"
@@ -187,10 +187,45 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
                     "summary": extraction.get("summary", ""),
                     "findings": engineering.get("review_findings", []),
                     "source_pages": [],
-                    "model": EXTRACTION_MODEL if "EXTRACTION_MODEL" in globals() else "gpt-4.1-mini",
+                    "model": "gpt-4.1-mini",
                     "confidence": extraction.get("confidence", 0),
                     "reviewed_at": datetime.now(timezone.utc).isoformat(),
                 }).execute()
+
+                # Visual analysis for PDFs: render up to three pages initially to keep
+                # upload latency bounded; the async worker can process remaining pages later.
+                if (safe_name.lower().endswith(".pdf")
+                        and extraction["document_type"] == "drawing_specification"):
+                    try:
+                        import fitz
+                        pdf = fitz.open(stream=data, filetype="pdf")
+                        for page_index in range(min(3, pdf.page_count)):
+                            page = pdf.load_page(page_index)
+                            pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
+                            visual = analyze_drawing_page(pix.tobytes("png"), engineering.get("discipline") or "general")
+                            client.table("design_visual_analyses").insert({
+                                "project_id": project_id,
+                                "design_asset_id": asset_id,
+                                "document_id": document_id,
+                                "page_number": page_index + 1,
+                                "analysis_status": "completed",
+                                "elements": visual.get("elements", []),
+                                "dimensions": visual.get("dimensions", []),
+                                "symbols": visual.get("symbols", []),
+                                "findings": visual.get("findings", []),
+                                "model": "gpt-5.6-luna",
+                                "confidence": visual.get("confidence", 0),
+                                "error_message": None,
+                            }).execute()
+                    except Exception as visual_exc:
+                        client.table("design_visual_analyses").insert({
+                            "project_id": project_id,
+                            "design_asset_id": asset_id,
+                            "document_id": document_id,
+                            "analysis_status": "failed",
+                            "error_message": str(visual_exc),
+                            "model": "gpt-5.6-luna",
+                        }).execute()
 
         if chunks:
             rows = [
