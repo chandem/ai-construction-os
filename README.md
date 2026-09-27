@@ -44,12 +44,19 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
 - Design-asset promotion for drawings/specifications
 - Optional visual analysis on PDF drawing pages
 - Document status and AI Document Center UI
+- Clickable documents open AI extraction viewer
 
 ### Construction AI Assistant
 - Project-scoped chat
 - Retrieval-Augmented Generation (RAG) over project knowledge
 - Source citations (document title, page, similarity)
+- Conversation history UI with auto-titling
 - Conversation and usage logging on the backend
+
+### Design intelligence (early)
+- Design assets promoted from drawings/specifications
+- Clickable assets with AI review findings and metadata
+- Linked document extraction from design assets
 
 ### API surface (selected)
 
@@ -61,9 +68,12 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
 | `GET` | `/api/v1/projects/{id}/documents` | List documents |
 | `POST` | `/api/v1/projects/{id}/documents` | Upload & process document |
 | `POST` | `/api/v1/projects/{id}/ai/chat` | RAG chat |
+| `GET` | `/api/v1/projects/{id}/ai/conversations` | Conversation list |
+| `GET` | `/api/v1/ai/conversations/{id}/messages` | Conversation messages |
 | `GET` | `/api/v1/projects/{id}/design/assets` | Design assets |
-| `GET` | `/documents/{id}/status` | Processing status |
-| `GET` | `/documents/{id}/extraction` | Latest AI extraction |
+| `GET` | `/api/v1/design/assets/{id}/reviews` | Design asset reviews |
+| `GET` | `/api/v1/documents/{id}/status` | Processing status |
+| `GET` | `/api/v1/documents/{id}/extraction` | Latest AI extraction |
 
 ---
 
@@ -157,6 +167,7 @@ API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 2. Create a project  
 3. Upload a contract, BOQ, specification, or report  
 4. Ask the Construction AI Assistant project-specific questions  
+5. Open documents for AI extraction and design assets for review findings  
 
 ---
 
@@ -210,7 +221,7 @@ API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 - [x] Project-aware chat
 - [x] Document-grounded answers
 - [x] Backend conversation history
-- [ ] Conversation history UI
+- [x] Conversation history UI
 - [ ] Direct project-data queries (beyond documents)
 
 ### Phase 6 — Construction intelligence
@@ -237,8 +248,9 @@ Project Management → Construction Data Platform → AI Construction Intelligen
 
 **Stage:** Early MVP — core loop is live
 
-Users can **sign in → create a project → upload documents → ask grounded AI questions**.  
-Next priorities: project dashboard, conversation history UI, stronger OCR, and domain intelligence modules.
+Users can **sign in → create a project → upload documents → ask grounded AI questions**, with conversation history, design assets, and AI extraction/review panels.
+
+Next priorities: richer project dashboard, project members/roles UI, stronger OCR for scanned drawings, retrieval quality tuning, and domain intelligence modules (cost, schedule, quality).
 
 ---
 
