@@ -9,6 +9,7 @@ from .auth import get_access_token, get_current_user
 from .db import supabase
 from .document_processing import chunk_text_with_metadata, extract_pages
 from .embeddings import embed_texts
+from .document_intelligence import extract_construction_data
 
 router = APIRouter(prefix="/api/v1")
 BUCKET = "construction-documents"
@@ -99,6 +100,14 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
         client.table("document_processing_jobs").update({"progress": 75}).eq("id", job_id).execute()
 
         client.table("ai_knowledge_documents").update({"extracted_text": text_content, "page_count": page_count, "status": "ready"}).eq("id", knowledge_id).execute()
+
+        # AI construction intelligence: classify the document and persist structured facts.
+        extraction = extract_construction_data(safe_name, text_content)
+        client.table("ai_extractions").insert({
+            "document_id": document_id,
+            "extraction_type": extraction["document_type"],
+            "data": extraction,
+        }).execute()
 
         if chunks:
             rows = [
