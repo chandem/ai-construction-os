@@ -95,7 +95,7 @@ header span {
 /* Workspace */
 .workspace {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 300px 1fr;
   min-height: calc(100vh - 68px);
 }
 
@@ -103,6 +103,7 @@ aside {
   background: var(--surface);
   border-right: 1px solid var(--line);
   padding: 24px;
+  overflow-y: auto;
 }
 
 aside h2 {
@@ -182,6 +183,95 @@ textarea:focus {
   font-size: 13px;
 }
 
+/* Chat history */
+.chat-history {
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fafbfc;
+  overflow: hidden;
+}
+
+.chat-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chat-history-head button {
+  border: 0;
+  background: var(--accent);
+  color: white;
+  border-radius: 7px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.chat-history-head button:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.chat-history-list {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.chat-history-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  padding: 10px 12px;
+  color: var(--ink);
+}
+
+.chat-history-item:last-child {
+  border-bottom: 0;
+}
+
+.chat-history-item:hover {
+  background: #f1f4f6;
+}
+
+.chat-history-item.active {
+  background: #eef2f5;
+}
+
+.chat-history-item b {
+  display: block;
+  font-size: 12px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-history-item span {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.chat-history-empty {
+  padding: 14px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
 /* Chat */
 .chat {
   display: flex;
@@ -190,6 +280,7 @@ textarea:focus {
   width: 100%;
   margin: 0 auto;
   padding: 28px 24px 32px;
+  min-height: calc(100vh - 68px);
 }
 
 .chathead {
@@ -480,6 +571,7 @@ textarea:focus {
 
   .chat {
     padding: 16px;
+    min-height: auto;
   }
 
   .message {
