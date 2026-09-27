@@ -134,6 +134,23 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
             client.table("document_processing_jobs").update({"status": "failed", "progress": 100, "error_message": str(exc), "completed_at": datetime.now(timezone.utc).isoformat()}).eq("id", job_id).execute()
         raise HTTPException(status_code=500, detail=f"Document processing failed: {exc}") from exc
 
+
+@router.get("/documents/{document_id}/extraction")
+def document_extraction(document_id: str, token: str = Depends(get_access_token)):
+    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    _document_for_member(document_id, user["id"], client)
+    result = (
+        client.table("ai_extractions")
+        .select("id,document_id,extraction_type,data,created_at")
+        .eq("document_id", document_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="AI extraction not found")
+    return result.data[0]
+
 @router.get("/documents/{document_id}/status")
 def document_status(document_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token); client = supabase; client.postgrest.auth(token)
