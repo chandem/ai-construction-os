@@ -36,6 +36,24 @@ def _document_for_member(document_id: str, user_id: str, client):
     return document.data
 
 
+
+@router.get("/projects/{project_id}/design/reviews")
+def list_design_reviews(project_id: str, token: str = Depends(get_access_token)):
+    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+    result = client.table("design_reviews").select("id,project_id,design_asset_id,review_type,status,summary,findings,source_pages,model,confidence,reviewed_at,created_at,updated_at").eq("project_id", project_id).order("created_at", desc=True).execute()
+    return {"data": result.data or []}
+
+@router.get("/design/assets/{asset_id}/reviews")
+def list_asset_reviews(asset_id: str, token: str = Depends(get_access_token)):
+    user = get_current_user(token); client = supabase; client.postgrest.auth(token)
+    asset = client.table("design_assets").select("id,project_id").eq("id", asset_id).maybe_single().execute()
+    if not asset.data:
+        raise HTTPException(status_code=404, detail="Design asset not found")
+    _project_for_member(asset.data["project_id"], user["id"], client)
+    result = client.table("design_reviews").select("id,project_id,design_asset_id,review_type,status,summary,findings,source_pages,model,confidence,reviewed_at,created_at,updated_at").eq("design_asset_id", asset_id).order("created_at", desc=True).execute()
+    return {"data": result.data or []}
+
 @router.get("/projects/{project_id}/design/assets")
 def list_design_assets(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token); client = supabase; client.postgrest.auth(token)
