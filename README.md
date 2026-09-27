@@ -2,163 +2,70 @@
 
 > **AI-first construction management platform** — one intelligent system for projects, documents, costs, procurement, equipment, field operations, quality, safety, and project intelligence.
 
-AI Construction OS is designed to bring the construction lifecycle into one connected data platform. Instead of treating AI as a separate chatbot, the platform uses project data and project documents as the source of truth and applies AI to extract information, answer questions, generate insights, detect risks, and automate workflows.
+AI Construction OS treats **project data and documents as the source of truth**. AI is not a generic chatbot: it extracts, retrieves, and answers from real construction records so teams can make faster, evidence-based decisions.
+
+**Live app:** [ai-costruction-os.vercel.app](https://ai-costruction-os.vercel.app)  
+**Repository:** [github.com/chandem/ai-construction-os](https://github.com/chandem/ai-construction-os)
+
+---
 
 ## Vision
 
-Build a unified construction operating system where:
+```
+Construction Data + Documents → AI Intelligence → Decisions + Automation
+```
 
-**Construction Data + Documents → AI Intelligence → Decisions + Automation**
+Reduce fragmented spreadsheets, disconnected tools, manual document review, and delayed project reporting.
 
-The goal is to reduce fragmented spreadsheets, disconnected tools, manual document review, and delayed project reporting.
+### Core principles
 
-## Core Principles
+- **One construction database** — shared data across project modules
+- **AI as the intelligence layer** — grounded in project evidence
+- **Documents as evidence** — answers cite source material
+- **Human control** — AI recommends; authorized users decide
+- **Construction-first design** — real engineering and PM workflows
+- **API-first architecture** — modules evolve independently
+- **Multi-tenant SaaS** — organizations, projects, and RLS-ready access
 
-- **One construction database** — connect the major parts of a project through shared data.
-- **AI as the intelligence layer** — AI should understand and act on project information.
-- **Documents as evidence** — AI answers should be grounded in actual project documents and records.
-- **Human control** — AI recommends, summarizes, detects, and automates; authorized users remain responsible for decisions.
-- **Construction-first design** — workflows are built around real engineering and project-management processes.
-- **API-first architecture** — modules can evolve independently while sharing the same core data model.
-- **International SaaS potential** — designed for contractors, consultants, engineers, project owners, and construction organizations.
+---
 
-## Planned Platform
+## What works today (MVP)
 
-### Project Management
-- Projects and organizations
-- Contracts and stakeholders
-- WBS and activities
-- Project status and milestones
-- Project dashboards
+### Authentication & workspace
+- Email/password sign-up and login (Supabase Auth)
+- Automatic personal organization bootstrap on first project
+- Create and select projects (name + optional code)
 
-### Engineering & Technical
-- Drawings and specifications
-- BOQ and measurements
-- RFIs and technical correspondence
-- Engineering records
-- Revision tracking
+### Document intelligence
+- Upload construction files (PDF, DOCX, Excel, CSV, TXT)
+- Storage in Supabase
+- Text extraction, chunking, and embeddings
+- AI classification and structured extraction
+- Design-asset promotion for drawings/specifications
+- Optional visual analysis on PDF drawing pages
+- Document status and AI Document Center UI
 
-### Cost & Commercial
-- Estimates
-- Budgets
-- Actual costs
-- Invoices and payments
-- Variations
-- Retention
-- Cash-flow analysis
-- Project profitability
+### Construction AI Assistant
+- Project-scoped chat
+- Retrieval-Augmented Generation (RAG) over project knowledge
+- Source citations (document title, page, similarity)
+- Conversation and usage logging on the backend
 
-### Procurement & Materials
-- Suppliers
-- Material requests
-- Quotations
-- Purchase orders
-- Deliveries
-- Material inventory
-- Price intelligence
+### API surface (selected)
 
-### Equipment
-- Machinery and equipment
-- Utilization
-- Fuel and operating costs
-- Maintenance
-- Downtime
-- Equipment performance
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/health` | Service health |
+| `GET` | `/api/v1/projects` | List projects |
+| `POST` | `/api/v1/projects` | Create project |
+| `GET` | `/api/v1/projects/{id}/documents` | List documents |
+| `POST` | `/api/v1/projects/{id}/documents` | Upload & process document |
+| `POST` | `/api/v1/projects/{id}/ai/chat` | RAG chat |
+| `GET` | `/api/v1/projects/{id}/design/assets` | Design assets |
+| `GET` | `/documents/{id}/status` | Processing status |
+| `GET` | `/documents/{id}/extraction` | Latest AI extraction |
 
-### Field Operations
-- Daily site reports
-- Progress tracking
-- Labor
-- Activities
-- Photos and evidence
-- GPS/location-aware records
-- Offline-capable workflows
-
-### Quality & Safety
-- Inspections
-- Defects and observations
-- NCRs
-- Corrective actions
-- Safety observations
-- Incidents
-- Compliance records
-
-### Documents
-- Central document repository
-- OCR and text extraction
-- Document classification
-- Structured data extraction
-- Versioning
-- Search
-- Project knowledge base
-
-## AI Intelligence Layer
-
-AI is the main subject of this platform.
-
-### 1. AI Document Intelligence
-Upload construction documents and extract structured information such as:
-
-- Contracts
-- BOQs
-- Specifications
-- Invoices
-- Drawings
-- Reports
-- Tender documents
-- Correspondence
-- Schedules
-
-### 2. Construction AI Assistant
-Users can ask questions about their projects using natural language.
-
-Examples:
-
-- "What is the contract completion date?"
-- "What materials were specified for this work?"
-- "Show the outstanding RFIs."
-- "Summarize this month's progress."
-- "What are the major cost risks?"
-- "Which activities are delayed?"
-
-Answers should be grounded in project data and retrieved document evidence.
-
-### 3. RAG / Project Knowledge Base
-Documents are converted into searchable chunks and vector embeddings so the AI can retrieve relevant project knowledge before generating an answer.
-
-### 4. AI Extraction
-AI converts unstructured documents into structured construction data that can be stored and reused by other modules.
-
-### 5. AI Insights
-The platform will identify patterns and generate insights around:
-
-- Cost
-- Schedule
-- Procurement
-- Equipment
-- Quality
-- Safety
-- Contracts
-- Project performance
-
-### 6. Predictive Intelligence
-Future capabilities may include:
-
-- Delay-risk detection
-- Cost-overrun risk
-- Equipment failure risk
-- Procurement risk
-- Quality-risk prediction
-- Cash-flow forecasting
-
-### 7. Computer Vision
-Potential computer-vision capabilities include:
-
-- Construction progress assessment
-- Defect detection
-- Site photo analysis
-- Safety observation
-- Quantity/progress verification
+---
 
 ## Architecture
 
@@ -168,6 +75,7 @@ Potential computer-vision capabilities include:
               +-----------------+-----------------+
               |                 |                 |
           Web App           Mobile/PWA        API Clients
+          (React/Vite)                          |
               |                 |                 |
               +-----------------+-----------------+
                                 |
@@ -177,149 +85,167 @@ Potential computer-vision capabilities include:
                                 |
         +-----------+-----------+-----------+-----------+
         |           |           |           |           |
-   Document AI   RAG/KB    Construction AI  Analytics  Vision
+   Document AI   RAG/KB    Construction AI  Design AI  Vision
         |           |           |           |           |
         +-----------+-----------+-----------+-----------+
                                 |
-                         Supabase / PostgreSQL
+                    Supabase (PostgreSQL + pgvector)
                                 |
-       Projects • Documents • Costs • Assets • Operations
-                                |
-                    Storage + Vector Database
+              Auth · Storage · Projects · Documents · AI
 ```
 
-## Technology Stack
+---
 
-### Frontend
-- React
-- TypeScript
-- Vite
-- Modern component-based UI
-- Progressive Web App capabilities
+## Technology stack
 
-### Backend
-- Python
-- FastAPI
-- REST APIs
-- AI orchestration services
+| Layer | Stack |
+|-------|--------|
+| **Frontend** | React 19, TypeScript, Vite, Supabase JS |
+| **Backend** | Python, FastAPI, Pydantic, OpenAI |
+| **Documents** | pypdf, PyMuPDF, python-docx, openpyxl |
+| **Data platform** | Supabase (PostgreSQL, pgvector, Auth, Storage) |
+| **Deploy** | GitHub, Vercel (frontend), Render (API intended) |
 
-### Database & Platform
-- Supabase
-- PostgreSQL
-- pgvector
-- Supabase Auth
-- Supabase Storage
+---
 
-### Deployment
-- GitHub
-- Vercel
-- Render
-- Supabase
+## Local development
 
-## Current Foundation
+### Prerequisites
 
-The initial database foundation includes:
+- Node.js 18+
+- Python 3.11+
+- A Supabase project with the app schema, storage bucket `construction-documents`, and vector match RPC
+- OpenAI API key (for embeddings + chat + extraction)
 
-- Organizations
-- User profiles
-- Projects
-- Documents
-- Document chunks
-- Vector embeddings
-- AI conversations
-- AI messages
-- AI extractions
-- AI insights
+### 1. Frontend
 
-Row Level Security is enabled on the core public tables as the foundation for multi-tenant access control.
+```bash
+cp .env.example .env
+# Set:
+#   VITE_SUPABASE_URL=
+#   VITE_SUPABASE_PUBLISHABLE_KEY=
+#   VITE_API_BASE_URL=http://localhost:8000
 
-## MVP Roadmap
+npm install
+npm run dev
+```
+
+### 2. Backend
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+cp .env.example .env
+# Set:
+#   SUPABASE_URL=
+#   SUPABASE_PUBLISHABLE_KEY=
+#   OPENAI_API_KEY=
+#   EMBEDDING_MODEL=text-embedding-3-small
+#   CORS_ORIGINS=http://localhost:5173
+
+uvicorn app.main:app --reload --port 8000
+```
+
+API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### Typical user flow
+
+1. Create an account and sign in  
+2. Create a project  
+3. Upload a contract, BOQ, specification, or report  
+4. Ask the Construction AI Assistant project-specific questions  
+
+---
+
+## Planned platform (beyond MVP)
+
+| Domain | Capabilities |
+|--------|----------------|
+| **Project management** | Contracts, WBS, milestones, dashboards, members/roles |
+| **Engineering** | Drawings, BOQ, RFIs, revisions |
+| **Cost & commercial** | Estimates, budgets, invoices, variations, cash flow |
+| **Procurement** | Suppliers, POs, deliveries, price intelligence |
+| **Equipment** | Utilization, fuel, maintenance, downtime |
+| **Field operations** | Daily reports, progress, photos, offline |
+| **Quality & safety** | Inspections, NCRs, incidents, compliance |
+| **Predictive AI** | Delay, cost, equipment, and quality risk signals |
+
+---
+
+## Roadmap status
 
 ### Phase 1 — Foundation
 - [x] GitHub repository
-- [x] Supabase project
-- [x] Core database schema
-- [x] Vector support
+- [x] Supabase project & core schema
+- [x] Vector / embedding support
 - [x] RLS foundation
-- [ ] Backend project structure
-- [ ] Authentication integration
+- [x] FastAPI backend structure
+- [x] Authentication integration
 
-### Phase 2 — Project Workspace
-- [ ] Organization onboarding
-- [ ] Project creation
-- [ ] Project dashboard
-- [ ] Project members and roles
+### Phase 2 — Project workspace
+- [x] Organization bootstrap
+- [x] Project creation & listing
+- [ ] Rich project dashboard
+- [ ] Project members and roles UI
 
-### Phase 3 — Document Intelligence
-- [ ] Document upload
-- [ ] Storage integration
-- [ ] OCR/text extraction
-- [ ] AI classification
-- [ ] Structured extraction
-- [ ] Document processing status
+### Phase 3 — Document intelligence
+- [x] Document upload & storage
+- [x] Text extraction & processing jobs
+- [x] AI classification / structured extraction
+- [x] Design asset + review pipeline (early)
+- [ ] Full OCR for scanned documents
+- [ ] Richer processing status UX
 
-### Phase 4 — AI Knowledge Base
-- [ ] Chunking pipeline
-- [ ] Embedding generation
-- [ ] Vector search
-- [ ] Retrieval-Augmented Generation (RAG)
-- [ ] Source/evidence references
+### Phase 4 — AI knowledge base
+- [x] Chunking pipeline
+- [x] Embedding generation
+- [x] Vector search (RAG)
+- [x] Source / evidence references
+- [ ] Tuning retrieval quality at scale
 
 ### Phase 5 — Construction AI Assistant
-- [ ] Project-aware chat
-- [ ] Conversation history
-- [ ] Document-grounded answers
-- [ ] Project-data queries
-- [ ] AI summaries
+- [x] Project-aware chat
+- [x] Document-grounded answers
+- [x] Backend conversation history
+- [ ] Conversation history UI
+- [ ] Direct project-data queries (beyond documents)
 
-### Phase 6 — Construction Intelligence
-- [ ] Cost intelligence
-- [ ] Schedule intelligence
-- [ ] Procurement intelligence
-- [ ] Equipment intelligence
-- [ ] Quality and safety intelligence
+### Phase 6 — Construction intelligence
+- [ ] Cost, schedule, procurement, equipment intelligence
+- [ ] Quality & safety intelligence
 - [ ] Predictive analytics
 
-## Relationship to Existing Construction Tools
+**Evolution path:**  
+Project Management → Construction Data Platform → AI Construction Intelligence → AI Construction Operating System
 
-The long-term platform can integrate capabilities developed in related construction software:
-
-- Tender intelligence
-- AI document processing
-- Construction cost estimation
-- Machinery maintenance
-- Road and infrastructure asset management
-
-The objective is not simply to combine separate applications. The objective is to create a shared construction data model with AI capable of reasoning across connected project information.
+---
 
 ## Security
 
-Security is a core requirement from the beginning.
+- Supabase Auth and Row Level Security
+- Organization / project membership checks on API routes
+- Publishable keys only in the frontend; privileged work stays server-side
+- Document access scoped to project members
+- AI usage and sources logged for auditability
 
-- Supabase Row Level Security
-- Organization/project-level authorization
-- Secure authentication
-- Server-side handling of privileged credentials
-- No service-role keys in frontend applications
-- Document access controls
-- Auditability of important AI actions
+---
 
-## Development Status
+## Development status
 
-**Stage:** Early MVP / foundation
+**Stage:** Early MVP — core loop is live
 
-The database foundation is established. The next major milestone is the FastAPI backend and authenticated project workspace, followed by document processing and the AI/RAG pipeline.
+Users can **sign in → create a project → upload documents → ask grounded AI questions**.  
+Next priorities: project dashboard, conversation history UI, stronger OCR, and domain intelligence modules.
 
-## Roadmap
-
-The platform is intended to evolve from:
-
-**Project Management → Construction Data Platform → AI Construction Intelligence → AI Construction Operating System**
+---
 
 ## Author
 
 **Chane Eshetu**  
-Civil & Software Engineer
+Civil & Software Engineer  
 
 GitHub: [@chandem](https://github.com/chandem)
 
