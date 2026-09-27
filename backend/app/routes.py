@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import hashlib
 from pathlib import Path
 from uuid import uuid4
 
@@ -62,6 +63,11 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
     if len(data) > 50 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File exceeds the 50 MB limit")
 
+    file_sha256 = hashlib.sha256(data).hexdigest()
+    duplicate = client.table("documents").select("id,name,status").eq("project_id", project_id).eq("file_sha256", file_sha256).limit(1).execute()
+    if duplicate.data:
+        raise HTTPException(status_code=409, detail="This document is already uploaded to this project")
+
     document_id = str(uuid4())
     safe_name = Path(file.filename or "document").name
     storage_path = f"{project_id}/{document_id}/{safe_name}"
@@ -69,7 +75,7 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
 
     try:
         client.storage.from_(BUCKET).upload(storage_path, data, {"content-type": file.content_type or "application/octet-stream", "upsert": "false"})
-        doc = client.table("documents").insert({"id": document_id, "project_id": project_id, "uploaded_by": user["id"], "name": safe_name, "storage_path": storage_path, "mime_type": file.content_type, "status": "processing"}).execute()
+        doc = client.table("documents").insert({"id": document_id, "project_id": project_id, "uploaded_by": user["id"], "name": safe_name, "storage_path": storage_path, "mime_type": file.content_type, "status": "processing", "file_size_bytes": len(data), "file_sha256": file_sha256}).execute()
         if not doc.data:
             raise RuntimeError("Document record was not created")
 
