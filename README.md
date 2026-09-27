@@ -35,6 +35,7 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
 - Email/password sign-up and login (Supabase Auth)
 - Automatic personal organization bootstrap on first project
 - Create and select projects (name + optional code)
+- Project dashboard with live counts and recent activity
 
 ### Document intelligence
 - Upload construction files (PDF, DOCX, Excel, CSV, TXT)
@@ -166,8 +167,9 @@ API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 1. Create an account and sign in  
 2. Create a project  
 3. Upload a contract, BOQ, specification, or report  
-4. Ask the Construction AI Assistant project-specific questions  
-5. Open documents for AI extraction and design assets for review findings  
+4. Review the project dashboard (documents, design assets, AI chats)  
+5. Ask the Construction AI Assistant project-specific questions  
+6. Open documents for AI extraction and design assets for review findings  
 
 ---
 
@@ -199,7 +201,7 @@ API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 ### Phase 2 — Project workspace
 - [x] Organization bootstrap
 - [x] Project creation & listing
-- [ ] Rich project dashboard
+- [x] Rich project dashboard
 - [ ] Project members and roles UI
 
 ### Phase 3 — Document intelligence
@@ -248,9 +250,9 @@ Project Management → Construction Data Platform → AI Construction Intelligen
 
 **Stage:** Early MVP — core loop is live
 
-Users can **sign in → create a project → upload documents → ask grounded AI questions**, with conversation history, design assets, and AI extraction/review panels.
+Users can **sign in → create a project → upload documents → ask grounded AI questions**, with a project dashboard, conversation history, design assets, and AI extraction/review panels.
 
-Next priorities: richer project dashboard, project members/roles UI, stronger OCR for scanned drawings, retrieval quality tuning, and domain intelligence modules (cost, schedule, quality).
+Next priorities: project members/roles UI, stronger OCR for scanned drawings, retrieval quality tuning, and domain intelligence modules (cost, schedule, quality).
 
 ---
 
