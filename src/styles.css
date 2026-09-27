@@ -602,6 +602,10 @@ button.document-row:hover {
   background: #f5f7f8;
 }
 
+button.document-row.active {
+  background: #eef2f5;
+}
+
 .doc-icon {
   width: 40px;
   height: 40px;
@@ -707,6 +711,65 @@ button.document-row:hover {
   line-height: 1.45;
   overflow: auto;
   max-height: 320px;
+}
+
+.review-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.review-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fafbfc;
+}
+
+.review-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.review-card-head b {
+  font-size: 13px;
+}
+
+.review-summary {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #3d4a55;
+}
+
+.review-meta {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.metadata-details {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.metadata-details summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  user-select: none;
+}
+
+.metadata-details[open] summary {
+  margin-bottom: 8px;
 }
 
 @media (max-width: 750px) {
