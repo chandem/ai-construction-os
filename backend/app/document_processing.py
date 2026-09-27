@@ -14,19 +14,16 @@ def extract_pages(filename: str, content_type: str, data: bytes) -> list[tuple[s
 
     if suffix == ".pdf" or content_type == "application/pdf":
         from pypdf import PdfReader
-
         reader = PdfReader(BytesIO(data))
         return [(page.extract_text() or "", index + 1) for index, page in enumerate(reader.pages)]
 
     if suffix == ".docx":
         from docx import Document
-
         doc = Document(BytesIO(data))
         return [("\n".join(p.text for p in doc.paragraphs), None)]
 
     if suffix in {".xlsx", ".xls"}:
         import openpyxl
-
         workbook = openpyxl.load_workbook(BytesIO(data), data_only=True, read_only=True)
         pages: list[tuple[str, int | None]] = []
         for sheet in workbook.worksheets:
