@@ -137,3 +137,16 @@ DOCUMENT TEXT:
     result["data"].setdefault("engineering", {})
     result.setdefault("warnings", [])
     return result
+
+VISION_ANALYSIS_MODEL = "gpt-5.6-luna"
+
+
+def build_visual_analysis_prompt(discipline: str = "general") -> str:
+    return f"""Analyze this construction drawing image as a visual engineering assistant.
+Discipline: {discipline}
+Return JSON only with: elements, dimensions, symbols, findings, confidence, warnings.
+Each element should include type, identifier if visible, location_description, and evidence.
+Each dimension should include value, unit if visible, and what it measures.
+Each symbol should include type, meaning only if clearly identifiable, and evidence.
+Findings must be evidence-based observations requiring professional review; never approve a design or declare a structure safe/unsafe.
+Do not invent values hidden or unreadable in the image."""
