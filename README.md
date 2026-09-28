@@ -56,6 +56,8 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
 - AI design review findings
 - Visual drawing analysis
 - **Engineering elements** normalized from extraction + vision into structured project rows
+- **Quantity takeoff** — deterministic area / volume / length / count from dimensions
+- **BOQ linkage** — proposed Bill of Quantities lines aggregated from takeoff (work section, item code, source element ids)
 
 ### API surface (selected)
 
@@ -71,6 +73,10 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
 | `GET` | `/api/v1/design/assets/{id}/reviews` | Design asset reviews |
 | `GET` | `/api/v1/projects/{id}/engineering/elements` | Project engineering elements |
 | `GET` | `/api/v1/design/assets/{id}/elements` | Elements for one design asset |
+| `GET` | `/api/v1/projects/{id}/engineering/quantities` | Takeoff summary by type/unit |
+| `GET` | `/api/v1/projects/{id}/engineering/boq` | Preview proposed BOQ from takeoff |
+| `POST` | `/api/v1/projects/{id}/engineering/boq/generate` | Build + persist proposed BOQ |
+| `GET` | `/api/v1/projects/{id}/boq/items` | List stored BOQ items |
 | `GET` | `/api/v1/documents/{id}/extraction` | Latest AI extraction |
 
 ---
@@ -99,7 +105,7 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
                                 |
                     Supabase (PostgreSQL + pgvector)
                                 |
-         Auth · Storage · Projects · Documents · Elements · AI
+         Auth · Storage · Projects · Documents · Elements · BOQ · AI
 ```
 
 ---
@@ -123,7 +129,7 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
 - Node.js 18+
 - Python 3.11+
 - A Supabase project with the app schema, storage bucket `construction-documents`, and vector match RPC
-- Apply `supabase/engineering_elements.sql` for Step 13
+- Apply `supabase/engineering_elements.sql` and `supabase/boq_items.sql` for Phase 3 data
 - OpenAI API key (for embeddings + chat + extraction)
 
 ### 1. Frontend
@@ -149,7 +155,7 @@ uvicorn app.main:app --reload --port 8000
 
 ## Roadmap status
 
-Follow [ROADMAP.md](ROADMAP.md). Current work is **Phase 3 / Step 13**.
+Follow [ROADMAP.md](ROADMAP.md). Current work is **Phase 3 / Step 14 — QTO + BOQ linkage** (next: estimate linkage).
 
 ### Phase 1 — Foundation
 - [x] GitHub repository
@@ -170,12 +176,13 @@ Follow [ROADMAP.md](ROADMAP.md). Current work is **Phase 3 / Step 13**.
 - [x] Design asset + review pipeline
 - [x] Visual drawing analysis (early)
 - [x] Engineering element model + APIs
-- [ ] Quantity extraction
-- [ ] BOQ linkage
+- [x] Quantity extraction (deterministic takeoff)
+- [x] BOQ linkage (proposed lines from takeoff)
+- [ ] Estimate linkage
 - [ ] Design Center UI
 
 ### Next (locked)
-Engineering elements → Quantity extraction → BOQ linkage → Estimate linkage → Design-to-cost → Background jobs → Design Center UI → Tender/Commercial
+BOQ linkage → Estimate linkage → Design-to-cost → Background jobs → Design Center UI → Tender/Commercial
 
 ---
 
@@ -184,7 +191,7 @@ Engineering elements → Quantity extraction → BOQ linkage → Estimate linkag
 - Supabase Auth and Row Level Security
 - Organization / project membership checks on API routes
 - Publishable keys only in the frontend; privileged work stays server-side
-- Engineering elements are proposed observations, not design approval
+- Engineering elements and BOQ lines are **proposed** observations, not design approval or certified tender quantities
 
 ---
 
