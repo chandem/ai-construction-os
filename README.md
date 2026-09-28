@@ -5,7 +5,8 @@
 AI Construction OS treats **project data and documents as the source of truth**. AI is not a generic chatbot: it extracts, retrieves, and answers from real construction records so teams can make faster, evidence-based decisions.
 
 **Live app:** [ai-costruction-os.vercel.app](https://ai-costruction-os.vercel.app)  
-**Repository:** [github.com/chandem/ai-construction-os](https://github.com/chandem/ai-construction-os)
+**Repository:** [github.com/chandem/ai-construction-os](https://github.com/chandem/ai-construction-os)  
+**Roadmap:** [ROADMAP.md](ROADMAP.md)
 
 ---
 
@@ -35,7 +36,6 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
 - Email/password sign-up and login (Supabase Auth)
 - Automatic personal organization bootstrap on first project
 - Create and select projects (name + optional code)
-- Project dashboard with live counts and recent activity
 
 ### Document intelligence
 - Upload construction files (PDF, DOCX, Excel, CSV, TXT)
@@ -44,20 +44,18 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
 - AI classification and structured extraction
 - Design-asset promotion for drawings/specifications
 - Optional visual analysis on PDF drawing pages
-- Document status and AI Document Center UI
-- Clickable documents open AI extraction viewer
 
 ### Construction AI Assistant
 - Project-scoped chat
 - Retrieval-Augmented Generation (RAG) over project knowledge
-- Source citations (document title, page, similarity)
+- Source citations
 - Conversation history UI with auto-titling
-- Conversation and usage logging on the backend
 
-### Design intelligence (early)
-- Design assets promoted from drawings/specifications
-- Clickable assets with AI review findings and metadata
-- Linked document extraction from design assets
+### Design & engineering (Phase 3)
+- Design assets from drawings/specifications
+- AI design review findings
+- Visual drawing analysis
+- **Engineering elements** normalized from extraction + vision into structured project rows
 
 ### API surface (selected)
 
@@ -69,11 +67,10 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
 | `GET` | `/api/v1/projects/{id}/documents` | List documents |
 | `POST` | `/api/v1/projects/{id}/documents` | Upload & process document |
 | `POST` | `/api/v1/projects/{id}/ai/chat` | RAG chat |
-| `GET` | `/api/v1/projects/{id}/ai/conversations` | Conversation list |
-| `GET` | `/api/v1/ai/conversations/{id}/messages` | Conversation messages |
 | `GET` | `/api/v1/projects/{id}/design/assets` | Design assets |
 | `GET` | `/api/v1/design/assets/{id}/reviews` | Design asset reviews |
-| `GET` | `/api/v1/documents/{id}/status` | Processing status |
+| `GET` | `/api/v1/projects/{id}/engineering/elements` | Project engineering elements |
+| `GET` | `/api/v1/design/assets/{id}/elements` | Elements for one design asset |
 | `GET` | `/api/v1/documents/{id}/extraction` | Latest AI extraction |
 
 ---
@@ -102,7 +99,7 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
                                 |
                     Supabase (PostgreSQL + pgvector)
                                 |
-              Auth · Storage · Projects · Documents · AI
+         Auth · Storage · Projects · Documents · Elements · AI
 ```
 
 ---
@@ -126,17 +123,13 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
 - Node.js 18+
 - Python 3.11+
 - A Supabase project with the app schema, storage bucket `construction-documents`, and vector match RPC
+- Apply `supabase/engineering_elements.sql` for Step 13
 - OpenAI API key (for embeddings + chat + extraction)
 
 ### 1. Frontend
 
 ```bash
 cp .env.example .env
-# Set:
-#   VITE_SUPABASE_URL=
-#   VITE_SUPABASE_PUBLISHABLE_KEY=
-#   VITE_API_BASE_URL=http://localhost:8000
-
 npm install
 npm run dev
 ```
@@ -146,49 +139,17 @@ npm run dev
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
-
 cp .env.example .env
-# Set:
-#   SUPABASE_URL=
-#   SUPABASE_PUBLISHABLE_KEY=
-#   OPENAI_API_KEY=
-#   EMBEDDING_MODEL=text-embedding-3-small
-#   CORS_ORIGINS=http://localhost:5173
-
 uvicorn app.main:app --reload --port 8000
 ```
-
-API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
-
-### Typical user flow
-
-1. Create an account and sign in  
-2. Create a project  
-3. Upload a contract, BOQ, specification, or report  
-4. Review the project dashboard (documents, design assets, AI chats)  
-5. Ask the Construction AI Assistant project-specific questions  
-6. Open documents for AI extraction and design assets for review findings  
-
----
-
-## Planned platform (beyond MVP)
-
-| Domain | Capabilities |
-|--------|----------------|
-| **Project management** | Contracts, WBS, milestones, dashboards, members/roles |
-| **Engineering** | Drawings, BOQ, RFIs, revisions |
-| **Cost & commercial** | Estimates, budgets, invoices, variations, cash flow |
-| **Procurement** | Suppliers, POs, deliveries, price intelligence |
-| **Equipment** | Utilization, fuel, maintenance, downtime |
-| **Field operations** | Daily reports, progress, photos, offline |
-| **Quality & safety** | Inspections, NCRs, incidents, compliance |
-| **Predictive AI** | Delay, cost, equipment, and quality risk signals |
 
 ---
 
 ## Roadmap status
+
+Follow [ROADMAP.md](ROADMAP.md). Current work is **Phase 3 / Step 13**.
 
 ### Phase 1 — Foundation
 - [x] GitHub repository
@@ -198,41 +159,23 @@ API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 - [x] FastAPI backend structure
 - [x] Authentication integration
 
-### Phase 2 — Project workspace
-- [x] Organization bootstrap
-- [x] Project creation & listing
-- [x] Rich project dashboard
-- [ ] Project members and roles UI
-
-### Phase 3 — Document intelligence
+### Phase 2 — Documents & AI
 - [x] Document upload & storage
-- [x] Text extraction & processing jobs
+- [x] Text extraction, chunking, embeddings
 - [x] AI classification / structured extraction
-- [x] Design asset + review pipeline (early)
-- [ ] Full OCR for scanned documents
-- [ ] Richer processing status UX
-
-### Phase 4 — AI knowledge base
-- [x] Chunking pipeline
-- [x] Embedding generation
-- [x] Vector search (RAG)
-- [x] Source / evidence references
-- [ ] Tuning retrieval quality at scale
-
-### Phase 5 — Construction AI Assistant
-- [x] Project-aware chat
-- [x] Document-grounded answers
-- [x] Backend conversation history
+- [x] RAG assistant with sources
 - [x] Conversation history UI
-- [ ] Direct project-data queries (beyond documents)
 
-### Phase 6 — Construction intelligence
-- [ ] Cost, schedule, procurement, equipment intelligence
-- [ ] Quality & safety intelligence
-- [ ] Predictive analytics
+### Phase 3 — Design & Engineering
+- [x] Design asset + review pipeline
+- [x] Visual drawing analysis (early)
+- [x] Engineering element model + APIs
+- [ ] Quantity extraction
+- [ ] BOQ linkage
+- [ ] Design Center UI
 
-**Evolution path:**  
-Project Management → Construction Data Platform → AI Construction Intelligence → AI Construction Operating System
+### Next (locked)
+Engineering elements → Quantity extraction → BOQ linkage → Estimate linkage → Design-to-cost → Background jobs → Design Center UI → Tender/Commercial
 
 ---
 
@@ -241,18 +184,7 @@ Project Management → Construction Data Platform → AI Construction Intelligen
 - Supabase Auth and Row Level Security
 - Organization / project membership checks on API routes
 - Publishable keys only in the frontend; privileged work stays server-side
-- Document access scoped to project members
-- AI usage and sources logged for auditability
-
----
-
-## Development status
-
-**Stage:** Early MVP — core loop is live
-
-Users can **sign in → create a project → upload documents → ask grounded AI questions**, with a project dashboard, conversation history, design assets, and AI extraction/review panels.
-
-Next priorities: project members/roles UI, stronger OCR for scanned drawings, retrieval quality tuning, and domain intelligence modules (cost, schedule, quality).
+- Engineering elements are proposed observations, not design approval
 
 ---
 
@@ -262,7 +194,3 @@ Next priorities: project members/roles UI, stronger OCR for scanned drawings, re
 Civil & Software Engineer  
 
 GitHub: [@chandem](https://github.com/chandem)
-
----
-
-Built with a construction-engineering perspective and an AI-first approach.
