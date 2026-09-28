@@ -57,8 +57,9 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
 - Visual drawing analysis
 - **Engineering elements** normalized from extraction + vision into structured project rows
 - **Quantity takeoff** — deterministic area / volume / length / count from dimensions
-- **BOQ linkage** — proposed Bill of Quantities lines aggregated from takeoff (work section, item code, source element ids)
-- **Estimate linkage** — provisional unit rates × BOQ quantities → line amounts and work-section totals (design-to-cost exploration only)
+- **BOQ linkage** — proposed Bill of Quantities lines aggregated from takeoff
+- **Estimate linkage** — provisional unit rates × BOQ quantities → line amounts and totals
+- **Design-to-cost** — cost drivers, section concentration, Pareto insight, design levers, quantity/rate what-if scenarios
 
 ### API surface (selected)
 
@@ -81,6 +82,7 @@ Reduce fragmented spreadsheets, disconnected tools, manual document review, and 
 | `GET` | `/api/v1/projects/{id}/engineering/estimate` | Preview estimate (BOQ × provisional rates) |
 | `POST` | `/api/v1/projects/{id}/engineering/estimate/generate` | Build + persist proposed estimate |
 | `GET` | `/api/v1/projects/{id}/estimate/items` | List stored estimate items |
+| `GET` | `/api/v1/projects/{id}/engineering/design-to-cost` | Cost drivers, levers, what-if scenarios |
 | `GET` | `/api/v1/documents/{id}/extraction` | Latest AI extraction |
 
 ---
@@ -159,7 +161,7 @@ uvicorn app.main:app --reload --port 8000
 
 ## Roadmap status
 
-Follow [ROADMAP.md](ROADMAP.md). Current work is **Phase 3 / Step 14 — QTO + BOQ + estimate linkage** (next: design-to-cost intelligence).
+Follow [ROADMAP.md](ROADMAP.md). Current work is **Phase 3 / Step 14 complete in code** (next: background AI processing, then Design Center UI).
 
 ### Phase 1 — Foundation
 - [x] GitHub repository
@@ -183,11 +185,11 @@ Follow [ROADMAP.md](ROADMAP.md). Current work is **Phase 3 / Step 14 — QTO + B
 - [x] Quantity extraction (deterministic takeoff)
 - [x] BOQ linkage (proposed lines from takeoff)
 - [x] Estimate linkage (provisional rates × BOQ)
-- [ ] Design-to-cost intelligence
+- [x] Design-to-cost intelligence
 - [ ] Design Center UI
 
 ### Next (locked)
-Estimate linkage → Design-to-cost → Background jobs → Design Center UI → Tender/Commercial
+Design-to-cost → Background AI processing → Design Center UI → Tender/Commercial
 
 ---
 
@@ -196,7 +198,7 @@ Estimate linkage → Design-to-cost → Background jobs → Design Center UI →
 - Supabase Auth and Row Level Security
 - Organization / project membership checks on API routes
 - Publishable keys only in the frontend; privileged work stays server-side
-- Engineering elements, BOQ lines, and estimate amounts are **proposed** values for review — not design approval, certified tender quantities, or market prices
+- Engineering elements, BOQ lines, estimate amounts, and design-to-cost figures are **proposed** values for review — not design approval, certified tender quantities, or market prices
 
 ---
 
