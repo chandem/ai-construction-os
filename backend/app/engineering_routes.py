@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from .auth import get_access_token, get_current_user
 from .db import supabase
+from .quantity_takeoff import enrich_elements, summarize_quantities
 from .routes import _project_for_member
 
 router = APIRouter(prefix="/api/v1")
@@ -52,3 +53,26 @@ def list_asset_engineering_elements(asset_id: str, token: str = Depends(get_acce
         return {"data": result.data or []}
     except Exception:
         return {"data": [], "warning": "engineering_elements table is not available yet"}
+
+
+@router.get("/projects/{project_id}/engineering/quantities")
+def list_project_quantities(project_id: str, token: str = Depends(get_access_token)):
+    """Aggregated takeoff summary by element type and unit."""
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+    try:
+        result = (
+            client.table("engineering_elements")
+            .select(ELEMENT_FIELDS)
+            .eq("project_id", project_id)
+            .execute()
+        )
+        rows = result.data or []
+    except Exception:
+        return {"data": [], "summary": [], "warning": "engineering_elements table is not available yet"}
+
+    enriched = enrich_elements(rows)
+    summary = summarize_quantities(enriched)
+    return {"data": enriched, "summary": summary}
