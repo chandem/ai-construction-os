@@ -3,10 +3,11 @@ import hashlib
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from .auth import get_access_token, get_current_user
+from .background_jobs import JOB_STATUS_FIELDS, normalize_job_row, schedule_document_job
 from .db import supabase
 from .document_processing import chunk_text_with_metadata, extract_pages
 from .embeddings import embed_texts
@@ -224,7 +225,6 @@ def create_project(payload: CreateProjectRequest, token: str = Depends(get_acces
     try:
         result = client.table("projects").insert(row).execute()
     except Exception as exc:
-        # Retry without optional columns that may not exist in older schemas.
         fallback = {"organization_id": org_id, "name": name}
         if code:
             fallback["code"] = code
@@ -256,7 +256,7 @@ def list_documents(project_id: str, token: str = Depends(get_access_token)):
 
 
 @router.post("/projects/{project_id}/documents")
-async def upload_document(project_id: str, file: UploadFile = File(...), token: str = Depends(get_access_token)):
+async def upload_document(project_id: str, background_tasks: BackgroundTasks, file: UploadFile = File(...), token: str = Depends(get_access_token)):
     user = get_current_user(token)
     client = supabase
     client.postgrest.auth(token)
@@ -311,9 +311,9 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
         job = client.table("document_processing_jobs").insert(
             {
                 "document_id": document_id,
-                "status": "processing",
+                "status": "queued",
                 "processor": "construction-text-embedding-v1",
-                "progress": 10,
+                "progress": 0,
             }
         ).execute()
         if not job.data:
@@ -332,162 +332,25 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
             raise RuntimeError("Knowledge document was not created")
         knowledge_id = knowledge.data[0]["id"]
 
-        pages = extract_pages(safe_name, file.content_type or "", data)
-        text_content = "\n\n".join(text for text, _ in pages)
-        page_count = len(pages) if any(page_number is not None for _, page_number in pages) else None
-        chunks = chunk_text_with_metadata(pages)
-
-        client.table("document_processing_jobs").update({"progress": 40}).eq("id", job_id).execute()
-        embeddings = embed_texts([chunk["content"] for chunk in chunks]) if chunks else []
-        client.table("document_processing_jobs").update({"progress": 75}).eq("id", job_id).execute()
-
-        client.table("ai_knowledge_documents").update(
-            {"extracted_text": text_content, "page_count": page_count, "status": "ready"}
-        ).eq("id", knowledge_id).execute()
-
-        extraction = extract_construction_data(safe_name, text_content)
-        client.table("ai_extractions").insert(
-            {
-                "document_id": document_id,
-                "extraction_type": extraction["document_type"],
-                "data": extraction,
-            }
-        ).execute()
-
-        if extraction["document_type"] == "drawing_specification":
-            engineering = extraction.get("data", {}).get("engineering", {})
-            design_asset_result = client.table("design_assets").insert(
-                {
-                    "project_id": project_id,
-                    "document_id": document_id,
-                    "name": engineering.get("drawing_title") or safe_name,
-                    "discipline": engineering.get("discipline") or "general",
-                    "asset_type": "drawing_specification",
-                    "revision": engineering.get("revision"),
-                    "sheet_number": engineering.get("drawing_number"),
-                    "status": "ai_analyzed",
-                    "metadata": {
-                        "scale": engineering.get("scale"),
-                        "sheet_size": engineering.get("sheet_size"),
-                        "levels": engineering.get("levels", []),
-                        "dimensions": engineering.get("dimensions", []),
-                        "materials": engineering.get("materials", []),
-                        "standards": engineering.get("standards", []),
-                        "elements": engineering.get("elements", []),
-                        "technical_notes": engineering.get("technical_notes", []),
-                        "design_parameters": engineering.get("design_parameters", {}),
-                        "coordination_items": engineering.get("coordination_items", []),
-                        "review_findings": engineering.get("review_findings", []),
-                        "ai_confidence": extraction.get("confidence", 0),
-                        "ai_warnings": extraction.get("warnings", []),
-                    },
-                }
-            ).execute()
-            if design_asset_result.data:
-                asset_id = design_asset_result.data[0]["id"]
-                extraction_elements = normalize_engineering_elements(
-                    engineering.get("elements", []),
-                    project_id=project_id,
-                    design_asset_id=asset_id,
-                    document_id=document_id,
-                    discipline=engineering.get("discipline") or "general",
-                    source="ai_document_extraction",
-                )
-                persist_engineering_elements(client, extraction_elements)
-                client.table("design_reviews").insert(
-                    {
-                        "project_id": project_id,
-                        "design_asset_id": asset_id,
-                        "review_type": "ai_document_review",
-                        "status": "completed",
-                        "summary": extraction.get("summary", ""),
-                        "findings": engineering.get("review_findings", []),
-                        "source_pages": [],
-                        "model": "gpt-4.1-mini",
-                        "confidence": extraction.get("confidence", 0),
-                        "reviewed_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                ).execute()
-
-                if safe_name.lower().endswith(".pdf") and extraction["document_type"] == "drawing_specification":
-                    try:
-                        import fitz
-
-                        pdf = fitz.open(stream=data, filetype="pdf")
-                        for page_index in range(min(3, pdf.page_count)):
-                            page = pdf.load_page(page_index)
-                            pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
-                            visual = analyze_drawing_page(
-                                pix.tobytes("png"), engineering.get("discipline") or "general"
-                            )
-                            visual_result = client.table("design_visual_analyses").insert(
-                                {
-                                    "project_id": project_id,
-                                    "design_asset_id": asset_id,
-                                    "document_id": document_id,
-                                    "page_number": page_index + 1,
-                                    "analysis_status": "completed",
-                                    "elements": visual.get("elements", []),
-                                    "dimensions": visual.get("dimensions", []),
-                                    "symbols": visual.get("symbols", []),
-                                    "findings": visual.get("findings", []),
-                                    "model": "gpt-5.6-luna",
-                                    "confidence": visual.get("confidence", 0),
-                                    "error_message": None,
-                                }
-                            ).execute()
-                            visual_analysis_id = visual_result.data[0]["id"] if visual_result.data else None
-                            visual_elements = normalize_engineering_elements(
-                                visual.get("elements", []),
-                                project_id=project_id,
-                                design_asset_id=asset_id,
-                                document_id=document_id,
-                                discipline=engineering.get("discipline") or "general",
-                                source="ai_visual_analysis",
-                                visual_analysis_id=visual_analysis_id,
-                                source_page=page_index + 1,
-                            )
-                            persist_engineering_elements(client, visual_elements)
-                    except Exception as visual_exc:
-                        client.table("design_visual_analyses").insert(
-                            {
-                                "project_id": project_id,
-                                "design_asset_id": asset_id,
-                                "document_id": document_id,
-                                "analysis_status": "failed",
-                                "error_message": str(visual_exc),
-                                "model": "gpt-5.6-luna",
-                            }
-                        ).execute()
-
-        if chunks:
-            rows = [
-                {
-                    "knowledge_document_id": knowledge_id,
-                    "document_id": document_id,
-                    "chunk_index": i,
-                    "content": chunk["content"],
-                    "page_number": chunk["page_number"],
-                    "metadata": {"source": safe_name, "processor": "construction-text-embedding-v1"},
-                    "embedding": embeddings[i],
-                }
-                for i, chunk in enumerate(chunks)
-            ]
-            client.table("ai_knowledge_chunks").insert(rows).execute()
-
-        now = datetime.now(timezone.utc).isoformat()
-        client.table("document_processing_jobs").update(
-            {"status": "completed", "progress": 100, "completed_at": now}
-        ).eq("id", job_id).execute()
-        client.table("documents").update({"status": "processed"}).eq("id", document_id).execute()
+        # Heavy AI work runs after the response is sent (BackgroundTasks).
+        schedule_document_job(
+            background_tasks,
+            project_id=project_id,
+            document_id=document_id,
+            job_id=job_id,
+            knowledge_id=knowledge_id,
+            safe_name=safe_name,
+            content_type=file.content_type or "",
+            data=data,
+            access_token=token,
+        )
 
         return {
             "document_id": document_id,
             "job_id": job_id,
             "knowledge_document_id": knowledge_id,
-            "status": "completed",
-            "chunks": len(chunks),
-            "embeddings": len(embeddings),
+            "status": "queued",
+            "message": "Document accepted; AI processing started in the background. Poll /documents/{id}/status.",
         }
     except Exception as exc:
         if job_id:
@@ -499,7 +362,11 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
                     "completed_at": datetime.now(timezone.utc).isoformat(),
                 }
             ).eq("id", job_id).execute()
-        raise HTTPException(status_code=500, detail=f"Document processing failed: {exc}") from exc
+        try:
+            client.table("documents").update({"status": "failed"}).eq("id", document_id).execute()
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Document upload failed: {exc}") from exc
 
 
 @router.get("/documents/{document_id}/extraction")
@@ -523,13 +390,14 @@ def document_extraction(document_id: str, token: str = Depends(get_access_token)
 
 @router.get("/documents/{document_id}/status")
 def document_status(document_id: str, token: str = Depends(get_access_token)):
+    """Latest processing job for a document (queued | processing | completed | failed)."""
     user = get_current_user(token)
     client = supabase
     client.postgrest.auth(token)
     _document_for_member(document_id, user["id"], client)
     result = (
         client.table("document_processing_jobs")
-        .select("id,document_id,status,processor,progress,error_message,started_at,completed_at,created_at")
+        .select(JOB_STATUS_FIELDS)
         .eq("document_id", document_id)
         .order("created_at", desc=True)
         .limit(1)
@@ -537,4 +405,125 @@ def document_status(document_id: str, token: str = Depends(get_access_token)):
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Processing job not found")
-    return result.data[0]
+    return normalize_job_row(result.data[0])
+
+
+@router.get("/projects/{project_id}/jobs")
+def list_project_jobs(project_id: str, token: str = Depends(get_access_token)):
+    """List recent document processing jobs for a project."""
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+    docs = (
+        client.table("documents")
+        .select("id")
+        .eq("project_id", project_id)
+        .execute()
+    )
+    doc_ids = [d["id"] for d in (docs.data or [])]
+    if not doc_ids:
+        return {"data": []}
+    result = (
+        client.table("document_processing_jobs")
+        .select(JOB_STATUS_FIELDS)
+        .in_("document_id", doc_ids)
+        .order("created_at", desc=True)
+        .limit(100)
+        .execute()
+    )
+    return {"data": [normalize_job_row(r) for r in (result.data or [])]}
+
+
+@router.post("/documents/{document_id}/reprocess")
+async def reprocess_document(
+    document_id: str,
+    background_tasks: BackgroundTasks,
+    token: str = Depends(get_access_token),
+):
+    """Re-queue AI processing for an existing document (downloads bytes from storage)."""
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
+    doc_row = (
+        client.table("documents")
+        .select("id,project_id,name,mime_type,storage_path,status")
+        .eq("id", document_id)
+        .single()
+        .execute()
+    )
+    if not doc_row.data:
+        raise HTTPException(status_code=404, detail="Document not found")
+    document = doc_row.data
+    _project_for_member(document["project_id"], user["id"], client)
+
+    storage_path = document.get("storage_path")
+    if not storage_path:
+        raise HTTPException(status_code=400, detail="Document has no storage path")
+
+    try:
+        file_bytes = client.storage.from_(BUCKET).download(storage_path)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not download document: {exc}") from exc
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Empty storage object")
+
+    job = client.table("document_processing_jobs").insert(
+        {
+            "document_id": document_id,
+            "status": "queued",
+            "processor": "construction-text-embedding-v1",
+            "progress": 0,
+        }
+    ).execute()
+    if not job.data:
+        raise HTTPException(status_code=500, detail="Could not create processing job")
+    job_id = job.data[0]["id"]
+
+    knowledge = (
+        client.table("ai_knowledge_documents")
+        .select("id")
+        .eq("document_id", document_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if knowledge.data:
+        knowledge_id = knowledge.data[0]["id"]
+        client.table("ai_knowledge_documents").update(
+            {"status": "pending", "processing_job_id": job_id}
+        ).eq("id", knowledge_id).execute()
+    else:
+        knowledge = client.table("ai_knowledge_documents").insert(
+            {
+                "document_id": document_id,
+                "project_id": document["project_id"],
+                "processing_job_id": job_id,
+                "status": "pending",
+            }
+        ).execute()
+        if not knowledge.data:
+            raise HTTPException(status_code=500, detail="Could not create knowledge document")
+        knowledge_id = knowledge.data[0]["id"]
+
+    client.table("documents").update({"status": "processing"}).eq("id", document_id).execute()
+
+    schedule_document_job(
+        background_tasks,
+        project_id=document["project_id"],
+        document_id=document_id,
+        job_id=job_id,
+        knowledge_id=knowledge_id,
+        safe_name=document.get("name") or "document",
+        content_type=document.get("mime_type") or "",
+        data=file_bytes if isinstance(file_bytes, (bytes, bytearray)) else bytes(file_bytes),
+        access_token=token,
+    )
+
+    return {
+        "document_id": document_id,
+        "job_id": job_id,
+        "knowledge_document_id": knowledge_id,
+        "status": "queued",
+        "message": "Reprocessing queued. Poll /documents/{id}/status.",
+    }
