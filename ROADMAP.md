@@ -4,14 +4,14 @@ This is the locked development sequence. Do not jump to unrelated modules.
 
 ## Current position
 
-**Phase 3 — Design & Engineering, Step 13: Engineering elements**
+**Phase 3 — Design & Engineering, Step 14: Quantity extraction**
 
-Already in place: foundation, documents, RAG, AI extraction, design assets, AI design review, visual drawing analysis.
+Already in place: foundation, documents, RAG, AI extraction, design assets, AI design review, visual drawing analysis, engineering elements.
 
 ## Immediate sequence
 
-1. Engineering elements *(in progress)*
-2. Quantity extraction
+1. Engineering elements *(done in code)*
+2. Quantity extraction *(in progress)*
 3. BOQ linkage
 4. Estimate linkage
 5. Design-to-cost intelligence
@@ -29,7 +29,7 @@ Drawing → element → quantity → BOQ → estimate creates an engineering-to-
 |------|--------|--------|
 | 1 Foundation | Architecture, orgs, users, security | Core done |
 | 2 Documents & AI | Upload, extract, embed, RAG | Core done |
-| 3 Design & Engineering | Assets, review, vision, **elements**, QTO | In progress |
+| 3 Design & Engineering | Assets, review, vision, elements, **QTO** | In progress |
 | 4 Tender & Commercial | Tender, estimate, contract, cost | Not started |
 | 5 Planning | WBS, schedule, delay intelligence | Not started |
 | 6 Procurement & resources | Materials, equipment, workforce | Not started |
@@ -43,14 +43,22 @@ Drawing → element → quantity → BOQ → estimate creates an engineering-to-
 | 14 Product UI | Connected module interfaces | Early workspace |
 | 15 Construction OS | Unified product | Vision |
 
-## Step 13 definition of done
+## Step 13 — Engineering elements
 
-- [x] Canonical element types (column, beam, slab, wall, foundation, road, culvert, pipe, room, equipment, …)
+- [x] Canonical element types
 - [x] Normalize AI / vision output into structured rows
 - [x] Persist `engineering_elements` linked to project + design asset + document
 - [x] List APIs by project and by design asset
 - [x] Unit tests for classification and de-duplication
 - [ ] Apply `supabase/engineering_elements.sql` in the live Supabase project
-- [ ] Design Center UI listing elements (Step 7 of the immediate sequence)
+- [ ] Design Center UI listing elements
 
-Elements are **proposed project data** for professional review. They are not design approval.
+## Step 14 — Quantity extraction
+
+- [x] Deterministic quantity rules by element type (area, volume, length, count)
+- [x] Enrich elements at normalize time (`quantity_method`, confidence, notes)
+- [x] Aggregate takeoff summary API
+- [x] Unit tests for QTO rules
+- [ ] BOQ linkage (next)
+
+Quantities are **proposed takeoff values** for professional review. They are not certified BOQ items.
