@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .quantity_takeoff import enrich_element_with_quantity
+
 ELEMENT_TYPES = {
     "column",
     "beam",
@@ -171,30 +173,29 @@ def normalize_engineering_elements(
         if key in seen:
             continue
         seen.add(key)
-        rows.append(
-            {
-                "project_id": project_id,
-                "design_asset_id": design_asset_id,
-                "document_id": document_id,
-                "visual_analysis_id": visual_analysis_id,
-                "element_type": parsed["element_type"],
-                "name": name,
-                "identifier": identifier,
-                "discipline": _clean_text(discipline),
-                "level": parsed.get("level"),
-                "location_description": parsed.get("location_description"),
-                "quantity": parsed.get("quantity"),
-                "unit": parsed.get("unit"),
-                "dimensions": parsed.get("dimensions") or {},
-                "materials": parsed.get("materials") or [],
-                "properties": parsed.get("properties") or {},
-                "source": source,
-                "evidence": parsed.get("evidence"),
-                "source_page": source_page,
-                "confidence": parsed.get("confidence"),
-                "status": "proposed",
-            }
-        )
+        row = {
+            "project_id": project_id,
+            "design_asset_id": design_asset_id,
+            "document_id": document_id,
+            "visual_analysis_id": visual_analysis_id,
+            "element_type": parsed["element_type"],
+            "name": name,
+            "identifier": identifier,
+            "discipline": _clean_text(discipline),
+            "level": parsed.get("level"),
+            "location_description": parsed.get("location_description"),
+            "quantity": parsed.get("quantity"),
+            "unit": parsed.get("unit"),
+            "dimensions": parsed.get("dimensions") or {},
+            "materials": parsed.get("materials") or [],
+            "properties": parsed.get("properties") or {},
+            "source": source,
+            "evidence": parsed.get("evidence"),
+            "source_page": source_page,
+            "confidence": parsed.get("confidence"),
+            "status": "proposed",
+        }
+        rows.append(enrich_element_with_quantity(row))
     return rows
 
 
