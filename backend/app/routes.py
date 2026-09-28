@@ -11,6 +11,7 @@ from .db import supabase
 from .document_processing import chunk_text_with_metadata, extract_pages
 from .embeddings import embed_texts
 from .document_intelligence import extract_construction_data, analyze_drawing_page
+from .engineering_elements import normalize_engineering_elements, persist_engineering_elements
 
 router = APIRouter(prefix="/api/v1")
 BUCKET = "construction-documents"
@@ -384,6 +385,15 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
             ).execute()
             if design_asset_result.data:
                 asset_id = design_asset_result.data[0]["id"]
+                extraction_elements = normalize_engineering_elements(
+                    engineering.get("elements", []),
+                    project_id=project_id,
+                    design_asset_id=asset_id,
+                    document_id=document_id,
+                    discipline=engineering.get("discipline") or "general",
+                    source="ai_document_extraction",
+                )
+                persist_engineering_elements(client, extraction_elements)
                 client.table("design_reviews").insert(
                     {
                         "project_id": project_id,
@@ -410,7 +420,7 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
                             visual = analyze_drawing_page(
                                 pix.tobytes("png"), engineering.get("discipline") or "general"
                             )
-                            client.table("design_visual_analyses").insert(
+                            visual_result = client.table("design_visual_analyses").insert(
                                 {
                                     "project_id": project_id,
                                     "design_asset_id": asset_id,
@@ -426,6 +436,18 @@ async def upload_document(project_id: str, file: UploadFile = File(...), token: 
                                     "error_message": None,
                                 }
                             ).execute()
+                            visual_analysis_id = visual_result.data[0]["id"] if visual_result.data else None
+                            visual_elements = normalize_engineering_elements(
+                                visual.get("elements", []),
+                                project_id=project_id,
+                                design_asset_id=asset_id,
+                                document_id=document_id,
+                                discipline=engineering.get("discipline") or "general",
+                                source="ai_visual_analysis",
+                                visual_analysis_id=visual_analysis_id,
+                                source_page=page_index + 1,
+                            )
+                            persist_engineering_elements(client, visual_elements)
                     except Exception as visual_exc:
                         client.table("design_visual_analyses").insert(
                             {
