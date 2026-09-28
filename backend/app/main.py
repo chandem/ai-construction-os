@@ -4,11 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from .ai_assistant import router as ai_router
 from .config import settings
 from .db import supabase
+from .engineering_routes import router as engineering_router
 from .routes import router
 
 app = FastAPI(
     title="AI Construction OS API",
-    version="0.2.0",
+    version="0.3.0",
     description="AI-first construction management platform API.",
 )
 
@@ -22,6 +23,7 @@ app.add_middleware(
 
 app.include_router(router)
 app.include_router(ai_router)
+app.include_router(engineering_router)
 
 
 @app.get("/health")
