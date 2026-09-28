@@ -142,6 +142,8 @@ def normalize_engineering_elements(
     document_id: str | None = None,
     discipline: str | None = None,
     source: str = "ai_extraction",
+    visual_analysis_id: str | None = None,
+    source_page: int | None = None,
 ) -> list[dict[str, Any]]:
     if not raw_elements:
         return []
@@ -174,6 +176,7 @@ def normalize_engineering_elements(
                 "project_id": project_id,
                 "design_asset_id": design_asset_id,
                 "document_id": document_id,
+                "visual_analysis_id": visual_analysis_id,
                 "element_type": parsed["element_type"],
                 "name": name,
                 "identifier": identifier,
@@ -187,6 +190,7 @@ def normalize_engineering_elements(
                 "properties": parsed.get("properties") or {},
                 "source": source,
                 "evidence": parsed.get("evidence"),
+                "source_page": source_page,
                 "confidence": parsed.get("confidence"),
                 "status": "proposed",
             }
