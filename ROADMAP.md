@@ -4,58 +4,43 @@ This is the locked development sequence. Do not jump to unrelated modules.
 
 ## Current position
 
-**Phase 3 — Design & Engineering: Step 14 chain + background AI processing (in code)**
-
-Already in place: foundation, documents, RAG, AI extraction, design assets, AI design review, visual drawing analysis, engineering elements, QTO, BOQ, estimate, design-to-cost, **background document AI pipeline**.
+**Phase 13 — Hardening (queue, retries, cost control, health foundation in code)**
 
 ## Immediate sequence
 
-1. Engineering elements *(done in code)*
-2. Quantity extraction *(done in code)*
-3. BOQ linkage *(done in code — apply SQL next)*
-4. Estimate linkage *(done in code — apply SQL next)*
-5. Design-to-cost intelligence *(done in code)*
-6. Background AI processing *(done in code)*
-7. Design Center UI
-8. Then Tender / Commercial (Phase 4)
-
-## Why this order
-
-Drawing → element → quantity → BOQ → estimate → design-to-cost creates an engineering-to-commercial chain. Background jobs keep upload responsive while that chain runs.
+1. Generic ops queue + retry policy *(done in code)*
+2. Cost events + budget rollup *(done in code)*
+3. System health + Ops Center UI *(done in code)*
+4. Then Phase 14 Product UI polish / Phase 15 Construction OS vision — or push remaining module files to GitHub
 
 ## Phase map
 
 | Phase | Focus | Status |
 |------|--------|--------|
-| 1 Foundation | Architecture, orgs, users, security | Core done |
-| 2 Documents & AI | Upload, extract, embed, RAG | Core done |
-| 3 Design & Engineering | Assets, review, vision, elements, QTO, BOQ, estimate, D2C, **jobs** | In progress |
-| 4 Tender & Commercial | Tender, estimate, contract, cost | Not started |
-| 5 Planning | WBS, schedule, delay intelligence | Not started |
-| 6 Procurement & resources | Materials, equipment, workforce | Not started |
-| 7 Field | Site diary, progress, field AI | Not started |
-| 8 Quality & safety | Inspections, NCRs, incidents | Not started |
-| 9 GIS | Locations, infrastructure assets | Not started |
-| 10 Prediction | Risk and forecasts | Not started |
-| 11 Central AI brain | Cross-domain reasoning | Partial (RAG only) |
-| 12 Integrations | P6, BIM, Drive, ERP | Not started |
-| 13 Hardening | Queues, retries, tests, cost control | Partial (bg jobs + tests) |
-| 14 Product UI | Connected module interfaces | Early workspace |
+| 1–12 | Foundation through Integrations | **Done in code** |
+| 13 Hardening | Queues, retries, cost control, health | **Foundation done in code** |
+| 14 Product UI | Connected module interfaces | Design → Ops |
 | 15 Construction OS | Unified product | Vision |
 
-## Step 14d — Design-to-cost intelligence
+## Phase 13 — Hardening
 
-- [x] Cost drivers, concentration, Pareto, levers, scenarios
-- [x] API: `GET /projects/{id}/engineering/design-to-cost`
+### Step 33 — Job queue & retries
 
-## Step 14e — Background AI processing
+- [x] `ops_queue_jobs` with attempt / max_attempts / backoff
+- [x] mark_running / mark_failed (retry) / mark_succeeded / dead letter
+- [x] APIs: enqueue, run (simulated), list
 
-- [x] Extract document AI pipeline into `document_pipeline.py`
-- [x] Schedule via FastAPI BackgroundTasks (`background_jobs.py`)
-- [x] Upload returns `queued` immediately; job progresses to processing/completed/failed
-- [x] Status API enriched (`is_terminal`); list project jobs
-- [x] Reprocess endpoint (re-download from storage + re-queue)
-- [x] Unit tests for job helpers and safe failure path
-- [ ] Design Center UI (next)
+### Step 34 — Cost control & health
 
-Quantities, BOQ lines, estimate amounts, and design-to-cost figures remain **proposed** for professional review.
+- [x] `ops_cost_events` + budget summary
+- [x] `system_health` rollup
+- [x] Ops Center UI
+- [x] Unit tests
+- [ ] Apply `supabase/hardening.sql` in live Supabase
+- [ ] Real worker drain (Redis/Celery or durable queue) — later
+
+**Disclaimer:** Queue runs are simulated in-process. Cost figures use illustrative unit rates, not provider invoices.
+
+## Modules pending push to main (artifacts → repo)
+
+Backend app modules, SQL, tests, engineering_routes.py, and src/main.tsx for Phases 4–13 are in the workspace artifacts and should be committed next if not already on main.
