@@ -4,16 +4,16 @@ This is the locked development sequence. Do not jump to unrelated modules.
 
 ## Current position
 
-**Phase 3 — Design & Engineering, Step 14: Quantity extraction + BOQ linkage**
+**Phase 3 — Design & Engineering, Step 14: QTO + BOQ + Estimate linkage**
 
-Already in place: foundation, documents, RAG, AI extraction, design assets, AI design review, visual drawing analysis, engineering elements, deterministic quantity takeoff, proposed BOQ from takeoff.
+Already in place: foundation, documents, RAG, AI extraction, design assets, AI design review, visual drawing analysis, engineering elements, deterministic quantity takeoff, proposed BOQ from takeoff, provisional estimate rates on BOQ lines.
 
 ## Immediate sequence
 
 1. Engineering elements *(done in code)*
 2. Quantity extraction *(done in code)*
 3. BOQ linkage *(done in code — apply SQL next)*
-4. Estimate linkage
+4. Estimate linkage *(done in code — apply SQL next)*
 5. Design-to-cost intelligence
 6. Background AI processing
 7. Design Center UI
@@ -29,7 +29,7 @@ Drawing → element → quantity → BOQ → estimate creates an engineering-to-
 |------|--------|--------|
 | 1 Foundation | Architecture, orgs, users, security | Core done |
 | 2 Documents & AI | Upload, extract, embed, RAG | Core done |
-| 3 Design & Engineering | Assets, review, vision, elements, QTO, **BOQ** | In progress |
+| 3 Design & Engineering | Assets, review, vision, elements, QTO, BOQ, **estimate** | In progress |
 | 4 Tender & Commercial | Tender, estimate, contract, cost | Not started |
 | 5 Planning | WBS, schedule, delay intelligence | Not started |
 | 6 Procurement & resources | Materials, equipment, workforce | Not started |
@@ -67,6 +67,15 @@ Drawing → element → quantity → BOQ → estimate creates an engineering-to-
 - [x] APIs: preview BOQ, generate+persist, list stored items
 - [x] Unit tests for BOQ build
 - [ ] Apply `supabase/boq_items.sql` in the live Supabase project
-- [ ] Estimate linkage (next)
 
-Quantities and BOQ lines are **proposed values** for professional review. They are not certified tender items.
+## Step 14c — Estimate linkage
+
+- [x] Provisional unit rates by element type (design-to-cost exploration only)
+- [x] Apply rates to BOQ lines → amount, currency, rate_source
+- [x] Estimate summary totals by work section
+- [x] APIs: preview estimate, generate+persist, list stored items
+- [x] Unit tests for rate application and totals
+- [ ] Apply `supabase/estimate_items.sql` in the live Supabase project
+- [ ] Design-to-cost intelligence (next)
+
+Quantities, BOQ lines, and estimate amounts are **proposed values** for professional review. They are not certified tender items or market prices.
