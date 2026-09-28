@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from .auth import get_access_token, get_current_user
 from .boq import build_boq_lines, persist_boq_items
 from .db import supabase
+from .design_to_cost import build_design_to_cost
 from .estimate import build_estimate_from_boq, persist_estimate_items
 from .quantity_takeoff import enrich_elements, summarize_quantities
 from .routes import _project_for_member
@@ -277,3 +278,34 @@ def list_stored_estimate_items(project_id: str, token: str = Depends(get_access_
             "data": [],
             "warning": "estimate_items table is not available yet — apply supabase/estimate_items.sql",
         }
+
+
+@router.get("/projects/{project_id}/engineering/design-to-cost")
+def project_design_to_cost(project_id: str, token: str = Depends(get_access_token)):
+    """Design-to-cost intelligence from the engineering → BOQ → estimate chain.
+
+    Returns cost drivers, section concentration, Pareto insight, design levers,
+    and provisional quantity/rate what-if scenarios. Does not persist.
+    """
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+    boq_lines, warning = _boq_lines_for_project(client, project_id)
+    if warning and not boq_lines:
+        return {"data": {}, "warning": warning}
+    estimate = build_estimate_from_boq(boq_lines, project_id=project_id)
+    intelligence = build_design_to_cost(
+        estimate["lines"],
+        boq_lines=boq_lines,
+        project_id=project_id,
+        top_n=5,
+    )
+    out = {
+        "data": intelligence,
+        "boq_line_count": len(boq_lines),
+        "estimate_line_count": len(estimate["lines"]),
+    }
+    if warning:
+        out["warning"] = warning
+    return out
