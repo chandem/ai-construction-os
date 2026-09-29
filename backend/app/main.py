@@ -9,13 +9,13 @@ from .routes import router
 
 app = FastAPI(
     title="AI Construction OS API",
-    version="0.3.0",
+    version="0.3.1",
     description="AI-first construction management platform API.",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[x.strip() for x in settings.cors_origins.split(",") if x.strip()],
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -32,6 +32,16 @@ def health():
         "status": "ok",
         "service": "ai-construction-os-api",
         "version": app.version,
+    }
+
+
+@app.get("/health/cors")
+def cors_health():
+    """Public list of configured CORS origins (no secrets) for deploy debugging."""
+    return {
+        "status": "ok",
+        "allow_origins": settings.cors_origin_list,
+        "hint": "Browser Origin must match one entry exactly (scheme + host, no path).",
     }
 
 
