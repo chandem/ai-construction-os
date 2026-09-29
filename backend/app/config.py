@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     supabase_anon_key: str = ""
     supabase_publishable_key: str = ""
     openai_api_key: str = ""
+    # Server-only Supabase secret key. Never expose this to the frontend.
+    supabase_secret_key: str = ""
     embedding_model: str = "text-embedding-3-small"
     # Comma-separated. Override on Render with CORS_ORIGINS if needed.
     cors_origins: str = ",".join(_DEFAULT_CORS)
