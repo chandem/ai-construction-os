@@ -64,7 +64,6 @@ def list_asset_engineering_elements(asset_id: str, token: str = Depends(get_acce
 
 @router.get("/projects/{project_id}/engineering/quantities")
 def list_project_quantities(project_id: str, token: str = Depends(get_access_token)):
-    """Aggregated takeoff summary by element type and unit."""
     user = get_current_user(token)
     client = supabase
     client.postgrest.auth(token)
@@ -79,15 +78,12 @@ def list_project_quantities(project_id: str, token: str = Depends(get_access_tok
         rows = result.data or []
     except Exception:
         return {"data": [], "summary": [], "warning": "engineering_elements table is not available yet"}
-
     enriched = enrich_elements(rows)
-    summary = summarize_quantities(enriched)
-    return {"data": enriched, "summary": summary}
+    return {"data": enriched, "summary": summarize_quantities(enriched)}
 
 
 @router.get("/projects/{project_id}/engineering/boq")
 def list_project_boq(project_id: str, token: str = Depends(get_access_token)):
-    """Proposed BOQ lines built from current engineering quantity takeoff."""
     user = get_current_user(token)
     client = supabase
     client.postgrest.auth(token)
@@ -102,7 +98,6 @@ def list_project_boq(project_id: str, token: str = Depends(get_access_token)):
         rows = result.data or []
     except Exception:
         return {"data": [], "warning": "engineering_elements table is not available yet"}
-
     enriched = enrich_elements(rows)
     lines = build_boq_lines(enriched, project_id=project_id)
     return {"data": lines, "source_element_count": len(enriched)}
@@ -110,7 +105,6 @@ def list_project_boq(project_id: str, token: str = Depends(get_access_token)):
 
 @router.post("/projects/{project_id}/engineering/boq/generate")
 def generate_and_persist_boq(project_id: str, token: str = Depends(get_access_token)):
-    """Build proposed BOQ from takeoff and insert into boq_items."""
     user = get_current_user(token)
     client = supabase
     client.postgrest.auth(token)
@@ -125,19 +119,13 @@ def generate_and_persist_boq(project_id: str, token: str = Depends(get_access_to
         rows = result.data or []
     except Exception:
         return {"data": [], "persisted": 0, "warning": "engineering_elements table is not available yet"}
-
     enriched = enrich_elements(rows)
     lines = build_boq_lines(enriched, project_id=project_id)
     persisted = persist_boq_items(client, lines)
     warning = None
     if lines and persisted == 0:
         warning = "boq_items table is not available yet — apply supabase/boq_items.sql"
-    return {
-        "data": lines,
-        "persisted": persisted,
-        "source_element_count": len(enriched),
-        **({"warning": warning} if warning else {}),
-    }
+    return {"data": lines, "persisted": persisted, "source_element_count": len(enriched), **({"warning": warning} if warning else {})}
 
 
 @router.get("/projects/{project_id}/boq/items")
@@ -147,13 +135,7 @@ def list_stored_boq_items(project_id: str, token: str = Depends(get_access_token
     client.postgrest.auth(token)
     _project_for_member(project_id, user["id"], client)
     try:
-        result = (
-            client.table("boq_items")
-            .select(BOQ_FIELDS)
-            .eq("project_id", project_id)
-            .order("work_section")
-            .execute()
-        )
+        result = client.table("boq_items").select(BOQ_FIELDS).eq("project_id", project_id).order("work_section").execute()
         return {"data": result.data or []}
     except Exception:
         return {"data": [], "warning": "boq_items table is not available yet — apply supabase/boq_items.sql"}
@@ -204,13 +186,7 @@ def list_stored_estimate_items(project_id: str, token: str = Depends(get_access_
     client.postgrest.auth(token)
     _project_for_member(project_id, user["id"], client)
     try:
-        result = (
-            client.table("estimate_items")
-            .select(ESTIMATE_FIELDS)
-            .eq("project_id", project_id)
-            .order("work_section")
-            .execute()
-        )
+        result = client.table("estimate_items").select(ESTIMATE_FIELDS).eq("project_id", project_id).order("work_section").execute()
         return {"data": result.data or []}
     except Exception:
         return {"data": [], "warning": "estimate_items table is not available yet — apply supabase/estimate_items.sql"}
@@ -238,8 +214,10 @@ from .routes_commercial import router as commercial_router
 from .routes_operations import router as operations_router
 from .routes_field_quality import router as field_quality_router
 from .routes_intelligence import router as intelligence_router
+from .routes_ops import router as ops_router
 
 router.include_router(commercial_router)
 router.include_router(operations_router)
 router.include_router(field_quality_router)
 router.include_router(intelligence_router)
+router.include_router(ops_router)
