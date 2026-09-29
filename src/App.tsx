@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 import { API, apiGet, apiPost, readError } from "./api";
 import { AuthScreen } from "./AuthScreen";
 import type { Project, Document, Message, Conversation, DesignAsset, WorkspaceView } from "./types";
+import { OsHome } from "./centers/OsHome";
 import { DesignCenter } from "./centers/DesignCenter";
 import { CommercialCenter } from "./centers/CommercialCenter";
 import { PlanningCenter } from "./centers/PlanningCenter";
@@ -16,6 +17,7 @@ import { IntegrationsCenter } from "./centers/IntegrationsCenter";
 import { OpsCenter } from "./centers/OpsCenter";
 
 const NAV: { id: WorkspaceView; label: string }[] = [
+  { id: "os-home", label: "OS Home" },
   { id: "assistant", label: "Assistant" },
   { id: "design-center", label: "Design" },
   { id: "commercial", label: "Commercial" },
@@ -40,7 +42,7 @@ export function App() {
   const [conversationId, setConversationId] = React.useState("");
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
-  const [view, setView] = React.useState<WorkspaceView>("assistant");
+  const [view, setView] = React.useState<WorkspaceView>("os-home");
   const [loading, setLoading] = React.useState(false);
   const [projectsLoading, setProjectsLoading] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
@@ -98,6 +100,7 @@ export function App() {
       setProjects((c) => [created, ...c]); setProjectId(created.id);
       setNewProjectName(""); setNewProjectCode(""); setShowCreateProject(false);
       setMessages([]); setConversationId(""); setNotice(`Project "${created.name}" created.`);
+      setView("os-home");
     } catch (err: any) { setError(err.message || "Could not create project."); }
     finally { setCreatingProject(false); }
   }
@@ -187,7 +190,7 @@ export function App() {
         <aside>
           <h2>Project</h2>
           <label>Select project</label>
-          <select value={projectId} onChange={(e) => { setProjectId(e.target.value); setMessages([]); setConversationId(""); setError(""); setNotice(""); }}>
+          <select value={projectId} onChange={(e) => { setProjectId(e.target.value); setMessages([]); setConversationId(""); setError(""); setNotice(""); setView("os-home"); }}>
             <option value="">{projectsLoading ? "Loading projects..." : "Select project"}</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}{p.code ? " · " + p.code : ""}</option>)}
           </select>
@@ -229,7 +232,8 @@ export function App() {
         <section className="main-panel">
           {error && <div className="error">{error}</div>}
           {notice && <div className="success">{notice}</div>}
-          {!projectId && <div className="empty"><p>Select or create a project to open the workspace centers.</p></div>}
+          {!projectId && <div className="empty"><p>Select or create a project to open the Construction OS.</p></div>}
+          {projectId && view === "os-home" && <OsHome {...centerProps} />}
           {projectId && view === "assistant" && (
             <>
               <div className="messages">
