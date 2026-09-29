@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from .auth import get_access_token, get_current_user
 from .background_jobs import JOB_STATUS_FIELDS, normalize_job_row, schedule_document_job
-from .db import supabase
+from .db import supabase, supabase_admin
 from .document_processing import chunk_text_with_metadata, extract_pages
 from .embeddings import embed_texts
 from .document_intelligence import extract_construction_data, analyze_drawing_page
@@ -63,10 +63,11 @@ def _document_for_member(document_id: str, user_id: str, client):
 
 
 def _ensure_organization(user: dict, client) -> str:
-    """Return an organization id the user can create projects in.
+    """Return an organization id, creating the user's personal org if needed.
 
-    If the user has no membership yet, create a personal organization and
-    add them as owner so onboarding works out of the box.
+    The caller JWT is validated before this function runs. Bootstrap writes
+    use the server-only secret-key client because these are trusted backend
+    operations and must not depend on client-side RLS policy evaluation.
     """
     memberships = (
         client.table("organization_members")
@@ -77,23 +78,33 @@ def _ensure_organization(user: dict, client) -> str:
     if memberships.data:
         return memberships.data[0]["organization_id"]
 
+    if supabase_admin is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Server organization bootstrap is not configured (SUPABASE_SECRET_KEY).",
+        )
+
     email = (user.get("email") or "user").split("@")[0]
     org_name = f"{email.title()}'s Organization"
 
-    org = client.table("organizations").insert({"name": org_name}).execute()
-    if not org.data:
-        raise HTTPException(status_code=500, detail="Could not create organization")
+    try:
+        org = supabase_admin.table("organizations").insert({"name": org_name}).execute()
+        if not org.data:
+            raise HTTPException(status_code=500, detail="Could not create organization")
+        org_id = org.data[0]["id"]
 
-    org_id = org.data[0]["id"]
-    member = (
-        client.table("organization_members")
-        .insert({"organization_id": org_id, "user_id": user["id"], "role": "owner"})
-        .execute()
-    )
-    if not member.data:
-        raise HTTPException(status_code=500, detail="Could not create organization membership")
-
-    return org_id
+        member = (
+            supabase_admin.table("organization_members")
+            .insert({"organization_id": org_id, "user_id": user["id"], "role": "owner"})
+            .execute()
+        )
+        if not member.data:
+            raise HTTPException(status_code=500, detail="Could not create organization membership")
+        return org_id
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Organization bootstrap failed: {exc}") from exc
 
 
 @router.get("/projects/{project_id}/design/reviews")
