@@ -87,10 +87,7 @@ def list_project_quantities(project_id: str, token: str = Depends(get_access_tok
 
 @router.get("/projects/{project_id}/engineering/boq")
 def list_project_boq(project_id: str, token: str = Depends(get_access_token)):
-    """Proposed BOQ lines built from current engineering quantity takeoff.
-
-    Does not persist. Use POST .../engineering/boq/generate to store.
-    """
+    """Proposed BOQ lines built from current engineering quantity takeoff."""
     user = get_current_user(token)
     client = supabase
     client.postgrest.auth(token)
@@ -113,7 +110,7 @@ def list_project_boq(project_id: str, token: str = Depends(get_access_token)):
 
 @router.post("/projects/{project_id}/engineering/boq/generate")
 def generate_and_persist_boq(project_id: str, token: str = Depends(get_access_token)):
-    """Build proposed BOQ from takeoff and insert into boq_items (if table exists)."""
+    """Build proposed BOQ from takeoff and insert into boq_items."""
     user = get_current_user(token)
     client = supabase
     client.postgrest.auth(token)
@@ -127,11 +124,7 @@ def generate_and_persist_boq(project_id: str, token: str = Depends(get_access_to
         )
         rows = result.data or []
     except Exception:
-        return {
-            "data": [],
-            "persisted": 0,
-            "warning": "engineering_elements table is not available yet",
-        }
+        return {"data": [], "persisted": 0, "warning": "engineering_elements table is not available yet"}
 
     enriched = enrich_elements(rows)
     lines = build_boq_lines(enriched, project_id=project_id)
@@ -149,7 +142,6 @@ def generate_and_persist_boq(project_id: str, token: str = Depends(get_access_to
 
 @router.get("/projects/{project_id}/boq/items")
 def list_stored_boq_items(project_id: str, token: str = Depends(get_access_token)):
-    """List persisted BOQ items for the project."""
     user = get_current_user(token)
     client = supabase
     client.postgrest.auth(token)
@@ -169,7 +161,6 @@ def list_stored_boq_items(project_id: str, token: str = Depends(get_access_token
 
 @router.get("/projects/{project_id}/engineering/estimate")
 def list_project_estimate(project_id: str, token: str = Depends(get_access_token)):
-    """Proposed estimate: BOQ lines × provisional unit rates."""
     user = get_current_user(token)
     client = supabase
     client.postgrest.auth(token)
@@ -178,11 +169,7 @@ def list_project_estimate(project_id: str, token: str = Depends(get_access_token
     if warning and not boq_lines:
         return {"data": [], "summary": {}, "warning": warning}
     payload = build_estimate_from_boq(boq_lines, project_id=project_id)
-    out = {
-        "data": payload["lines"],
-        "summary": payload["summary"],
-        "boq_line_count": len(boq_lines),
-    }
+    out = {"data": payload["lines"], "summary": payload["summary"], "boq_line_count": len(boq_lines)}
     if warning:
         out["warning"] = warning
     return out
@@ -190,7 +177,6 @@ def list_project_estimate(project_id: str, token: str = Depends(get_access_token
 
 @router.post("/projects/{project_id}/engineering/estimate/generate")
 def generate_and_persist_estimate(project_id: str, token: str = Depends(get_access_token)):
-    """Build proposed estimate from BOQ and insert into estimate_items."""
     user = get_current_user(token)
     client = supabase
     client.postgrest.auth(token)
@@ -203,12 +189,7 @@ def generate_and_persist_estimate(project_id: str, token: str = Depends(get_acce
     persist_warning = None
     if payload["lines"] and persisted == 0:
         persist_warning = "estimate_items table is not available yet — apply supabase/estimate_items.sql"
-    out = {
-        "data": payload["lines"],
-        "summary": payload["summary"],
-        "persisted": persisted,
-        "boq_line_count": len(boq_lines),
-    }
+    out = {"data": payload["lines"], "summary": payload["summary"], "persisted": persisted, "boq_line_count": len(boq_lines)}
     if persist_warning:
         out["warning"] = persist_warning
     elif warning:
@@ -218,7 +199,6 @@ def generate_and_persist_estimate(project_id: str, token: str = Depends(get_acce
 
 @router.get("/projects/{project_id}/estimate/items")
 def list_stored_estimate_items(project_id: str, token: str = Depends(get_access_token)):
-    """List persisted estimate items for the project."""
     user = get_current_user(token)
     client = supabase
     client.postgrest.auth(token)
@@ -233,15 +213,11 @@ def list_stored_estimate_items(project_id: str, token: str = Depends(get_access_
         )
         return {"data": result.data or []}
     except Exception:
-        return {
-            "data": [],
-            "warning": "estimate_items table is not available yet — apply supabase/estimate_items.sql",
-        }
+        return {"data": [], "warning": "estimate_items table is not available yet — apply supabase/estimate_items.sql"}
 
 
 @router.get("/projects/{project_id}/engineering/design-to-cost")
 def project_design_to_cost(project_id: str, token: str = Depends(get_access_token)):
-    """Design-to-cost intelligence from the engineering → BOQ → estimate chain."""
     user = get_current_user(token)
     client = supabase
     client.postgrest.auth(token)
@@ -250,17 +226,8 @@ def project_design_to_cost(project_id: str, token: str = Depends(get_access_toke
     if warning and not boq_lines:
         return {"data": {}, "warning": warning}
     estimate = build_estimate_from_boq(boq_lines, project_id=project_id)
-    intelligence = build_design_to_cost(
-        estimate["lines"],
-        boq_lines=boq_lines,
-        project_id=project_id,
-        top_n=5,
-    )
-    out = {
-        "data": intelligence,
-        "boq_line_count": len(boq_lines),
-        "estimate_line_count": len(estimate["lines"]),
-    }
+    intelligence = build_design_to_cost(estimate["lines"], boq_lines=boq_lines, project_id=project_id, top_n=5)
+    out = {"data": intelligence, "boq_line_count": len(boq_lines), "estimate_line_count": len(estimate["lines"])}
     if warning:
         out["warning"] = warning
     return out
@@ -269,8 +236,10 @@ def project_design_to_cost(project_id: str, token: str = Depends(get_access_toke
 # Mount phase routers (same /api/v1 prefix via parent)
 from .routes_commercial import router as commercial_router
 from .routes_operations import router as operations_router
+from .routes_field_quality import router as field_quality_router
 from .routes_intelligence import router as intelligence_router
 
 router.include_router(commercial_router)
 router.include_router(operations_router)
+router.include_router(field_quality_router)
 router.include_router(intelligence_router)
