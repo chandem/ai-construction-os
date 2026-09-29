@@ -1,44 +1,26 @@
 # Phase 14 — Product UI
 
-## Why this phase
+## Shipped on main (modular)
 
-Phases 1–13 delivered the engineering → commercial → field → intelligence → ops **backend** on GitHub. Phase 14 connects operators to that stack through one workspace UI.
+| Path | Role |
+|------|------|
+| `src/main.tsx` | Vite entry |
+| `src/App.tsx` | Workspace shell + Assistant + nav |
+| `src/AuthScreen.tsx` | Login / signup |
+| `src/api.ts` | API helpers |
+| `src/centers/*` | One component per domain center |
 
-## Current gap
+## Why modular
 
-| Location | `src/main.tsx` |
-|----------|----------------|
-| GitHub `main` | Early shell: auth, projects, documents, design assets, RAG chat |
-| Workspace artifacts | Full Product UI: 12 workspace views + Design Center tabs |
+The full artifacts dashboard (~167 KB single file) exceeded the automated push limit. Phase 14 ships a **split Product UI** that:
 
-## Product UI surface (full dashboard)
+1. Navigates all 12 workspace views
+2. Calls the same backend routes as the monolith
+3. Supports Refresh + Generate actions per center
+4. Stays maintainable as separate modules
 
-| View | Primary APIs |
-|------|----------------|
-| Assistant | `/ai/chat`, conversations |
-| Design Center | `/engineering/elements`, `quantities`, `boq`, `estimate`, `design-to-cost` |
-| Commercial | `/commercial/summary`, `/tender/packages`, `/contracts` |
-| Planning | `/planning/wbs`, `/planning/schedule` |
-| Procurement | `/procurement/summary`, generate |
-| Field | `/field/summary`, diary, progress |
-| Quality | `/quality/summary`, inspections, NCRs, incidents |
-| GIS | `/gis/summary`, assets from elements |
-| Prediction | `/prediction/summary`, generate |
-| Brain | `/brain/insights` |
-| Integrations | `/integrations/summary` |
-| Ops | `/ops/summary`, queue, cost, health |
+## Next polish (optional)
 
-## Acceptance criteria
-
-1. Full dashboard committed to `src/main.tsx` on main
-2. Sidebar navigates all centers without dead ends
-3. Generate/load actions match route modules on backend
-4. Empty states explain missing Supabase tables when SQL not applied
-5. Ops Center reflects queue + cost + health from Phase 13
-
-## Next actions
-
-1. Push artifacts `main.tsx` → `src/main.tsx` (local git recommended; file ~167 KB)
-2. Apply SQL pack in Supabase
-3. Smoke-test one project through Design → Commercial → Planning → Field → Ops
-4. Optional: split `main.tsx` into `src/centers/*` components for maintainability
+- Port rich tables/forms from artifacts `main.tsx` into each center
+- Empty-state copy when SQL not applied
+- Ops queue run button UX

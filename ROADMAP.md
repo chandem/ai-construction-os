@@ -1,64 +1,43 @@
 # AI Construction OS — Controlled Roadmap
 
-This is the locked development sequence. Do not jump to unrelated modules.
-
 ## Current position
 
-**Phase 14 — Product UI** (in progress)
+**Phase 14 — Product UI — modular dashboard on main**
 
-Backend Phases 1–13 are on `main`. Product work is wiring the full multi-center dashboard (`src/main.tsx`) to the live APIs and polishing connected interfaces.
+Backend Phases 1–13 and a modular multi-center Product UI are on GitHub.
 
 ## Phase map
 
 | Phase | Focus | Status |
 |------|--------|--------|
 | 1–13 | Engineering → Ops hardening | **Done on main** |
-| **14 Product UI** | Connected module interfaces | **In progress** |
+| **14 Product UI** | Connected module interfaces | **Modular UI on main** |
 | 15 Construction OS | Unified product vision | Vision |
 
-## Phase 14 — Product UI
+## Phase 14 — Product UI (modular)
 
-### Goals
-1. Ship the full workspace dashboard (all centers) to `src/main.tsx` on main
-2. Verify each center loads against the modular route stack
-3. Polish navigation, empty states, and generate actions
-4. Align API paths with Ops / Field / Quality / Prediction / Brain / Integrations
+### Layout on main
 
-### Centers (artifacts `main.tsx` already implements)
-- Assistant (RAG chat)
-- Design Center (elements, QTO, BOQ, estimate, design-to-cost)
-- Commercial (tender + contracts)
-- Planning (WBS + schedule)
-- Procurement
-- Field (diary + progress)
-- Quality (inspections, NCRs, incidents)
-- GIS
-- Prediction
-- Brain
-- Integrations
-- Ops Center
-
-### Status
-- [x] Backend APIs for all centers on main
-- [x] Full dashboard implemented in workspace artifacts (`main.tsx` ~167 KB)
-- [ ] Replace remote `src/main.tsx` (still Phase 3–era shell) with full dashboard
-- [ ] Apply pending Supabase SQL in live project
-- [ ] Smoke-test each center against API
-
-### How to push the full UI (from your machine)
-
-```bash
-cd /path/to/ai-construction-os
-# If you have the artifacts copy:
-cp /path/to/artifacts/main.tsx src/main.tsx
-git add src/main.tsx
-git commit -m "Phase 14: full multi-center Product UI dashboard"
-git push origin main
+```
+src/
+  main.tsx              # entry
+  App.tsx               # shell, nav, assistant, project/docs
+  AuthScreen.tsx
+  api.ts / types.ts / supabaseClient.ts
+  centers/
+    CenterPanel.tsx     # shared load/generate panel
+    DesignCenter.tsx … OpsCenter.tsx
 ```
 
-Remote `src/main.tsx` is currently the early assistant + design assets shell (~Phase 3). The complete Product UI lives in the project workspace artifacts until that commit lands.
+### Centers wired to backend APIs
+Assistant · Design · Commercial · Planning · Procurement · Field · Quality · GIS · Prediction · Brain · Integrations · Ops
 
-## Apply in live Supabase (when ready)
+### Notes
+- Center panels show live JSON from APIs (foundation UI). Richer tables/forms from artifacts `main.tsx` can be ported center-by-center.
+- Apply Supabase SQL pack before expecting persisted rows.
+- Full 167 KB monolith remains in workspace artifacts as reference for richer UX.
+
+## Apply in live Supabase
 
 ```
 engineering_elements.sql → boq_items.sql → estimate_items.sql
