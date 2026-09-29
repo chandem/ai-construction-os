@@ -41,15 +41,18 @@ def me(token: str = Depends(get_access_token)):
 
 
 def _authenticated_client(token: str):
-    """Create a request-scoped Supabase client with the caller JWT.
+    """Return the shared server client after the caller JWT is validated.
 
-    Do not mutate the shared global client with postgrest.auth(token):
-    FastAPI handles concurrent requests, so per-request auth state must not
-    be stored on a shared client.
+    Database authorization is enforced explicitly by _project_for_member.
+    The server-only Supabase secret client avoids mutating a shared
+    PostgREST auth header and avoids creating a new HTTP pool per request.
     """
-    client = create_client(settings.supabase_url, settings.supabase_key)
-    client.postgrest.auth(token)
-    return client
+    if supabase_admin is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Server database client is not configured (SUPABASE_SECRET_KEY).",
+        )
+    return supabase_admin
 
 
 def _project_for_member(project_id: str, user_id: str, client):
@@ -272,7 +275,7 @@ def list_documents(project_id: str, token: str = Depends(get_access_token)):
     _project_for_member(project_id, user["id"], client)
     result = (
         client.table("documents")
-        .select("id,name,mime_type,status,created_at,updated_at,storage_path")
+        .select("id,name,mime_type,status,created_at,storage_path")
         .eq("project_id", project_id)
         .order("created_at", desc=True)
         .execute()
