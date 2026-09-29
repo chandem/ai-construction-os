@@ -2,46 +2,35 @@
 
 ## Current position
 
-**Phase 14 — Product UI — modular dashboard on main**
+**Phases 1–14 foundation complete on `main`.**
 
-Backend Phases 1–13 and a modular multi-center Product UI are on GitHub.
+Next optional work: richer center UIs, live SQL apply, Phase 15 product vision.
 
 ## Phase map
 
 | Phase | Focus | Status |
 |------|--------|--------|
-| 1–13 | Engineering → Ops hardening | **Done on main** |
-| **14 Product UI** | Connected module interfaces | **Modular UI on main** |
-| 15 Construction OS | Unified product vision | Vision |
+| 1–3 | Engineering → design-to-cost + background jobs | **Done** |
+| 4 | Tender + contracts | **Done** |
+| 5 | Planning WBS + schedule | **Done** |
+| 6 | Procurement | **Done** |
+| 7 | Field diary + progress | **Done** |
+| 8 | Quality & safety | **Done** |
+| 9 | GIS | **Done** |
+| 10 | Prediction | **Done** |
+| 11 | Brain | **Done** |
+| 12 | Integrations | **Done** |
+| 13 | Hardening (queue, cost, health) | **Done** |
+| 14 | Product UI (modular centers) | **Foundation done** |
+| 15 | Construction OS vision | Not started |
 
-## Phase 14 — Product UI (modular)
+## Still operational (not code gaps)
 
-### Layout on main
+1. Apply all `supabase/*.sql` in **live** Supabase
+2. Smoke-test: Design → Commercial → Planning → Field → Ops
+3. Optional: port rich tables from artifacts monolith into each center
+4. Optional: real queue workers (Redis/Celery)
 
-```
-src/
-  main.tsx              # entry
-  App.tsx               # shell, nav, assistant, project/docs
-  AuthScreen.tsx
-  api.ts / types.ts / supabaseClient.ts
-  centers/
-    CenterPanel.tsx     # shared load/generate panel
-    DesignCenter.tsx … OpsCenter.tsx
-```
+## Phase 15 (vision)
 
-### Centers wired to backend APIs
-Assistant · Design · Commercial · Planning · Procurement · Field · Quality · GIS · Prediction · Brain · Integrations · Ops
-
-### Notes
-- Center panels show live JSON from APIs (foundation UI). Richer tables/forms from artifacts `main.tsx` can be ported center-by-center.
-- Apply Supabase SQL pack before expecting persisted rows.
-- Full 167 KB monolith remains in workspace artifacts as reference for richer UX.
-
-## Apply in live Supabase
-
-```
-engineering_elements.sql → boq_items.sql → estimate_items.sql
-tender_packages.sql → contract_packages.sql → planning.sql
-procurement.sql → field.sql → quality.sql → gis.sql
-prediction.sql → integrations.sql → hardening.sql
-```
+Unified product experience, packaging, and production hardening beyond the MVP foundation.
