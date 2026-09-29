@@ -2,35 +2,29 @@
 
 ## Current position
 
-**Phases 1–14 foundation complete on `main`.**
-
-Next optional work: richer center UIs, live SQL apply, Phase 15 product vision.
+**Phases 1–15 foundation complete on `main`.**
 
 ## Phase map
 
 | Phase | Focus | Status |
 |------|--------|--------|
-| 1–3 | Engineering → design-to-cost + background jobs | **Done** |
-| 4 | Tender + contracts | **Done** |
-| 5 | Planning WBS + schedule | **Done** |
-| 6 | Procurement | **Done** |
-| 7 | Field diary + progress | **Done** |
-| 8 | Quality & safety | **Done** |
-| 9 | GIS | **Done** |
-| 10 | Prediction | **Done** |
-| 11 | Brain | **Done** |
-| 12 | Integrations | **Done** |
-| 13 | Hardening (queue, cost, health) | **Done** |
-| 14 | Product UI (modular centers) | **Foundation done** |
-| 15 | Construction OS vision | Not started |
+| 1–13 | Engineering → Ops hardening | **Done** |
+| 14 | Product UI (modular centers) | **Done** |
+| **15** | Construction OS vision + kernel | **Foundation done** |
 
-## Still operational (not code gaps)
+## Phase 15 — Construction OS
 
-1. Apply all `supabase/*.sql` in **live** Supabase
-2. Smoke-test: Design → Commercial → Planning → Field → Ops
-3. Optional: port rich tables from artifacts monolith into each center
-4. Optional: real queue workers (Redis/Celery)
+- [x] `construction_os.py` — module registry, readiness, recommended actions
+- [x] `GET /api/v1/projects/{id}/os/snapshot`
+- [x] `GET /api/v1/os/modules`
+- [x] `OsHome` workspace panel
+- [x] Unit tests
+- [ ] Default landing = OS home (optional UX)
+- [ ] Role-based homes / work queues (later)
 
-## Phase 15 (vision)
+## Operational checklist
 
-Unified product experience, packaging, and production hardening beyond the MVP foundation.
+1. Apply all `supabase/*.sql` in live Supabase
+2. Smoke-test OS snapshot + Design → Ops chain
+3. Optional: richer center tables from artifacts monolith
+4. Optional: production queue workers

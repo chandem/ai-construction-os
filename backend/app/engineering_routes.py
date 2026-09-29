@@ -1,4 +1,4 @@
-"""Engineering and domain API routes (Phases 3–13).
+"""Engineering and domain API routes (Phases 3–15).
 
 Core engineering chain lives here; later phases are included from sibling routers.
 """
@@ -215,9 +215,11 @@ from .routes_operations import router as operations_router
 from .routes_field_quality import router as field_quality_router
 from .routes_intelligence import router as intelligence_router
 from .routes_ops import router as ops_router
+from .routes_construction_os import router as construction_os_router
 
 router.include_router(commercial_router)
 router.include_router(operations_router)
 router.include_router(field_quality_router)
 router.include_router(intelligence_router)
 router.include_router(ops_router)
+router.include_router(construction_os_router)
