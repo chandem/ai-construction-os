@@ -1,6 +1,6 @@
 import React from "react";
 import { supabase } from "./supabaseClient";
-import { API, apiGet, apiPost, readError } from "./api";
+import { API, apiGet, apiPost, apiUpload } from "./api";
 import { AuthScreen } from "./AuthScreen";
 import type { Project, Document, Message, Conversation, DesignAsset, WorkspaceView } from "./types";
 import { OsHome } from "./centers/OsHome";
@@ -148,11 +148,7 @@ export function App() {
     setUploading(true); setError(""); setNotice("");
     try {
       const form = new FormData(); form.append("file", file);
-      const r = await fetch(API + "/api/v1/projects/" + projectId + "/documents", {
-        method: "POST", headers: { Authorization: "Bearer " + session.access_token }, body: form,
-      });
-      if (!r.ok) throw new Error(await readError(r, "Upload failed."));
-      const j = await r.json();
+      const j = await apiUpload("/api/v1/projects/" + projectId + "/documents", session.access_token, form);
       setNotice(file.name + " uploaded. " + (j.chunks ?? 0) + " knowledge chunks created.");
       await loadDocuments(); await loadDesignAssets();
     } catch (e: any) { setError(e.message || "Document upload failed."); }
