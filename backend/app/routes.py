@@ -8,6 +8,9 @@ from pydantic import BaseModel, Field
 
 from .auth import get_access_token, get_current_user
 from .background_jobs import JOB_STATUS_FIELDS, normalize_job_row, schedule_document_job
+from supabase import create_client
+
+from .config import settings
 from .db import supabase, supabase_admin
 from .document_processing import chunk_text_with_metadata, extract_pages
 from .embeddings import embed_texts
@@ -35,6 +38,18 @@ class CreateProjectRequest(BaseModel):
 @router.get("/auth/me")
 def me(token: str = Depends(get_access_token)):
     return get_current_user(token)
+
+
+def _authenticated_client(token: str):
+    """Create a request-scoped Supabase client with the caller JWT.
+
+    Do not mutate the shared global client with postgrest.auth(token):
+    FastAPI handles concurrent requests, so per-request auth state must not
+    be stored on a shared client.
+    """
+    client = create_client(settings.supabase_url, settings.supabase_key)
+    client.postgrest.auth(token)
+    return client
 
 
 def _project_for_member(project_id: str, user_id: str, client):
@@ -110,8 +125,7 @@ def _ensure_organization(user: dict, client) -> str:
 @router.get("/projects/{project_id}/design/reviews")
 def list_design_reviews(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     result = (
         client.table("design_reviews")
