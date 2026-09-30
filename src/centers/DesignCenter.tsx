@@ -62,6 +62,7 @@ export function DesignCenter({ projectId, token }: Props) {
   const [boq, setBoq] = React.useState<BoqRow[]>([]);
   const [estimate, setEstimate] = React.useState<EstimateSummary | null>(null);
   const [estimateRows, setEstimateRows] = React.useState<EstimateRow[]>([]);
+  const [costIntel, setCostIntel] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -96,6 +97,7 @@ export function DesignCenter({ projectId, token }: Props) {
       setBoq(boqResult.data || []);
       setEstimate(estimateResult.summary || null);
       setEstimateRows(estimateResult.data || []);
+      try { setCostIntel((await apiGet("/api/v1/projects/" + projectId + "/engineering/design-to-cost", token)).data || null); } catch { setCostIntel(null); }
     } catch (e: any) {
       setError(e.message || "Could not load Design Center.");
     } finally {
@@ -336,11 +338,64 @@ export function DesignCenter({ projectId, token }: Props) {
                         <td>{row.work_section || "—"}</td>
                         <td>{row.quantity == null ? "—" : Number(row.quantity).toLocaleString()}</td>
                         <td>{row.unit || "—"}</td>
+                        <td>{row.status || "proposed"}</td>
+                        <td>
+                          {editingBoqId === row.id ? (
+                            <div className="row gap">
+                              <input aria-label="BOQ description" value={boqDescription} onChange={(e) => setBoqDescription(e.target.value)} style={{ width: 180 }} />
+                              <input aria-label="BOQ quantity" type="number" min="0" step="any" value={boqQuantity} onChange={(e) => setBoqQuantity(e.target.value)} style={{ width: 90 }} />
+                              <input aria-label="BOQ unit" value={boqUnit} onChange={(e) => setBoqUnit(e.target.value)} style={{ width: 65 }} />
+                              <select aria-label="BOQ status" value={boqStatus} onChange={(e) => setBoqStatus(e.target.value)} style={{ width: 100 }}>
+                                <option value="approved">Approved</option>
+                                <option value="proposed">Proposed</option>
+                                <option value="rejected">Rejected</option>
+                              </select>
+                              <button type="button" className="button compact" disabled={busy} onClick={() => saveBoqReview(row)}>Save</button>
+                              <button type="button" className="button compact" disabled={busy} onClick={() => setEditingBoqId(null)}>Cancel</button>
+                            </div>
+                          ) : (
+                            <button type="button" className="button compact" disabled={busy || !row.id} onClick={() => startBoqEdit(row)}>Review</button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {costIntel && (
+            <div style={{ marginTop: 20 }}>
+              <h3>AI Design-to-Cost</h3>
+              <p className="muted small">Cost concentration and what-if analysis for design review. Values remain provisional until project rates and quantities are approved.</p>
+              <div className="center-summary">
+                <div className="hint"><b>Top cost drivers</b><span> · {(costIntel.cost_drivers || []).length}</span></div>
+                <div className="hint"><b>80% Pareto lines</b><span> · {costIntel.pareto?.lines_needed ?? 0}</span></div>
+              </div>
+              {(costIntel.cost_drivers || []).length > 0 && (
+                <div className="table-wrap">
+                  <table>
+                    <thead><tr><th>Code</th><th>Item</th><th>Amount</th><th>Share</th><th>Focus</th></tr></thead>
+                    <tbody>
+                      {(costIntel.cost_drivers || []).map((d: any, index: number) => (
+                        <tr key={d.item_code || index}>
+                          <td>{d.item_code || "—"}</td>
+                          <td>{d.description || d.element_type || "Other"}</td>
+                          <td>{Number(d.amount || 0).toLocaleString()} {costIntel.currency || ""}</td>
+                          <td>{Number(d.share_pct || 0).toLocaleString()}%</td>
+                          <td>{(costIntel.design_levers || [])[index]?.priority || "review"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {(costIntel.quantity_scenarios || []).length > 0 && (
+                <div className="hint" style={{ marginTop: 12 }}>
+                  <b>What-if:</b><span> quantity sensitivity is available for the highest-cost element types.</span>
+                </div>
+              )}
             </div>
           )}
 
