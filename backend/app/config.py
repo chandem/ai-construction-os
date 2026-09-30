@@ -6,7 +6,6 @@ _DEFAULT_CORS = (
     "https://ai-construction-os.vercel.app"
 )
 
-# OpenAI embedding names must never be sent to Gemini embedContent
 _OPENAI_EMBEDDING_ALIASES = {
     "text-embedding-3-small",
     "text-embedding-3-large",
@@ -16,9 +15,9 @@ _OPENAI_EMBEDDING_ALIASES = {
 }
 
 _DEFAULT_GEMINI_EMBEDDING = "text-embedding-004"
-_DEFAULT_GEMINI_CHAT = "gemini-3.8-flash"
+# 3.7 often has more free-tier capacity than 3.8 under high demand
+_DEFAULT_GEMINI_CHAT = "gemini-3.7-flash"
 
-# Retired / renamed chat models → current default
 _RETIRED_CHAT_MODELS = {
     "gemini-2.0-flash",
     "gemini-2.0-flash-001",
@@ -41,7 +40,6 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     openai_api_key: str = ""
 
-    # May still be set to a retired name on Render — normalized below
     gemini_chat_model: str = _DEFAULT_GEMINI_CHAT
     embedding_model: str = _DEFAULT_GEMINI_EMBEDDING
 
@@ -57,7 +55,6 @@ class Settings(BaseSettings):
 
     @property
     def resolved_chat_model(self) -> str:
-        """Chat model id safe for generateContent."""
         raw = (self.gemini_chat_model or "").strip() or _DEFAULT_GEMINI_CHAT
         if raw.startswith("models/"):
             raw = raw[len("models/") :]
@@ -69,7 +66,6 @@ class Settings(BaseSettings):
 
     @property
     def gemini_embedding_model(self) -> str:
-        """Model id safe for Gemini embedContent."""
         raw = (self.embedding_model or "").strip() or _DEFAULT_GEMINI_EMBEDDING
         name = raw.split("/")[-1] if "/" in raw else raw
         if raw.lower() in _OPENAI_EMBEDDING_ALIASES or name.lower() in {
