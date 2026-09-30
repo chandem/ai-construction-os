@@ -4,12 +4,11 @@ from typing import Any, Callable, TypeVar
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from supabase import Client, create_client
-from supabase.lib.client_options import ClientOptions
+from supabase import Client
 
 from .auth import get_access_token, get_current_user
 from .config import settings
-from .db import supabase
+from .db import supabase, supabase_admin
 from .embeddings import embed_texts
 
 router = APIRouter(prefix="/api/v1")
@@ -27,17 +26,17 @@ T = TypeVar("T")
 
 
 def _authenticated_client(token: str) -> Client:
-    client = create_client(
-        settings.supabase_url,
-        settings.supabase_key,
-        options=ClientOptions(
-            auto_refresh_token=False,
-            persist_session=False,
-            postgrest_client_timeout=15,
-        ),
-    )
-    client.postgrest.auth(token)
-    return client
+    """Return the shared trusted backend client after validating the caller JWT.
+
+    Authorization is enforced explicitly by _get_project_for_user and related
+    membership checks, so no per-request Supabase client needs to be created.
+    """
+    if supabase_admin is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Server database client is not configured (SUPABASE_SECRET_KEY).",
+        )
+    return supabase_admin
 
 
 def _db_execute(operation: Callable[[], T], operation_name: str) -> T:
