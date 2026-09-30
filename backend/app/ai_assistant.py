@@ -308,7 +308,7 @@ def chat(project_id: str, request: ChatRequest, token: str = Depends(get_access_
         f"PROJECT EVIDENCE:\n{context}\n\nUSER QUESTION:\n{request.message}"
     )
 
-    model_id = settings.gemini_chat_model
+    model_id = settings.resolved_chat_model
     try:
         answer = generate_text(
             system=SYSTEM_PROMPT,

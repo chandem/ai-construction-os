@@ -47,7 +47,7 @@ def generate_text(
     model: str | None = None,
 ) -> str:
     client = get_client()
-    model_id = model or settings.gemini_chat_model
+    model_id = model or settings.resolved_chat_model
     try:
         response = client.models.generate_content(
             model=model_id,
@@ -73,7 +73,7 @@ def generate_json(
     model: str | None = None,
 ) -> dict[str, Any]:
     client = get_client()
-    model_id = model or settings.gemini_chat_model
+    model_id = model or settings.resolved_chat_model
     prompt = user + "\n\nRespond with valid JSON only. No markdown fences."
     try:
         response = client.models.generate_content(
@@ -113,7 +113,7 @@ def generate_vision_json(
     from google.genai import types
 
     client = get_client()
-    model_id = model or settings.gemini_chat_model
+    model_id = model or settings.resolved_chat_model
     contents = [
         types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
         prompt + "\n\nRespond with valid JSON only.",
@@ -155,7 +155,6 @@ def embed_texts_gemini(texts: list[str]) -> list[list[float]]:
     for start in range(0, len(texts), batch_size):
         batch = texts[start : start + batch_size]
         batch_vecs: list[list[float]] = []
-        # Prefer one-by-one for free-tier compatibility
         for text in batch:
             result = client.models.embed_content(
                 model=model_id,

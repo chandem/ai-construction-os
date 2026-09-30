@@ -16,6 +16,20 @@ _OPENAI_EMBEDDING_ALIASES = {
 }
 
 _DEFAULT_GEMINI_EMBEDDING = "text-embedding-004"
+_DEFAULT_GEMINI_CHAT = "gemini-3.8-flash"
+
+# Retired / renamed chat models → current default
+_RETIRED_CHAT_MODELS = {
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-001",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-pro",
+    "gemini-pro",
+    "models/gemini-2.0-flash",
+    "models/gemini-2.0-flash-001",
+    "models/gemini-1.5-flash",
+}
 
 
 class Settings(BaseSettings):
@@ -27,8 +41,8 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     openai_api_key: str = ""
 
-    gemini_chat_model: str = "gemini-2.0-flash"
-    # May still be set to an old OpenAI name on Render — normalized below
+    # May still be set to a retired name on Render — normalized below
+    gemini_chat_model: str = _DEFAULT_GEMINI_CHAT
     embedding_model: str = _DEFAULT_GEMINI_EMBEDDING
 
     cors_origins: str = ",".join(_DEFAULT_CORS)
@@ -42,6 +56,18 @@ class Settings(BaseSettings):
         return (self.gemini_api_key or "").strip()
 
     @property
+    def resolved_chat_model(self) -> str:
+        """Chat model id safe for generateContent."""
+        raw = (self.gemini_chat_model or "").strip() or _DEFAULT_GEMINI_CHAT
+        if raw.startswith("models/"):
+            raw = raw[len("models/") :]
+        if raw.lower() in {m.replace("models/", "") for m in _RETIRED_CHAT_MODELS} or (
+            f"models/{raw}".lower() in _RETIRED_CHAT_MODELS
+        ):
+            return _DEFAULT_GEMINI_CHAT
+        return raw
+
+    @property
     def gemini_embedding_model(self) -> str:
         """Model id safe for Gemini embedContent."""
         raw = (self.embedding_model or "").strip() or _DEFAULT_GEMINI_EMBEDDING
@@ -50,7 +76,6 @@ class Settings(BaseSettings):
             n.replace("models/", "") for n in _OPENAI_EMBEDDING_ALIASES
         }:
             return _DEFAULT_GEMINI_EMBEDDING
-        # Prefer bare id; SDK accepts text-embedding-004
         if raw.startswith("models/"):
             return raw[len("models/") :]
         return raw
