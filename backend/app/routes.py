@@ -196,14 +196,17 @@ def list_design_assets(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
     client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
-    result = (
-        client.table("design_assets")
-        .select(
-            "id,project_id,document_id,name,discipline,asset_type,revision,sheet_number,status,metadata,created_at,updated_at"
-        )
-        .eq("project_id", project_id)
-        .order("created_at", desc=True)
-        .execute()
+    result = _execute_with_retry(
+        lambda: (
+            client.table("design_assets")
+            .select(
+                "id,project_id,document_id,name,discipline,asset_type,revision,sheet_number,status,metadata,created_at,updated_at"
+            )
+            .eq("project_id", project_id)
+            .order("created_at", desc=True)
+            .execute()
+        ),
+        "listing design assets",
     )
     return {"data": result.data or []}
 
