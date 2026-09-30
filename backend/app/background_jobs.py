@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .db import supabase
+from .db import supabase_admin
 from .document_pipeline import run_document_pipeline_safe
 
 
@@ -47,12 +47,17 @@ def execute_document_job(
     access_token: str | None = None,
 ) -> dict[str, Any]:
     """Run pipeline with optional user JWT for RLS-aware Supabase client."""
-    client = supabase
-    if access_token:
-        try:
-            client.postgrest.auth(access_token)
-        except Exception:
-            pass
+    if supabase_admin is None:
+        return {
+            "document_id": document_id,
+            "job_id": job_id,
+            "status": "failed",
+            "error": "Server database client is not configured (SUPABASE_SECRET_KEY).",
+        }
+    # Background jobs run only after the authenticated upload request has
+    # created the job. Use the server-only client here so a shared client
+    # never has its auth header mutated by concurrent jobs.
+    client = supabase_admin
     return run_document_pipeline_safe(
         client,
         project_id=project_id,
