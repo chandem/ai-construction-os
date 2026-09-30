@@ -8,6 +8,7 @@ import { DesignCenter } from "./centers/DesignCenter";
 import { CommercialCenter } from "./centers/CommercialCenter";
 import { PlanningCenter } from "./centers/PlanningCenter";
 import { ProcurementCenter } from "./centers/ProcurementCenter";
+import { InventoryCenter } from "./centers/InventoryCenter";
 import { FieldCenter } from "./centers/FieldCenter";
 import { QualityCenter } from "./centers/QualityCenter";
 import { GisCenter } from "./centers/GisCenter";
@@ -23,6 +24,7 @@ const NAV: { id: WorkspaceView; label: string }[] = [
   { id: "commercial", label: "Commercial" },
   { id: "planning", label: "Planning" },
   { id: "procurement", label: "Procurement" },
+  { id: "inventory", label: "Inventory" },
   { id: "field", label: "Field" },
   { id: "quality", label: "Quality" },
   { id: "gis", label: "GIS" },
@@ -327,6 +329,7 @@ export function App() {
           {projectId && view === "commercial" && <CommercialCenter {...centerProps} />}
           {projectId && view === "planning" && <PlanningCenter {...centerProps} />}
           {projectId && view === "procurement" && <ProcurementCenter {...centerProps} />}
+          {projectId && view === "inventory" && <InventoryCenter {...centerProps} />}
           {projectId && view === "field" && <FieldCenter {...centerProps} />}
           {projectId && view === "quality" && <QualityCenter {...centerProps} />}
           {projectId && view === "gis" && <GisCenter {...centerProps} />}
