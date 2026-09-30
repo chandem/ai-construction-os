@@ -8,7 +8,7 @@ from supabase import Client
 
 from .auth import get_access_token, get_current_user
 from .config import settings
-from .db import supabase, supabase_admin
+from .db import supabase_admin
 from .embeddings import embed_texts
 
 router = APIRouter(prefix="/api/v1")
@@ -26,11 +26,7 @@ T = TypeVar("T")
 
 
 def _authenticated_client(token: str) -> Client:
-    """Return the shared trusted backend client after validating the caller JWT.
-
-    Authorization is enforced explicitly by _get_project_for_user and related
-    membership checks, so no per-request Supabase client needs to be created.
-    """
+    """Return the shared trusted backend client after validating the caller JWT."""
     if supabase_admin is None:
         raise HTTPException(
             status_code=500,
@@ -40,6 +36,7 @@ def _authenticated_client(token: str) -> Client:
 
 
 def _db_execute(operation: Callable[[], T], operation_name: str) -> T:
+    """Retry transient transport failures without retrying application/API errors."""
     for attempt in range(DB_RETRIES):
         try:
             return operation()
@@ -51,6 +48,7 @@ def _db_execute(operation: Callable[[], T], operation_name: str) -> T:
                 ) from exc
             time.sleep(DB_RETRY_DELAYS[attempt])
     raise RuntimeError("Unreachable")
+
 
 SYSTEM_PROMPT = """You are the Construction AI Assistant inside an AI-first Construction OS.
 
@@ -112,6 +110,7 @@ def _get_project_for_user(project_id: str, user_id: str, client: Client) -> dict
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Project not found")
+
     membership = _db_execute(
         lambda: (
             client.table("organization_members")
@@ -131,33 +130,35 @@ def _get_project_for_user(project_id: str, user_id: str, client: Client) -> dict
 
 
 def _get_or_create_conversation(
-    project_id: str, user_id: str, conversation_id: str | None, first_message: str, client: Client
+    project_id: str,
+    user_id: str,
+    conversation_id: str | None,
+    first_message: str,
+    client: Client,
 ) -> dict[str, Any]:
     if conversation_id:
-        result = (
-            client.table("ai_conversations")
-            .select("id,project_id,user_id,title")
-            .eq("id", conversation_id)
-            .eq("project_id", project_id)
-            .eq("user_id", user_id)
-            .single()
-            .execute()
+        result = _db_execute(
+            lambda: (
+                client.table("ai_conversations")
+                .select("id,project_id,user_id,title")
+                .eq("id", conversation_id)
+                .eq("project_id", project_id)
+                .eq("user_id", user_id)
+                .single()
+                .execute()
+            ),
+            "loading the conversation",
         )
         if not result.data:
             raise HTTPException(status_code=404, detail="Conversation not found")
         return result.data
 
     title = _title_from_message(first_message)
-    result = (
-        client.table("ai_conversations")
-        .insert(
-            {
-                "project_id": project_id,
-                "user_id": user_id,
-                "title": title,
-            }
-        )
-        .execute()
+    result = _db_execute(
+        lambda: client.table("ai_conversations")
+        .insert({"project_id": project_id, "user_id": user_id, "title": title})
+        .execute(),
+        "creating the conversation",
     )
     if not result.data:
         raise HTTPException(status_code=500, detail="Could not create conversation")
@@ -165,16 +166,16 @@ def _get_or_create_conversation(
 
 
 def _maybe_update_title(conversation: dict[str, Any], message: str, client: Client) -> str:
-    """If the conversation still has the default title, rename it from the user message."""
     current = (conversation.get("title") or "").strip()
     if current and current != DEFAULT_TITLE:
         return current
 
     title = _title_from_message(message)
     _db_execute(
-        lambda: client.table("ai_conversations").update({"title": title}).eq(
-            "id", conversation["id"]
-        ).execute(),
+        lambda: client.table("ai_conversations")
+        .update({"title": title})
+        .eq("id", conversation["id"])
+        .execute(),
         "updating the conversation title",
     )
     conversation["title"] = title
@@ -182,13 +183,16 @@ def _maybe_update_title(conversation: dict[str, Any], message: str, client: Clie
 
 
 def _history(conversation_id: str, client: Client) -> list[dict[str, str]]:
-    result = (
-        client.table("ai_messages")
-        .select("role,content")
-        .eq("conversation_id", conversation_id)
-        .order("created_at", desc=True)
-        .limit(MAX_HISTORY)
-        .execute()
+    result = _db_execute(
+        lambda: (
+            client.table("ai_messages")
+            .select("role,content")
+            .eq("conversation_id", conversation_id)
+            .order("created_at", desc=True)
+            .limit(MAX_HISTORY)
+            .execute()
+        ),
+        "loading conversation history",
     )
     rows = list(reversed(result.data or []))
     return [
@@ -199,15 +203,31 @@ def _history(conversation_id: str, client: Client) -> list[dict[str, str]]:
 
 
 def _retrieve(project_id: str, question: str, client: Client) -> list[dict[str, Any]]:
-    embedding = embed_texts([question])[0]
-    result = client.rpc(
-        "match_ai_knowledge_chunks",
-        {
-            "query_embedding": embedding,
-            "match_project_id": project_id,
-            "match_count": MAX_SOURCES,
-        },
-    ).execute()
+    try:
+        embeddings = embed_texts([question])
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Knowledge search unavailable: {exc}") from exc
+
+    if not embeddings:
+        return []
+
+    try:
+        result = _db_execute(
+            lambda: client.rpc(
+                "match_ai_knowledge_chunks",
+                {
+                    "query_embedding": embeddings[0],
+                    "match_project_id": project_id,
+                    "match_count": MAX_SOURCES,
+                },
+            ).execute(),
+            "searching project knowledge",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Knowledge search failed: {exc}") from exc
+
     matches = result.data or []
     return [match for match in matches if (match.get("similarity") or 0) >= MIN_SIMILARITY]
 
@@ -215,12 +235,15 @@ def _retrieve(project_id: str, question: str, client: Client) -> list[dict[str, 
 def _document_titles(project_id: str, document_ids: list[str], client: Client) -> dict[str, str]:
     if not document_ids:
         return {}
-    result = (
-        client.table("documents")
-        .select("id,name")
-        .eq("project_id", project_id)
-        .in_("id", document_ids)
-        .execute()
+    result = _db_execute(
+        lambda: (
+            client.table("documents")
+            .select("id,name")
+            .eq("project_id", project_id)
+            .in_("id", document_ids)
+            .execute()
+        ),
+        "loading source document titles",
     )
     return {str(row["id"]): row["name"] for row in (result.data or [])}
 
@@ -240,14 +263,9 @@ def chat(project_id: str, request: ChatRequest, token: str = Depends(get_access_
     )
     title = _maybe_update_title(conversation, request.message, db)
 
-    try:
-        matches = _retrieve(project_id, request.message, db)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Knowledge search failed: {exc}") from exc
+    matches = _retrieve(project_id, request.message, db)
+    titles = _document_titles(project_id, [str(m.get("document_id")) for m in matches], db)
 
-    titles = _document_titles(
-        project_id, [str(m.get("document_id")) for m in matches], db
-    )
     context_parts = []
     sources: list[dict[str, Any]] = []
 
@@ -283,7 +301,7 @@ def chat(project_id: str, request: ChatRequest, token: str = Depends(get_access_
 
     from openai import OpenAI
 
-    client = OpenAI(api_key=settings.openai_api_key)
+    openai_client = OpenAI(api_key=settings.openai_api_key)
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         *history,
@@ -297,7 +315,7 @@ def chat(project_id: str, request: ChatRequest, token: str = Depends(get_access_
     ]
 
     try:
-        response = client.chat.completions.create(
+        response = openai_client.chat.completions.create(
             model=AI_MODEL, messages=messages, temperature=0.2
         )
     except Exception as exc:
@@ -308,44 +326,60 @@ def chat(project_id: str, request: ChatRequest, token: str = Depends(get_access_
     input_tokens = getattr(usage, "prompt_tokens", 0) or 0
     output_tokens = getattr(usage, "completion_tokens", 0) or 0
 
-    db.table("ai_messages").insert(
-        {"conversation_id": conversation["id"], "role": "user", "content": request.message}
-    ).execute()
-    db.table("ai_messages").insert(
-        {"conversation_id": conversation["id"], "role": "assistant", "content": answer}
-    ).execute()
+    _db_execute(
+        lambda: db.table("ai_messages")
+        .insert({"conversation_id": conversation["id"], "role": "user", "content": request.message})
+        .execute(),
+        "saving the user message",
+    )
+    _db_execute(
+        lambda: db.table("ai_messages")
+        .insert({"conversation_id": conversation["id"], "role": "assistant", "content": answer})
+        .execute(),
+        "saving the AI response",
+    )
 
     if sources:
-        db.table("ai_sources").insert(
-            [
-                {
-                    "conversation_id": conversation["id"],
-                    "document_id": source["document_id"],
-                    "source_type": "ai_knowledge_chunk",
-                    "title": source["title"],
-                    "citation": source["citation"],
-                    "metadata": {
-                        "page_number": source["page_number"],
-                        "similarity": source["similarity"],
-                    },
-                }
-                for source in sources
-            ]
-        ).execute()
+        _db_execute(
+            lambda: db.table("ai_sources")
+            .insert(
+                [
+                    {
+                        "conversation_id": conversation["id"],
+                        "document_id": source["document_id"],
+                        "source_type": "ai_knowledge_chunk",
+                        "title": source["title"],
+                        "citation": source["citation"],
+                        "metadata": {
+                            "page_number": source["page_number"],
+                            "similarity": source["similarity"],
+                        },
+                    }
+                    for source in sources
+                ]
+            )
+            .execute(),
+            "saving AI sources",
+        )
 
-    db.table("ai_usage").insert(
-        {
-            "organization_id": project["organization_id"],
-            "project_id": project_id,
-            "user_id": user["id"],
-            "provider": "openai",
-            "model": AI_MODEL,
-            "operation": "construction_ai_chat",
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "estimated_cost": 0,
-        }
-    ).execute()
+    _db_execute(
+        lambda: db.table("ai_usage")
+        .insert(
+            {
+                "organization_id": project["organization_id"],
+                "project_id": project_id,
+                "user_id": user["id"],
+                "provider": "openai",
+                "model": AI_MODEL,
+                "operation": "construction_ai_chat",
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "estimated_cost": 0,
+            }
+        )
+        .execute(),
+        "saving AI usage",
+    )
 
     return {
         "conversation_id": conversation["id"],
@@ -378,22 +412,28 @@ def list_conversations(project_id: str, token: str = Depends(get_access_token)):
 def list_messages(conversation_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
     client = _authenticated_client(token)
-    conversation = (
-        client.table("ai_conversations")
-        .select("id,project_id,user_id")
-        .eq("id", conversation_id)
-        .eq("user_id", user["id"])
-        .single()
-        .execute()
+    conversation = _db_execute(
+        lambda: (
+            client.table("ai_conversations")
+            .select("id,project_id,user_id")
+            .eq("id", conversation_id)
+            .eq("user_id", user["id"])
+            .single()
+            .execute()
+        ),
+        "loading the conversation",
     )
     if not conversation.data:
         raise HTTPException(status_code=404, detail="Conversation not found")
     _get_project_for_user(conversation.data["project_id"], user["id"], client)
-    result = (
-        client.table("ai_messages")
-        .select("id,role,content,created_at")
-        .eq("conversation_id", conversation_id)
-        .order("created_at")
-        .execute()
+    result = _db_execute(
+        lambda: (
+            client.table("ai_messages")
+            .select("id,role,content,created_at")
+            .eq("conversation_id", conversation_id)
+            .order("created_at")
+            .execute()
+        ),
+        "loading conversation messages",
     )
     return {"data": result.data or []}
