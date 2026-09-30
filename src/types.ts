@@ -6,5 +6,5 @@ export type Message = { role: "user" | "assistant"; content: string; sources?: S
 export type Conversation = { id: string; title?: string | null; created_at?: string };
 export type DesignAsset = { id: string; name: string; document_id?: string | null; discipline?: string | null; asset_type?: string | null; status?: string | null; created_at?: string };
 export type WorkspaceView =
-  | "os-home" | "assistant" | "design-center" | "commercial" | "planning" | "procurement"
+  | "os-home" | "assistant" | "design-center" | "commercial" | "planning" | "procurement" | "inventory"
   | "field" | "quality" | "gis" | "prediction" | "brain" | "integrations" | "ops";
