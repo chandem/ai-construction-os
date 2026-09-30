@@ -35,6 +35,13 @@ def _set_document(client, document_id: str, **fields: Any) -> None:
         pass
 
 
+def _set_knowledge(client, knowledge_id: str, **fields: Any) -> None:
+    try:
+        client.table("ai_knowledge_documents").update(fields).eq("id", knowledge_id).execute()
+    except Exception:
+        pass
+
+
 def run_document_pipeline(
     client,
     *,
@@ -49,7 +56,8 @@ def run_document_pipeline(
     """Execute the full AI processing chain for one document.
 
     Updates job progress: queued → processing → completed|failed.
-    Returns a small summary dict. Raises on hard failure after marking job failed.
+    Reprocessing replaces the document's prior vector chunks instead of
+    accumulating duplicate/stale chunks.
     """
     _set_job(client, job_id, status="processing", progress=10, error_message=None)
     _set_document(client, document_id, status="processing")
@@ -190,6 +198,13 @@ def run_document_pipeline(
         _set_job(client, job_id, progress=90)
 
         if chunks:
+            # Reprocessing must be idempotent for the vector index. Remove
+            # prior chunks for this knowledge document before inserting the
+            # newly extracted/embedded chunks.
+            client.table("ai_knowledge_chunks").delete().eq(
+                "knowledge_document_id", knowledge_id
+            ).execute()
+
             rows = [
                 {
                     "knowledge_document_id": knowledge_id,
@@ -206,6 +221,12 @@ def run_document_pipeline(
                 for i, chunk in enumerate(chunks)
             ]
             client.table("ai_knowledge_chunks").insert(rows).execute()
+        else:
+            # A valid document with no extracted text should not retain stale
+            # vectors from an earlier processing run.
+            client.table("ai_knowledge_chunks").delete().eq(
+                "knowledge_document_id", knowledge_id
+            ).execute()
 
         _set_job(
             client,
@@ -226,6 +247,7 @@ def run_document_pipeline(
             "embeddings": len(embeddings),
         }
     except Exception as exc:
+        _set_knowledge(client, knowledge_id, status="failed")
         _set_job(
             client,
             job_id,
