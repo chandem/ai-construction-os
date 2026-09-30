@@ -52,6 +52,10 @@ export function DesignCenter({ projectId, token }: Props) {
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
   const [showElements, setShowElements] = React.useState(true);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editQuantity, setEditQuantity] = React.useState("");
+  const [editUnit, setEditUnit] = React.useState("");
+  const [editStatus, setEditStatus] = React.useState("approved");
 
   async function load() {
     if (!projectId || !token) return;
@@ -72,6 +76,41 @@ export function DesignCenter({ projectId, token }: Props) {
       setError(e.message || "Could not load Design Center.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function startEdit(row: ElementRow) {
+    if (!row.id) return;
+    setEditingId(row.id);
+    setEditQuantity(row.quantity == null ? "" : String(row.quantity));
+    setEditUnit(row.unit || "");
+    setEditStatus(row.status || "approved");
+    setError("");
+    setNotice("");
+  }
+
+  async function saveReview(row: ElementRow) {
+    if (!row.id) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const quantity = editQuantity.trim() === "" ? null : Number(editQuantity);
+      if (quantity !== null && (!Number.isFinite(quantity) || quantity < 0)) {
+        throw new Error("Quantity must be a valid non-negative number.");
+      }
+      await apiPost(
+        "/api/v1/projects/" + projectId + "/engineering/elements/" + row.id + "/review",
+        token,
+        { quantity, unit: editUnit.trim() || null, status: editStatus },
+      );
+      setEditingId(null);
+      setNotice("Engineering element review saved.");
+      await load();
+    } catch (e: any) {
+      setError(e.message || "Could not save element review.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -152,7 +191,7 @@ export function DesignCenter({ projectId, token }: Props) {
           {showElements && elements.length > 0 && (
             <div className="table-wrap" style={{ marginTop: 16 }}>
               <table>
-                <thead><tr><th>Element</th><th>Identifier</th><th>Qty</th><th>Unit</th><th>Source</th><th>Confidence</th></tr></thead>
+                <thead><tr><th>Element</th><th>Identifier</th><th>Qty</th><th>Unit</th><th>Source</th><th>Confidence</th><th>Review</th></tr></thead>
                 <tbody>
                   {elements.slice(0, 50).map((row, index) => (
                     <tr key={row.id || index}>
@@ -162,6 +201,25 @@ export function DesignCenter({ projectId, token }: Props) {
                       <td>{row.unit || "—"}</td>
                       <td>{row.source_page ? "Page " + row.source_page : row.source || "AI"}</td>
                       <td>{row.confidence == null ? "—" : Math.round(Number(row.confidence) * 100) + "%"}</td>
+                      <td>
+                        {editingId === row.id ? (
+                          <div className="row gap">
+                            <input aria-label="Quantity" type="number" min="0" step="any" value={editQuantity} onChange={(e) => setEditQuantity(e.target.value)} style={{ width: 90 }} />
+                            <input aria-label="Unit" value={editUnit} onChange={(e) => setEditUnit(e.target.value)} style={{ width: 70 }} />
+                            <select aria-label="Review status" value={editStatus} onChange={(e) => setEditStatus(e.target.value)} style={{ width: 105 }}>
+                              <option value="approved">Approved</option>
+                              <option value="proposed">Proposed</option>
+                              <option value="rejected">Rejected</option>
+                            </select>
+                            <button type="button" className="button compact" disabled={busy} onClick={() => saveReview(row)}>Save</button>
+                            <button type="button" className="button compact" disabled={busy} onClick={() => setEditingId(null)}>Cancel</button>
+                          </div>
+                        ) : (
+                          <button type="button" className="button compact" disabled={busy || !row.id} onClick={() => startEdit(row)}>
+                            {row.status === "approved" ? "Reviewed" : "Review"}
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
