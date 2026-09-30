@@ -12,16 +12,29 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_anon_key: str = ""
     supabase_publishable_key: str = ""
-    openai_api_key: str = ""
     # Server-only Supabase secret key. Never expose this to the frontend.
     supabase_secret_key: str = ""
-    embedding_model: str = "text-embedding-3-small"
+
+    # Gemini (primary AI provider — free tier friendly)
+    gemini_api_key: str = ""
+    # Optional legacy alias; prefer GEMINI_API_KEY
+    openai_api_key: str = ""
+
+    # Chat / extraction / vision model
+    gemini_chat_model: str = "gemini-2.0-flash"
+    # Embeddings — 768 dims (re-process documents after switching from OpenAI 1536)
+    embedding_model: str = "text-embedding-004"
+
     # Comma-separated. Override on Render with CORS_ORIGINS if needed.
     cors_origins: str = ",".join(_DEFAULT_CORS)
 
     @property
     def supabase_key(self) -> str:
         return self.supabase_publishable_key or self.supabase_anon_key
+
+    @property
+    def ai_api_key(self) -> str:
+        return (self.gemini_api_key or "").strip()
 
     @property
     def cors_origin_list(self) -> list[str]:
