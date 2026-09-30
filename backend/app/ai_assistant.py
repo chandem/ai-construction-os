@@ -1,7 +1,11 @@
-from typing import Any
+import time
+from typing import Any, Callable, TypeVar
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from supabase import Client, create_client
+from supabase.lib.client_options import ClientOptions
 
 from .auth import get_access_token, get_current_user
 from .config import settings
@@ -16,6 +20,38 @@ MAX_SOURCES = 8
 MIN_SIMILARITY = 0.35
 DEFAULT_TITLE = "Construction AI Assistant"
 TITLE_MAX_LEN = 72
+DB_RETRIES = 3
+DB_RETRY_DELAYS = (0.25, 0.75)
+
+T = TypeVar("T")
+
+
+def _authenticated_client(token: str) -> Client:
+    client = create_client(
+        settings.supabase_url,
+        settings.supabase_key,
+        options=ClientOptions(
+            auto_refresh_token=False,
+            persist_session=False,
+            postgrest_client_timeout=15,
+        ),
+    )
+    client.postgrest.auth(token)
+    return client
+
+
+def _db_execute(operation: Callable[[], T], operation_name: str) -> T:
+    for attempt in range(DB_RETRIES):
+        try:
+            return operation()
+        except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException, OSError) as exc:
+            if attempt == DB_RETRIES - 1:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Database service temporarily unavailable while {operation_name}. Please retry.",
+                ) from exc
+            time.sleep(DB_RETRY_DELAYS[attempt])
+    raise RuntimeError("Unreachable")
 
 SYSTEM_PROMPT = """You are the Construction AI Assistant inside an AI-first Construction OS.
 
