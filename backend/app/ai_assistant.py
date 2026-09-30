@@ -10,10 +10,10 @@ from .auth import get_access_token, get_current_user
 from .config import settings
 from .db import supabase_admin
 from .embeddings import embed_texts
+from .gemini_client import generate_text
 
 router = APIRouter(prefix="/api/v1")
 
-AI_MODEL = "gpt-4.1-mini"
 MAX_HISTORY = 10
 MAX_SOURCES = 8
 MIN_SIMILARITY = 0.35
@@ -26,7 +26,6 @@ T = TypeVar("T")
 
 
 def _authenticated_client(token: str) -> Client:
-    """Return the shared trusted backend client after validating the caller JWT."""
     if supabase_admin is None:
         raise HTTPException(
             status_code=500,
@@ -36,7 +35,6 @@ def _authenticated_client(token: str) -> Client:
 
 
 def _db_execute(operation: Callable[[], T], operation_name: str) -> T:
-    """Retry transient transport failures without retrying application/API errors."""
     for attempt in range(DB_RETRIES):
         try:
             return operation()
@@ -251,9 +249,9 @@ def _document_titles(project_id: str, document_ids: list[str], client: Client) -
 @router.post("/projects/{project_id}/ai/chat", response_model=ChatResponse)
 def chat(project_id: str, request: ChatRequest, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    if not settings.openai_api_key:
+    if not settings.ai_api_key:
         raise HTTPException(
-            status_code=503, detail="AI service is not configured: OPENAI_API_KEY is missing"
+            status_code=503, detail="AI service is not configured: GEMINI_API_KEY is missing"
         )
 
     db = _authenticated_client(token)
@@ -298,33 +296,31 @@ def chat(project_id: str, request: ChatRequest, token: str = Depends(get_access_
         else "No sufficiently relevant project document evidence was found."
     )
     history = _history(conversation["id"], db)
+    history_text = ""
+    if history:
+        history_text = "RECENT CONVERSATION:\n" + "\n".join(
+            f"{m['role'].upper()}: {m['content']}" for m in history
+        ) + "\n\n"
 
-    from openai import OpenAI
+    user_prompt = (
+        f"Project: {project.get('name')} ({project.get('code') or 'no code'})\n\n"
+        f"{history_text}"
+        f"PROJECT EVIDENCE:\n{context}\n\nUSER QUESTION:\n{request.message}"
+    )
 
-    openai_client = OpenAI(api_key=settings.openai_api_key)
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        *history,
-        {
-            "role": "user",
-            "content": (
-                f"Project: {project.get('name')} ({project.get('code') or 'no code'})\n\n"
-                f"PROJECT EVIDENCE:\n{context}\n\nUSER QUESTION:\n{request.message}"
-            ),
-        },
-    ]
-
+    model_id = settings.gemini_chat_model
     try:
-        response = openai_client.chat.completions.create(
-            model=AI_MODEL, messages=messages, temperature=0.2
+        answer = generate_text(
+            system=SYSTEM_PROMPT,
+            user=user_prompt,
+            temperature=0.2,
+            model=model_id,
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"AI generation failed: {exc}") from exc
 
-    answer = response.choices[0].message.content or "I could not generate an answer."
-    usage = response.usage
-    input_tokens = getattr(usage, "prompt_tokens", 0) or 0
-    output_tokens = getattr(usage, "completion_tokens", 0) or 0
+    if not answer:
+        answer = "I could not generate an answer."
 
     _db_execute(
         lambda: db.table("ai_messages")
@@ -362,24 +358,27 @@ def chat(project_id: str, request: ChatRequest, token: str = Depends(get_access_
             "saving AI sources",
         )
 
-    _db_execute(
-        lambda: db.table("ai_usage")
-        .insert(
-            {
-                "organization_id": project["organization_id"],
-                "project_id": project_id,
-                "user_id": user["id"],
-                "provider": "openai",
-                "model": AI_MODEL,
-                "operation": "construction_ai_chat",
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-                "estimated_cost": 0,
-            }
+    try:
+        _db_execute(
+            lambda: db.table("ai_usage")
+            .insert(
+                {
+                    "organization_id": project["organization_id"],
+                    "project_id": project_id,
+                    "user_id": user["id"],
+                    "provider": "gemini",
+                    "model": model_id,
+                    "operation": "construction_ai_chat",
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "estimated_cost": 0,
+                }
+            )
+            .execute(),
+            "saving AI usage",
         )
-        .execute(),
-        "saving AI usage",
-    )
+    except Exception:
+        pass
 
     return {
         "conversation_id": conversation["id"],
