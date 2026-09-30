@@ -6,6 +6,7 @@ from .config import settings
 from .db import supabase
 from .engineering_routes import router as engineering_router
 from .procurement_routes import router as procurement_router
+from .cost_control_routes import router as cost_control_router
 from .routes import router
 
 app = FastAPI(
@@ -29,6 +30,7 @@ app.include_router(router)
 app.include_router(ai_router)
 app.include_router(engineering_router)
 app.include_router(procurement_router)
+app.include_router(cost_control_router)
 
 
 @app.get("/health")
