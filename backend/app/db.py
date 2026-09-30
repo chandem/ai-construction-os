@@ -1,4 +1,5 @@
 from supabase import Client, create_client
+from supabase.lib.client_options import ClientOptions
 from .config import settings
 
 if not settings.supabase_key:
@@ -7,12 +8,27 @@ if not settings.supabase_key:
 supabase: Client = create_client(
     settings.supabase_url,
     settings.supabase_key,
+    options=ClientOptions(
+        auto_refresh_token=False,
+        persist_session=False,
+        postgrest_client_timeout=15,
+        storage_client_timeout=30,
+    ),
 )
 
 
 # Trusted server-side client. The secret key bypasses RLS and must remain on Render only.
 supabase_admin: Client | None = (
-    create_client(settings.supabase_url, settings.supabase_secret_key)
+    create_client(
+        settings.supabase_url,
+        settings.supabase_secret_key,
+        options=ClientOptions(
+            auto_refresh_token=False,
+            persist_session=False,
+            postgrest_client_timeout=15,
+            storage_client_timeout=30,
+        ),
+    )
     if settings.supabase_secret_key
     else None
 )
