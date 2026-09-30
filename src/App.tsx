@@ -6,6 +6,7 @@ import type { Project, Document, Message, Conversation, DesignAsset, WorkspaceVi
 import { OsHome } from "./centers/OsHome";
 import { DesignCenter } from "./centers/DesignCenter";
 import { CommercialCenter } from "./centers/CommercialCenter";
+import { CostControlCenter } from "./centers/CostControlCenter";
 import { PlanningCenter } from "./centers/PlanningCenter";
 import { ProcurementCenter } from "./centers/ProcurementCenter";
 import { InventoryCenter } from "./centers/InventoryCenter";
@@ -22,6 +23,7 @@ const NAV: { id: WorkspaceView; label: string }[] = [
   { id: "assistant", label: "Assistant" },
   { id: "design-center", label: "Design" },
   { id: "commercial", label: "Commercial" },
+  { id: "cost-control", label: "Cost Control" },
   { id: "planning", label: "Planning" },
   { id: "procurement", label: "Procurement" },
   { id: "inventory", label: "Inventory" },
@@ -328,6 +330,7 @@ export function App() {
           )}
           {projectId && view === "design-center" && <DesignCenter {...centerProps} />}
           {projectId && view === "commercial" && <CommercialCenter {...centerProps} />}
+          {projectId && view === "cost-control" && <CostControlCenter {...centerProps} />}
           {projectId && view === "planning" && <PlanningCenter {...centerProps} />}
           {projectId && view === "procurement" && <ProcurementCenter {...centerProps} />}
           {projectId && view === "inventory" && <InventoryCenter {...centerProps} />}
