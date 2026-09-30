@@ -41,8 +41,24 @@ def update_procurement_item(project_id: str, item_id: str, payload: ProcurementI
     if not existing.data: raise HTTPException(status_code=404, detail="Procurement item not found.")
     update={k:v for k,v in payload.model_dump().items() if v is not None}
     if not update: raise HTTPException(status_code=400, detail="No procurement changes supplied.")
+    current_row=client.table("procurement_items").select("*").eq("id",item_id).eq("project_id",project_id).maybe_single().execute().data
     result=client.table("procurement_items").update(update).eq("id",item_id).eq("project_id",project_id).execute()
-    return {"data": result.data[0] if result.data else {**existing.data, **update}}
+    updated=result.data[0] if result.data else {**(current_row or {}), **update}
+    old_delivered=float((current_row or {}).get("delivered_quantity") or 0)
+    new_delivered=float(updated.get("delivered_quantity") or 0)
+    delta=new_delivered-old_delivered
+    if delta != 0:
+        inv=client.table("inventory_items").select("*").eq("project_id",project_id).eq("procurement_item_id",item_id).maybe_single().execute()
+        if inv.data:
+            inv_row=inv.data
+        else:
+            created=client.table("inventory_items").insert({"project_id":project_id,"procurement_item_id":item_id,"item_code":updated.get("item_code"),"material_name":updated.get("material_name") or "Procurement item","specification":updated.get("specification"),"unit":updated.get("unit"),"supplier":updated.get("supplier"),"received_quantity":0}).execute()
+            if not created.data: raise HTTPException(status_code=500, detail="Could not create inventory item for delivery.")
+            inv_row=created.data[0]
+        new_received=float(inv_row.get("received_quantity") or 0)+delta
+        client.table("inventory_items").update({"received_quantity":new_received,"supplier":updated.get("supplier"),"updated_at":"now()"}).eq("id",inv_row["id"]).execute()
+        client.table("inventory_transactions").insert({"project_id":project_id,"inventory_item_id":inv_row["id"],"procurement_item_id":item_id,"transaction_type":"receipt" if delta>0 else "adjustment","quantity":delta,"reference":updated.get("item_code") or item_id,"notes":"Automatic receipt from procurement delivery update.","created_by":user["id"]}).execute()
+    return {"data": updated, "inventory_receipt_quantity": delta}
 
 @router.post("/projects/{project_id}/procurement/from-boq")
 def create_procurement_from_boq(project_id: str,token: str=Depends(get_access_token)):
