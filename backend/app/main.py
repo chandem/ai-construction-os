@@ -7,6 +7,7 @@ from .db import supabase
 from .engineering_routes import router as engineering_router
 from .procurement_routes import router as procurement_router
 from .procurement_routes import router as procurement_router
+from .procurement_routes import router as procurement_router
 from .routes import router
 
 app = FastAPI(
@@ -29,6 +30,7 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(ai_router)
 app.include_router(engineering_router)
+app.include_router(procurement_router)
 app.include_router(procurement_router)
 app.include_router(procurement_router)
 
