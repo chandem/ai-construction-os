@@ -33,6 +33,7 @@ type BoqRow = {
   unit?: string | null;
   item_count?: number;
   status?: string;
+  id?: string;
 };
 
 type EstimateSummary = {
@@ -56,6 +57,11 @@ export function DesignCenter({ projectId, token }: Props) {
   const [editQuantity, setEditQuantity] = React.useState("");
   const [editUnit, setEditUnit] = React.useState("");
   const [editStatus, setEditStatus] = React.useState("approved");
+  const [editingBoqId, setEditingBoqId] = React.useState<string | null>(null);
+  const [boqDescription, setBoqDescription] = React.useState("");
+  const [boqQuantity, setBoqQuantity] = React.useState("");
+  const [boqUnit, setBoqUnit] = React.useState("");
+  const [boqStatus, setBoqStatus] = React.useState("approved");
 
   async function load() {
     if (!projectId || !token) return;
@@ -109,6 +115,41 @@ export function DesignCenter({ projectId, token }: Props) {
       await load();
     } catch (e: any) {
       setError(e.message || "Could not save element review.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startBoqEdit(row: BoqRow) {
+    if (!row.id) return;
+    setEditingBoqId(row.id);
+    setBoqDescription(row.description || "");
+    setBoqQuantity(row.quantity == null ? "" : String(row.quantity));
+    setBoqUnit(row.unit || "");
+    setBoqStatus(row.status || "approved");
+  }
+
+  async function saveBoqReview(row: BoqRow) {
+    if (!row.id) return;
+    const quantity = boqQuantity.trim() === "" ? null : Number(boqQuantity);
+    if (quantity !== null && (!Number.isFinite(quantity) || quantity < 0)) {
+      setError("BOQ quantity must be a valid non-negative number.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await apiPost("/api/v1/projects/" + projectId + "/engineering/boq/items/" + row.id + "/review", token, {
+        description: boqDescription.trim() || null,
+        quantity,
+        unit: boqUnit.trim() || null,
+        status: boqStatus,
+      });
+      setEditingBoqId(null);
+      setNotice("BOQ review saved.");
+      await load();
+    } catch (e: any) {
+      setError(e.message || "Could not save BOQ review.");
     } finally {
       setBusy(false);
     }
@@ -233,7 +274,7 @@ export function DesignCenter({ projectId, token }: Props) {
               <h3>Proposed BOQ</h3>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Code</th><th>Description</th><th>Section</th><th>Qty</th><th>Unit</th></tr></thead>
+                  <thead><tr><th>Code</th><th>Description</th><th>Section</th><th>Qty</th><th>Unit</th><th>Status</th><th>Review</th></tr></thead>
                   <tbody>
                     {boq.map((row, index) => (
                       <tr key={row.item_code || index}>
