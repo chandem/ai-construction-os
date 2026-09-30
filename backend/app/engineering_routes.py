@@ -235,19 +235,10 @@ def list_project_boq(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
     client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
-    try:
-        result = (
-            client.table("engineering_elements")
-            .select(ELEMENT_FIELDS)
-            .eq("project_id", project_id)
-            .execute()
-        )
-        rows = result.data or []
-    except Exception:
-        return {"data": [], "warning": "engineering_elements table is not available yet"}
-    enriched = enrich_elements(rows)
-    lines = build_boq_lines(enriched, project_id=project_id)
-    return {"data": lines, "source_element_count": len(enriched)}
+    lines, warning = _boq_lines_for_project(client, project_id)
+    if warning and not lines:
+        return {"data": [], "warning": warning}
+    return {"data": lines, "source_element_count": sum(int(row.get("item_count") or 0) for row in lines)}
 
 
 @router.post("/projects/{project_id}/engineering/boq/generate")
@@ -294,7 +285,21 @@ def list_project_estimate(project_id: str, token: str = Depends(get_access_token
     boq_lines, warning = _boq_lines_for_project(client, project_id)
     if warning and not boq_lines:
         return {"data": [], "summary": {}, "warning": warning}
-    payload = build_estimate_from_boq(boq_lines, project_id=project_id)
+    try:
+        stored = client.table("estimate_items").select(ESTIMATE_FIELDS).eq("project_id", project_id).order("work_section").execute()
+        stored_rows = stored.data or []
+    except Exception:
+        stored_rows = []
+    if stored_rows:
+        payload = {"lines": stored_rows, "summary": {
+            "currency": next((r.get("currency") for r in stored_rows if r.get("currency")), "USD"),
+            "total_amount": sum(float(r.get("amount") or 0) for r in stored_rows),
+            "line_count": len(stored_rows),
+            "priced_lines": sum(1 for r in stored_rows if r.get("unit_rate") is not None),
+            "unpriced_lines": sum(1 for r in stored_rows if r.get("unit_rate") is None),
+        }}
+    else:
+        payload = build_estimate_from_boq(boq_lines, project_id=project_id)
     out = {"data": payload["lines"], "summary": payload["summary"], "boq_line_count": len(boq_lines)}
     if warning:
         out["warning"] = warning
