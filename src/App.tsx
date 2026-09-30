@@ -45,6 +45,7 @@ export function App() {
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
   const [view, setView] = React.useState<WorkspaceView>("os-home");
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [projectsLoading, setProjectsLoading] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
@@ -229,10 +230,10 @@ export function App() {
     <div className="app">
       <header>
         <div><strong>AI Construction OS</strong><span>Construction Intelligence Platform</span></div>
-        <button onClick={signOut}>Sign out</button>
+        <div className="header-actions"><button className="menu-button" type="button" aria-label="Open navigation" onClick={() => setSidebarOpen((v) => !v)}>☰</button><button onClick={signOut}>Sign out</button></div>
       </header>
       <main className="workspace">
-        <aside>
+        <aside className={sidebarOpen ? "sidebar-open" : ""}>
           <h2>Project</h2>
           <label>Select project</label>
           <select value={projectId} onChange={(e) => { setProjectId(e.target.value); setMessages([]); setConversationId(""); setError(""); setNotice(""); setView("os-home"); }}>
@@ -251,7 +252,7 @@ export function App() {
           )}
           <div className="nav-centers">
             {NAV.map((n) => (
-              <button key={n.id} type="button" className={"side-action" + (view === n.id ? " active-nav" : "")} onClick={() => setView(n.id)} disabled={!projectId && n.id !== "assistant"}>
+              <button key={n.id} type="button" className={"side-action" + (view === n.id ? " active-nav" : "")} onClick={() => { setView(n.id); setSidebarOpen(false); }} disabled={!projectId && n.id !== "assistant"}>
                 {n.label}
               </button>
             ))}
@@ -302,7 +303,7 @@ export function App() {
             </div>
           )}
           {!projectId && <div className="empty"><p>Select or create a project to open the Construction OS.</p></div>
-          {projectId && view === "os-home" && <OsHome {...centerProps} />}
+          {projectId && view === "os-home" && <OsHome {...centerProps} onNavigate={(next) => { if (NAV.some((n) => n.id === next)) setView(next as WorkspaceView); setSidebarOpen(false); }} />}
           {projectId && view === "assistant" && (
             <>
               <div className="messages">
