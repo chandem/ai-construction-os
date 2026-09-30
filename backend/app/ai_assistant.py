@@ -101,22 +101,28 @@ def _title_from_message(message: str) -> str:
 
 
 def _get_project_for_user(project_id: str, user_id: str, client: Client) -> dict[str, Any]:
-    result = (
-        client.table("projects")
-        .select("id,organization_id,name,code")
-        .eq("id", project_id)
-        .single()
-        .execute()
+    result = _db_execute(
+        lambda: (
+            client.table("projects")
+            .select("id,organization_id,name,code")
+            .eq("id", project_id)
+            .single()
+            .execute()
+        ),
+        "loading the project",
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    membership = (
-        client.table("organization_members")
-        .select("organization_id,role")
-        .eq("organization_id", result.data["organization_id"])
-        .eq("user_id", user_id)
-        .limit(1)
-        .execute()
+    membership = _db_execute(
+        lambda: (
+            client.table("organization_members")
+            .select("organization_id,role")
+            .eq("organization_id", result.data["organization_id"])
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        ),
+        "checking project membership",
     )
     if not membership.data:
         raise HTTPException(
@@ -355,13 +361,16 @@ def list_conversations(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
     client = _authenticated_client(token)
     _get_project_for_user(project_id, user["id"], client)
-    result = (
-        client.table("ai_conversations")
-        .select("id,project_id,user_id,title,created_at")
-        .eq("project_id", project_id)
-        .eq("user_id", user["id"])
-        .order("created_at", desc=True)
-        .execute()
+    result = _db_execute(
+        lambda: (
+            client.table("ai_conversations")
+            .select("id,project_id,user_id,title,created_at")
+            .eq("project_id", project_id)
+            .eq("user_id", user["id"])
+            .order("created_at", desc=True)
+            .execute()
+        ),
+        "listing AI conversations",
     )
     return {"data": result.data or []}
 
