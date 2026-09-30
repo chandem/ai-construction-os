@@ -3,6 +3,7 @@
 Core engineering chain lives here; later phases are included from sibling routers.
 """
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from .auth import get_access_token, get_current_user
 from .boq import build_boq_lines, persist_boq_items
@@ -19,6 +20,64 @@ from .routes_helpers import (
 )
 
 router = APIRouter(prefix="/api/v1")
+
+
+class ElementReviewRequest(BaseModel):
+    quantity: float | None = Field(default=None, ge=0)
+    unit: str | None = Field(default=None, max_length=32)
+    status: str = Field(default="approved", pattern="^(proposed|approved|rejected)$")
+    review_note: str | None = Field(default=None, max_length=1000)
+
+
+@router.post("/projects/{project_id}/engineering/elements/{element_id}/review")
+def review_engineering_element(
+    project_id: str,
+    element_id: str,
+    payload: ElementReviewRequest,
+    token: str = Depends(get_access_token),
+):
+    """Approve or correct an AI-derived quantity before it feeds the BOQ."""
+    user = get_current_user(token)
+    client = _authenticated_client(token)
+    _project_for_member(project_id, user["id"], client)
+    try:
+        existing = (
+            client.table("engineering_elements")
+            .select("id,project_id,quantity,unit,properties")
+            .eq("id", element_id)
+            .eq("project_id", project_id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Could not load engineering element.") from exc
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Engineering element not found.")
+
+    from datetime import datetime, timezone
+    props = dict(existing.data.get("properties") or {})
+    if payload.review_note:
+        props["review_note"] = payload.review_note
+    props["reviewed_by"] = user["id"]
+    props["reviewed_at"] = datetime.now(timezone.utc).isoformat()
+    update = {
+        "quantity": payload.quantity if payload.quantity is not None else existing.data.get("quantity"),
+        "unit": payload.unit or existing.data.get("unit"),
+        "status": payload.status,
+        "properties": props,
+    }
+    try:
+        result = (
+            client.table("engineering_elements")
+            .update(update)
+            .eq("id", element_id)
+            .eq("project_id", project_id)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Could not save engineering element review.") from exc
+    return {"data": result.data[0] if result.data else {**existing.data, **update}}
+
 
 
 @router.get("/projects/{project_id}/engineering/elements")
