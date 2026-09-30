@@ -94,6 +94,20 @@ def issue_inventory_item(project_id: str, item_id: str, payload: InventoryIssueR
     client.table("inventory_transactions").insert({"project_id":project_id,"inventory_item_id":item_id,"transaction_type":"issue","quantity":-payload.quantity,"notes":payload.notes or "Material issued for site consumption.","created_by":user["id"]}).execute()
     return {"data": result.data[0] if result.data else {**row,"consumed_quantity":consumed},"issued_quantity":payload.quantity,"remaining_available":available-payload.quantity}
 
+@router.get("/projects/{project_id}/inventory/insights")
+def inventory_insights(project_id: str, token: str = Depends(get_access_token)):
+    user=get_current_user(token); client=_authenticated_client(token); _project_for_member(project_id,user["id"],client)
+    result=client.table("inventory_items").select("*").eq("project_id",project_id).execute()
+    rows=result.data or []
+    insights=[]
+    for row in rows:
+        available=float(row.get("opening_quantity") or 0)+float(row.get("received_quantity") or 0)-float(row.get("consumed_quantity") or 0)-float(row.get("reserved_quantity") or 0)
+        reorder=float(row.get("reorder_level") or 0)
+        required=float(row.get("required_quantity") or 0)
+        if reorder > 0 and available <= reorder:
+            insights.append({"inventory_item_id":row["id"],"material_name":row.get("material_name"),"available":available,"reorder_level":reorder,"shortage_to_reorder":max(0,reorder-available),"priority":"high" if available <= 0 else "medium","reason":"Available stock is at or below the reorder level."})
+    return {"data":insights,"count":len(insights),"summary":{"materials":len(rows),"reorder_alerts":len(insights)}}
+
 @router.post("/projects/{project_id}/procurement/from-boq")
 def create_procurement_from_boq(project_id: str,token: str=Depends(get_access_token)):
     user=get_current_user(token); client=_authenticated_client(token); _project_for_member(project_id,user["id"],client)
