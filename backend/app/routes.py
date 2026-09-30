@@ -194,8 +194,7 @@ def list_asset_reviews(asset_id: str, token: str = Depends(get_access_token)):
 @router.get("/projects/{project_id}/design/assets")
 def list_design_assets(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     result = (
         client.table("design_assets")
