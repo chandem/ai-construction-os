@@ -60,6 +60,40 @@ def update_procurement_item(project_id: str, item_id: str, payload: ProcurementI
         client.table("inventory_transactions").insert({"project_id":project_id,"inventory_item_id":inv_row["id"],"procurement_item_id":item_id,"transaction_type":"receipt" if delta>0 else "adjustment","quantity":delta,"reference":updated.get("item_code") or item_id,"notes":"Automatic receipt from procurement delivery update.","created_by":user["id"]}).execute()
     return {"data": updated, "inventory_receipt_quantity": delta}
 
+class InventoryIssueRequest(BaseModel):
+    quantity: float = Field(gt=0)
+    notes: str | None = Field(default=None, max_length=1000)
+
+@router.get("/projects/{project_id}/inventory/items")
+def list_inventory_items(project_id: str, token: str = Depends(get_access_token)):
+    user=get_current_user(token); client=_authenticated_client(token); _project_for_member(project_id,user["id"],client)
+    result=client.table("inventory_items").select("*").eq("project_id",project_id).order("material_name").execute()
+    return {"data": result.data or []}
+
+@router.patch("/projects/{project_id}/inventory/items/{item_id}")
+def update_inventory_item(project_id: str, item_id: str, payload: dict, token: str = Depends(get_access_token)):
+    user=get_current_user(token); client=_authenticated_client(token); _project_for_member(project_id,user["id"],client)
+    allowed={"opening_quantity","consumed_quantity","reserved_quantity","reorder_level","location"}
+    update={k:v for k,v in payload.items() if k in allowed and v is not None}
+    if not update: raise HTTPException(status_code=400, detail="No inventory changes supplied.")
+    existing=client.table("inventory_items").select("id").eq("id",item_id).eq("project_id",project_id).maybe_single().execute()
+    if not existing.data: raise HTTPException(status_code=404, detail="Inventory item not found.")
+    result=client.table("inventory_items").update(update).eq("id",item_id).eq("project_id",project_id).execute()
+    return {"data": result.data[0] if result.data else {**existing.data, **update}}
+
+@router.post("/projects/{project_id}/inventory/items/{item_id}/issue")
+def issue_inventory_item(project_id: str, item_id: str, payload: InventoryIssueRequest, token: str = Depends(get_access_token)):
+    user=get_current_user(token); client=_authenticated_client(token); _project_for_member(project_id,user["id"],client)
+    existing=client.table("inventory_items").select("*").eq("id",item_id).eq("project_id",project_id).maybe_single().execute()
+    if not existing.data: raise HTTPException(status_code=404, detail="Inventory item not found.")
+    row=existing.data
+    available=float(row.get("opening_quantity") or 0)+float(row.get("received_quantity") or 0)-float(row.get("consumed_quantity") or 0)-float(row.get("reserved_quantity") or 0)
+    if payload.quantity > available: raise HTTPException(status_code=400, detail=f"Insufficient available stock. Available: {available:g} {row.get('unit') or ''}".strip())
+    consumed=float(row.get("consumed_quantity") or 0)+payload.quantity
+    result=client.table("inventory_items").update({"consumed_quantity":consumed,"updated_at":"now()"}).eq("id",item_id).eq("project_id",project_id).execute()
+    client.table("inventory_transactions").insert({"project_id":project_id,"inventory_item_id":item_id,"transaction_type":"issue","quantity":-payload.quantity,"notes":payload.notes or "Material issued for site consumption.","created_by":user["id"]}).execute()
+    return {"data": result.data[0] if result.data else {**row,"consumed_quantity":consumed},"issued_quantity":payload.quantity,"remaining_available":available-payload.quantity}
+
 @router.post("/projects/{project_id}/procurement/from-boq")
 def create_procurement_from_boq(project_id: str,token: str=Depends(get_access_token)):
     user=get_current_user(token); client=_authenticated_client(token); _project_for_member(project_id,user["id"],client)
