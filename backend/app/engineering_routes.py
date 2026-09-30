@@ -6,11 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from .auth import get_access_token, get_current_user
 from .boq import build_boq_lines, persist_boq_items
-from .db import supabase
+from .db import supabase_admin
 from .design_to_cost import build_design_to_cost
 from .estimate import build_estimate_from_boq, persist_estimate_items
 from .quantity_takeoff import enrich_elements, summarize_quantities
-from .routes import _project_for_member
+from .routes import _authenticated_client, _project_for_member
 from .routes_helpers import (
     BOQ_FIELDS,
     ELEMENT_FIELDS,
@@ -24,8 +24,7 @@ router = APIRouter(prefix="/api/v1")
 @router.get("/projects/{project_id}/engineering/elements")
 def list_project_engineering_elements(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     try:
         result = (
@@ -43,8 +42,7 @@ def list_project_engineering_elements(project_id: str, token: str = Depends(get_
 @router.get("/design/assets/{asset_id}/elements")
 def list_asset_engineering_elements(asset_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     asset = client.table("design_assets").select("id,project_id").eq("id", asset_id).maybe_single().execute()
     if not asset.data:
         raise HTTPException(status_code=404, detail="Design asset not found")
@@ -65,8 +63,7 @@ def list_asset_engineering_elements(asset_id: str, token: str = Depends(get_acce
 @router.get("/projects/{project_id}/engineering/quantities")
 def list_project_quantities(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     try:
         result = (
@@ -85,8 +82,7 @@ def list_project_quantities(project_id: str, token: str = Depends(get_access_tok
 @router.get("/projects/{project_id}/engineering/boq")
 def list_project_boq(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     try:
         result = (
@@ -106,8 +102,7 @@ def list_project_boq(project_id: str, token: str = Depends(get_access_token)):
 @router.post("/projects/{project_id}/engineering/boq/generate")
 def generate_and_persist_boq(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     try:
         result = (
@@ -131,8 +126,7 @@ def generate_and_persist_boq(project_id: str, token: str = Depends(get_access_to
 @router.get("/projects/{project_id}/boq/items")
 def list_stored_boq_items(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     try:
         result = client.table("boq_items").select(BOQ_FIELDS).eq("project_id", project_id).order("work_section").execute()
@@ -144,8 +138,7 @@ def list_stored_boq_items(project_id: str, token: str = Depends(get_access_token
 @router.get("/projects/{project_id}/engineering/estimate")
 def list_project_estimate(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     boq_lines, warning = _boq_lines_for_project(client, project_id)
     if warning and not boq_lines:
@@ -160,8 +153,7 @@ def list_project_estimate(project_id: str, token: str = Depends(get_access_token
 @router.post("/projects/{project_id}/engineering/estimate/generate")
 def generate_and_persist_estimate(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     boq_lines, warning = _boq_lines_for_project(client, project_id)
     if warning and not boq_lines:
@@ -182,8 +174,7 @@ def generate_and_persist_estimate(project_id: str, token: str = Depends(get_acce
 @router.get("/projects/{project_id}/estimate/items")
 def list_stored_estimate_items(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     try:
         result = client.table("estimate_items").select(ESTIMATE_FIELDS).eq("project_id", project_id).order("work_section").execute()
@@ -195,8 +186,7 @@ def list_stored_estimate_items(project_id: str, token: str = Depends(get_access_
 @router.get("/projects/{project_id}/engineering/design-to-cost")
 def project_design_to_cost(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     boq_lines, warning = _boq_lines_for_project(client, project_id)
     if warning and not boq_lines:
