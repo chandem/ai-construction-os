@@ -100,9 +100,7 @@ def _title_from_message(message: str) -> str:
     return cleaned[: TITLE_MAX_LEN - 1].rstrip() + "…"
 
 
-def _get_project_for_user(project_id: str, user_id: str, token: str) -> dict[str, Any]:
-    client = supabase
-    client.postgrest.auth(token)
+def _get_project_for_user(project_id: str, user_id: str, client: Client) -> dict[str, Any]:
     result = (
         client.table("projects")
         .select("id,organization_id,name,code")
@@ -128,10 +126,8 @@ def _get_project_for_user(project_id: str, user_id: str, token: str) -> dict[str
 
 
 def _get_or_create_conversation(
-    project_id: str, user_id: str, conversation_id: str | None, token: str, first_message: str
+    project_id: str, user_id: str, conversation_id: str | None, first_message: str, client: Client
 ) -> dict[str, Any]:
-    client = supabase
-    client.postgrest.auth(token)
     if conversation_id:
         result = (
             client.table("ai_conversations")
@@ -163,25 +159,24 @@ def _get_or_create_conversation(
     return result.data[0]
 
 
-def _maybe_update_title(conversation: dict[str, Any], message: str, token: str) -> str:
+def _maybe_update_title(conversation: dict[str, Any], message: str, client: Client) -> str:
     """If the conversation still has the default title, rename it from the user message."""
     current = (conversation.get("title") or "").strip()
     if current and current != DEFAULT_TITLE:
         return current
 
     title = _title_from_message(message)
-    client = supabase
-    client.postgrest.auth(token)
-    client.table("ai_conversations").update({"title": title}).eq(
-        "id", conversation["id"]
-    ).execute()
+    _db_execute(
+        lambda: client.table("ai_conversations").update({"title": title}).eq(
+            "id", conversation["id"]
+        ).execute(),
+        "updating the conversation title",
+    )
     conversation["title"] = title
     return title
 
 
-def _history(conversation_id: str, token: str) -> list[dict[str, str]]:
-    client = supabase
-    client.postgrest.auth(token)
+def _history(conversation_id: str, client: Client) -> list[dict[str, str]]:
     result = (
         client.table("ai_messages")
         .select("role,content")
@@ -198,10 +193,8 @@ def _history(conversation_id: str, token: str) -> list[dict[str, str]]:
     ]
 
 
-def _retrieve(project_id: str, question: str, token: str) -> list[dict[str, Any]]:
+def _retrieve(project_id: str, question: str, client: Client) -> list[dict[str, Any]]:
     embedding = embed_texts([question])[0]
-    client = supabase
-    client.postgrest.auth(token)
     result = client.rpc(
         "match_ai_knowledge_chunks",
         {
@@ -214,11 +207,9 @@ def _retrieve(project_id: str, question: str, token: str) -> list[dict[str, Any]
     return [match for match in matches if (match.get("similarity") or 0) >= MIN_SIMILARITY]
 
 
-def _document_titles(project_id: str, document_ids: list[str], token: str) -> dict[str, str]:
+def _document_titles(project_id: str, document_ids: list[str], client: Client) -> dict[str, str]:
     if not document_ids:
         return {}
-    client = supabase
-    client.postgrest.auth(token)
     result = (
         client.table("documents")
         .select("id,name")
@@ -237,19 +228,20 @@ def chat(project_id: str, request: ChatRequest, token: str = Depends(get_access_
             status_code=503, detail="AI service is not configured: OPENAI_API_KEY is missing"
         )
 
-    project = _get_project_for_user(project_id, user["id"], token)
+    db = _authenticated_client(token)
+    project = _get_project_for_user(project_id, user["id"], db)
     conversation = _get_or_create_conversation(
-        project_id, user["id"], request.conversation_id, token, request.message
+        project_id, user["id"], request.conversation_id, request.message, db
     )
-    title = _maybe_update_title(conversation, request.message, token)
+    title = _maybe_update_title(conversation, request.message, db)
 
     try:
-        matches = _retrieve(project_id, request.message, token)
+        matches = _retrieve(project_id, request.message, db)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Knowledge search failed: {exc}") from exc
 
     titles = _document_titles(
-        project_id, [str(m.get("document_id")) for m in matches], token
+        project_id, [str(m.get("document_id")) for m in matches], db
     )
     context_parts = []
     sources: list[dict[str, Any]] = []
@@ -282,7 +274,7 @@ def chat(project_id: str, request: ChatRequest, token: str = Depends(get_access_
         if context_parts
         else "No sufficiently relevant project document evidence was found."
     )
-    history = _history(conversation["id"], token)
+    history = _history(conversation["id"], db)
 
     from openai import OpenAI
 
@@ -311,8 +303,6 @@ def chat(project_id: str, request: ChatRequest, token: str = Depends(get_access_
     input_tokens = getattr(usage, "prompt_tokens", 0) or 0
     output_tokens = getattr(usage, "completion_tokens", 0) or 0
 
-    db = supabase
-    db.postgrest.auth(token)
     db.table("ai_messages").insert(
         {"conversation_id": conversation["id"], "role": "user", "content": request.message}
     ).execute()
@@ -363,9 +353,8 @@ def chat(project_id: str, request: ChatRequest, token: str = Depends(get_access_
 @router.get("/projects/{project_id}/ai/conversations")
 def list_conversations(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    _get_project_for_user(project_id, user["id"], token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
+    _get_project_for_user(project_id, user["id"], client)
     result = (
         client.table("ai_conversations")
         .select("id,project_id,user_id,title,created_at")
@@ -380,8 +369,7 @@ def list_conversations(project_id: str, token: str = Depends(get_access_token)):
 @router.get("/ai/conversations/{conversation_id}/messages")
 def list_messages(conversation_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     conversation = (
         client.table("ai_conversations")
         .select("id,project_id,user_id")
@@ -392,7 +380,7 @@ def list_messages(conversation_id: str, token: str = Depends(get_access_token)):
     )
     if not conversation.data:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    _get_project_for_user(conversation.data["project_id"], user["id"], token)
+    _get_project_for_user(conversation.data["project_id"], user["id"], client)
     result = (
         client.table("ai_messages")
         .select("id,role,content,created_at")
