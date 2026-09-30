@@ -76,6 +76,9 @@ export function DesignCenter({ projectId, token }: Props) {
   const [boqQuantity, setBoqQuantity] = React.useState("");
   const [boqUnit, setBoqUnit] = React.useState("");
   const [boqStatus, setBoqStatus] = React.useState("approved");
+  const [editingRateId, setEditingRateId] = React.useState<string | null>(null);
+  const [editRate, setEditRate] = React.useState("");
+  const [editCurrency, setEditCurrency] = React.useState("USD");
 
   async function load() {
     if (!projectId || !token) return;
@@ -165,6 +168,41 @@ export function DesignCenter({ projectId, token }: Props) {
       await load();
     } catch (e: any) {
       setError(e.message || "Could not save BOQ review.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startRateEdit(row: EstimateRow) {
+    if (!row.id) return;
+    setEditingRateId(row.id);
+    setEditRate(row.unit_rate == null ? "" : String(row.unit_rate));
+    setEditCurrency(row.currency || estimate?.currency || "USD");
+    setError("");
+    setNotice("");
+  }
+
+  async function saveRate(row: EstimateRow) {
+    if (!row.id) return;
+    const unitRate = Number(editRate);
+    if (!Number.isFinite(unitRate) || unitRate < 0) {
+      setError("Unit rate must be a valid non-negative number.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await apiPost("/api/v1/projects/" + projectId + "/estimate/items/" + row.id + "/rate", token, {
+        unit_rate: unitRate,
+        currency: editCurrency.trim() || "USD",
+        status: "approved",
+        rate_source: "project_rate",
+      });
+      setEditingRateId(null);
+      setNotice("Estimate rate saved.");
+      await load();
+    } catch (e: any) {
+      setError(e.message || "Could not save estimate rate.");
     } finally {
       setBusy(false);
     }
@@ -321,9 +359,25 @@ export function DesignCenter({ projectId, token }: Props) {
                           <td>{row.description || "—"}</td>
                           <td>{row.quantity == null ? "—" : Number(row.quantity).toLocaleString()}</td>
                           <td>{row.unit || "—"}</td>
-                          <td>{row.unit_rate == null ? "—" : Number(row.unit_rate).toLocaleString()}</td>
+                          <td>
+                            {editingRateId === row.id ? (
+                              <input aria-label="Unit rate" type="number" min="0" step="any" value={editRate} onChange={(e) => setEditRate(e.target.value)} style={{ width: 100 }} />
+                            ) : (row.unit_rate == null ? "—" : Number(row.unit_rate).toLocaleString())}
+                          </td>
                           <td>{row.amount == null ? "—" : Number(row.amount).toLocaleString()}</td>
-                          <td>{row.currency || estimate.currency || "USD"}</td>
+                          <td>
+                            {editingRateId === row.id ? (
+                              <div className="row gap">
+                                <input aria-label="Currency" value={editCurrency} onChange={(e) => setEditCurrency(e.target.value)} style={{ width: 65 }} />
+                                <button type="button" className="button compact" disabled={busy} onClick={() => saveRate(row)}>Save</button>
+                                <button type="button" className="button compact" disabled={busy} onClick={() => setEditingRateId(null)}>Cancel</button>
+                              </div>
+                            ) : (
+                              <button type="button" className="button compact" disabled={busy || !row.id} onClick={() => startRateEdit(row)}>
+                                {row.rate_source === "project_rate" ? "Edit rate" : "Set rate"}
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
