@@ -1,64 +1,19 @@
 import React from "react";
-import { apiGet, apiPost } from "../api";
-
-type Props = { projectId: string; token: string };
-type Item = {
-  id: string; item_code?: string | null; material_name: string; specification?: string | null;
-  unit?: string | null; required_quantity?: number | null; requested_quantity?: number | null;
-  ordered_quantity?: number | null; delivered_quantity?: number | null; supplier?: string | null;
-  status?: string | null; required_date?: string | null;
-};
-
-const statusLabels: Record<string,string> = {
-  planned:"Planned", requested:"Requested", ordered:"Ordered",
-  partially_delivered:"Partially delivered", delivered:"Delivered", cancelled:"Cancelled"
-};
-
-export function ProcurementCenter({ projectId, token }: Props) {
-  const [items,setItems]=React.useState<Item[]>([]);
-  const [busy,setBusy]=React.useState(false);
-  const [error,setError]=React.useState("");
-  const [notice,setNotice]=React.useState("");
-
-  async function load() {
-    if (!projectId || !token) return;
-    setBusy(true); setError("");
-    try { const r=await apiGet("/api/v1/projects/"+projectId+"/procurement/items",token); setItems(r.data||[]); }
-    catch(e:any){setError(e.message||"Could not load procurement.");}
-    finally{setBusy(false);}
-  }
-  async function generate() {
-    setBusy(true); setError(""); setNotice("");
-    try {
-      const r=await apiPost("/api/v1/projects/"+projectId+"/procurement/from-boq",token);
-      setNotice((r.created||0)+" procurement requirements created from approved BOQ.");
-      await load();
-    } catch(e:any){setError(e.message||"Could not generate requirements.");}
-    finally{setBusy(false);}
-  }
-  React.useEffect(()=>{load();},[projectId,token]);
-
-  const totalRequired=items.reduce((s,i)=>s+Number(i.required_quantity||0),0);
-  const delivered=items.reduce((s,i)=>s+Number(i.delivered_quantity||0),0);
-
-  return <section className="panel">
-    <div className="panel-head"><div><h2>Procurement Center</h2><p className="muted small">Approved BOQ → material requirements → supplier and delivery tracking.</p></div>
-      <div className="row gap"><button className="button compact" disabled={busy} onClick={load}>Refresh</button><button className="button primary compact" disabled={busy} onClick={generate}>Generate from approved BOQ</button></div>
-    </div>
-    {error&&<div className="error">{error}</div>}{notice&&<div className="success">{notice}</div>}
-    <div className="center-summary">
-      <div className="hint"><b>Requirements</b><span> · {items.length}</span></div>
-      <div className="hint"><b>Total required</b><span> · {totalRequired.toLocaleString()}</span></div>
-      <div className="hint"><b>Delivered</b><span> · {delivered.toLocaleString()}</span></div>
-    </div>
-    {busy&&!items.length?<p className="muted">Loading…</p>:items.length?<div className="table-wrap"><table>
-      <thead><tr><th>Code</th><th>Material / BOQ item</th><th>Specification</th><th>Required</th><th>Requested</th><th>Ordered</th><th>Delivered</th><th>Supplier</th><th>Status</th></tr></thead>
-      <tbody>{items.map(i=><tr key={i.id}>
-        <td>{i.item_code||"—"}</td><td>{i.material_name}</td><td>{i.specification||"—"}</td>
-        <td>{Number(i.required_quantity||0).toLocaleString()} {i.unit||""}</td>
-        <td>{Number(i.requested_quantity||0).toLocaleString()}</td><td>{Number(i.ordered_quantity||0).toLocaleString()}</td><td>{Number(i.delivered_quantity||0).toLocaleString()}</td>
-        <td>{i.supplier||"—"}</td><td>{statusLabels[i.status||"planned"]||i.status||"Planned"}</td>
-      </tr>)}</tbody>
-    </table></div>:<div className="empty"><p>No procurement requirements yet.</p><button className="button primary" disabled={busy} onClick={generate}>Generate from approved BOQ</button></div>}
-  </section>;
+import { apiGet, apiPatch, apiPost } from "../api";
+type Props={projectId:string;token:string};
+type Item={id:string;item_code?:string|null;material_name:string;specification?:string|null;unit?:string|null;required_quantity?:number|null;requested_quantity?:number|null;ordered_quantity?:number|null;delivered_quantity?:number|null;supplier?:string|null;status?:string|null;required_date?:string|null};
+const labels:Record<string,string>={planned:"Planned",requested:"Requested",ordered:"Ordered",partially_delivered:"Partially delivered",delivered:"Delivered",cancelled:"Cancelled"};
+export function ProcurementCenter({projectId,token}:Props){
+ const[items,setItems]=React.useState<Item[]>([]),[busy,setBusy]=React.useState(false),[error,setError]=React.useState(""),[notice,setNotice]=React.useState(""),[editingId,setEditingId]=React.useState<string|null>(null),[edit,setEdit]=React.useState<Partial<Item>>({});
+ async function load(){if(!projectId||!token)return;setBusy(true);setError("");try{const r=await apiGet("/api/v1/projects/"+projectId+"/procurement/items",token);setItems(r.data||[])}catch(e:any){setError(e.message||"Could not load procurement.")}finally{setBusy(false)}}
+ function startEdit(i:Item){setEditingId(i.id);setEdit({...i})}
+ async function save(){if(!editingId)return;setBusy(true);setError("");try{await apiPatch("/api/v1/projects/"+projectId+"/procurement/items/"+editingId,token,{specification:edit.specification||null,requested_quantity:Number(edit.requested_quantity||0),ordered_quantity:Number(edit.ordered_quantity||0),delivered_quantity:Number(edit.delivered_quantity||0),supplier:edit.supplier||null,status:edit.status||"planned",required_date:edit.required_date||null});setNotice("Procurement item updated.");setEditingId(null);await load()}catch(e:any){setError(e.message||"Could not update procurement item.")}finally{setBusy(false)}}
+ async function generate(){setBusy(true);setError("");setNotice("");try{const r=await apiPost("/api/v1/projects/"+projectId+"/procurement/from-boq",token);setNotice((r.created||0)+" procurement requirements created from approved BOQ.");await load()}catch(e:any){setError(e.message||"Could not generate requirements.")}finally{setBusy(false)}}
+ React.useEffect(()=>{load()},[projectId,token]);
+ const total=items.reduce((s,i)=>s+Number(i.required_quantity||0),0),del=items.reduce((s,i)=>s+Number(i.delivered_quantity||0),0);
+ return <section className="panel"><div className="panel-head"><div><h2>Procurement Center</h2><p className="muted small">Approved BOQ → material requirements → supplier and delivery tracking.</p></div><div className="row gap"><button className="button compact" disabled={busy} onClick={load}>Refresh</button><button className="button primary compact" disabled={busy} onClick={generate}>Generate from approved BOQ</button></div></div>
+ {error&&<div className="error">{error}</div>}{notice&&<div className="success">{notice}</div>}
+ <div className="center-summary"><div className="hint"><b>Requirements</b><span> · {items.length}</span></div><div className="hint"><b>Total required</b><span> · {total.toLocaleString()}</span></div><div className="hint"><b>Delivered</b><span> · {del.toLocaleString()}</span></div></div>
+ {busy&&!items.length?<p className="muted">Loading…</p>:items.length?<div className="table-wrap"><table><thead><tr><th>Code</th><th>Material</th><th>Required</th><th>Requested</th><th>Ordered</th><th>Delivered</th><th>Supplier</th><th>Status</th><th>Action</th></tr></thead><tbody>{items.map(i=><tr key={i.id}><td>{i.item_code||"—"}</td><td><b>{i.material_name}</b><br/><small>{i.specification||"No specification"}</small></td><td>{Number(i.required_quantity||0).toLocaleString()} {i.unit||""}</td>
+ {editingId===i.id?<><td><input type="number" min="0" value={Number(edit.requested_quantity||0)} onChange={e=>setEdit({...edit,requested_quantity:Number(e.target.value)})}/></td><td><input type="number" min="0" value={Number(edit.ordered_quantity||0)} onChange={e=>setEdit({...edit,ordered_quantity:Number(e.target.value)})}/></td><td><input type="number" min="0" value={Number(edit.delivered_quantity||0)} onChange={e=>setEdit({...edit,delivered_quantity:Number(e.target.value)})}/></td><td><input value={edit.supplier||""} onChange={e=>setEdit({...edit,supplier:e.target.value})}/></td><td><select value={edit.status||"planned"} onChange={e=>setEdit({...edit,status:e.target.value})}>{Object.keys(labels).map(s=><option key={s} value={s}>{labels[s]}</option>)}</select></td><td><button className="button compact" disabled={busy} onClick={save}>Save</button> <button className="button compact" onClick={()=>setEditingId(null)}>Cancel</button></td></>:<><td>{Number(i.requested_quantity||0).toLocaleString()}</td><td>{Number(i.ordered_quantity||0).toLocaleString()}</td><td>{Number(i.delivered_quantity||0).toLocaleString()}</td><td>{i.supplier||"—"}</td><td>{labels[i.status||"planned"]||i.status||"Planned"}</td><td><button className="button compact" disabled={busy} onClick={()=>startEdit(i)}>Update</button></td></>}</tr>)}</tbody></table></div>:<div className="empty"><p>No procurement requirements yet.</p><button className="button primary" onClick={generate}>Generate from approved BOQ</button></div>}</section>;
 }
