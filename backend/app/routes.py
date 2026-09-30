@@ -211,8 +211,7 @@ def list_design_assets(project_id: str, token: str = Depends(get_access_token)):
 @router.post("/projects/{project_id}/design/assets")
 def create_design_asset(project_id: str, payload: dict, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     name = str(payload.get("name") or "").strip()
     if not name:
@@ -237,8 +236,7 @@ def create_design_asset(project_id: str, payload: dict, token: str = Depends(get
 @router.get("/projects")
 def list_projects(token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     memberships = client.table("organization_members").select("organization_id").eq("user_id", user["id"]).execute()
     org_ids = [row["organization_id"] for row in (memberships.data or [])]
     if not org_ids:
@@ -256,8 +254,7 @@ def list_projects(token: str = Depends(get_access_token)):
 @router.post("/projects")
 def create_project(payload: CreateProjectRequest, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
 
     name = payload.name.strip()
     if not name:
@@ -315,8 +312,7 @@ def list_documents(project_id: str, token: str = Depends(get_access_token)):
 @router.post("/projects/{project_id}/documents")
 async def upload_document(project_id: str, background_tasks: BackgroundTasks, file: UploadFile = File(...), token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(status_code=415, detail="Unsupported document format")
@@ -429,8 +425,7 @@ async def upload_document(project_id: str, background_tasks: BackgroundTasks, fi
 @router.get("/documents/{document_id}/extraction")
 def document_extraction(document_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _document_for_member(document_id, user["id"], client)
     result = (
         client.table("ai_extractions")
@@ -449,8 +444,7 @@ def document_extraction(document_id: str, token: str = Depends(get_access_token)
 def document_status(document_id: str, token: str = Depends(get_access_token)):
     """Latest processing job for a document (queued | processing | completed | failed)."""
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _document_for_member(document_id, user["id"], client)
     result = (
         client.table("document_processing_jobs")
@@ -469,8 +463,7 @@ def document_status(document_id: str, token: str = Depends(get_access_token)):
 def list_project_jobs(project_id: str, token: str = Depends(get_access_token)):
     """List recent document processing jobs for a project."""
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     docs = (
         client.table("documents")
@@ -500,8 +493,7 @@ async def reprocess_document(
 ):
     """Re-queue AI processing for an existing document (downloads bytes from storage)."""
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     doc_row = (
         client.table("documents")
         .select("id,project_id,name,mime_type,storage_path,status")
