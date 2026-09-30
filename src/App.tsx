@@ -52,6 +52,9 @@ export function App() {
   const [newProjectCode, setNewProjectCode] = React.useState("");
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
+  const [extraction, setExtraction] = React.useState<any>(null);
+  const [extractionDocumentName, setExtractionDocumentName] = React.useState("");
+  const [extractionLoading, setExtractionLoading] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const token = session?.access_token || "";
@@ -141,6 +144,20 @@ export function App() {
   }
 
   function startNewChat() { setConversationId(""); setMessages([]); setError(""); setNotice(""); setView("assistant"); }
+
+  async function viewExtraction(documentId: string, fileName: string) {
+    if (!session || extractionLoading) return;
+    setExtractionLoading(true); setError("");
+    try {
+      const data = await apiGet("/api/v1/documents/" + documentId + "/extraction", session.access_token);
+      setExtraction(data);
+      setExtractionDocumentName(fileName);
+    } catch (e: any) {
+      setError(e.message || "AI extraction is not available yet.");
+    } finally {
+      setExtractionLoading(false);
+    }
+  }
 
   async function pollDocumentStatus(documentId: string, fileName: string) {
     const maxAttempts = 80;
@@ -254,8 +271,15 @@ export function App() {
           <ul className="doc-list">
             {documents.slice(0, 8).map((d) => (
               <li key={d.id}>
-                <span>{d.name}</span>
-                {d.status ? <small>{d.status}</small> : null}
+                <div>
+                  <span>{d.name}</span>
+                  {d.status ? <small>{d.status}</small> : null}
+                </div>
+                {d.status === "processed" ? (
+                  <button type="button" onClick={() => viewExtraction(d.id, d.name)} disabled={extractionLoading}>
+                    {extractionLoading ? "Loading…" : "AI data"}
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -263,7 +287,19 @@ export function App() {
         <section className="main-panel">
           {error && <div className="error">{error}</div>}
           {notice && <div className="success">{notice}</div>}
-          {!projectId && <div className="empty"><p>Select or create a project to open the Construction OS.</p></div>}
+          {extraction && (
+            <div className="ai-extraction-panel">
+              <div className="panel-head">
+                <div>
+                  <strong>AI document intelligence</strong>
+                  <span>{extractionDocumentName}</span>
+                </div>
+                <button type="button" onClick={() => setExtraction(null)}>Close</button>
+              </div>
+              <pre>{JSON.stringify(extraction.data ?? extraction, null, 2)}</pre>
+            </div>
+          )}
+          {!projectId && <div className="empty"><p>Select or create a project to open the Construction OS.</p></div>
           {projectId && view === "os-home" && <OsHome {...centerProps} />}
           {projectId && view === "assistant" && (
             <>
