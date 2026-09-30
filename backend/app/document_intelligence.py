@@ -1,11 +1,9 @@
 import json
 from typing import Any
 
-from openai import OpenAI
-
 from .config import settings
+from .gemini_client import generate_json, generate_vision_json
 
-EXTRACTION_MODEL = "gpt-4.1-mini"
 MAX_EXTRACTION_CHARS = 30000
 
 CLASSIFICATION_TYPES = {
@@ -27,6 +25,7 @@ Preserve original units, currencies, dates and identifiers.
 Engineering findings are observations for professional review, not design approval.
 Return valid JSON only."""
 
+
 def _fallback_type(filename: str) -> str:
     name = filename.lower()
     if "boq" in name or "bill of quantity" in name:
@@ -43,20 +42,22 @@ def _fallback_type(filename: str) -> str:
         return "drawing_specification"
     return "general"
 
+
 def extract_construction_data(filename: str, text: str) -> dict[str, Any]:
-    if not settings.openai_api_key:
-        raise RuntimeError("OPENAI_API_KEY is not configured")
+    if not settings.ai_api_key:
+        raise RuntimeError("GEMINI_API_KEY is not configured")
     if not text.strip():
         return {
             "document_type": _fallback_type(filename),
             "confidence": 0.0,
             "summary": "No extractable text was found.",
             "data": {},
-            "warnings": ["The document contains no extractable text; OCR or visual drawing analysis may be required."],
+            "warnings": [
+                "The document contains no extractable text; OCR or visual drawing analysis may be required."
+            ],
         }
 
     content = text[:MAX_EXTRACTION_CHARS]
-    client = OpenAI(api_key=settings.openai_api_key)
     schema_hint = {
         "document_type": "one of contract, boq, tender, drawing_specification, schedule, invoice_payment, report, general",
         "confidence": "number from 0 to 1",
@@ -83,7 +84,7 @@ def extract_construction_data(filename: str, text: str) -> dict[str, Any]:
                 "technical_notes": [],
                 "design_parameters": {},
                 "coordination_items": [],
-                "review_findings": []
+                "review_findings": [],
             },
             "risks_or_obligations": [],
             "other": {},
@@ -102,43 +103,31 @@ Extraction rules:
 - For contracts, prioritize parties, contract value, currency, start/end dates, duration, payment terms, retention, liquidated damages, obligations.
 - For tenders, prioritize employer, submission deadline, eligibility, required documents, evaluation criteria, bid security.
 - For drawings/specifications, treat the engineering section as the primary structured output.
-- For engineering documents, identify the discipline only when supported by the text.
-- Extract drawing number/title, revision, scale and sheet size when explicitly present.
 - Extract levels, dimensions and design parameters with their original units.
-- Extract explicitly named materials and standards/codes; never infer a material or code.
-- Extract identifiable engineering elements such as columns, beams, slabs, walls, roads, culverts, pipes, foundations, rooms or equipment only when the text supports them.
-- Record coordination items when the document explicitly references another drawing, discipline, detail or conflicting requirement.
-- Record review findings only as evidence-based observations from the supplied text. Do not declare a structure safe/unsafe or approve a design.
-- If a PDF appears to be a scanned drawing with little/no machine-readable text, include a warning that visual/OCR analysis is required.
-- Put uncertain or incomplete extraction notes in warnings.
-- Do not calculate missing values.
+- Never invent materials, codes, or quantities.
+- Record review findings only as evidence-based observations.
+- Put uncertain notes in warnings.
 
 DOCUMENT TEXT:
 {content}
 """
-    response = client.chat.completions.create(
-        model=EXTRACTION_MODEL,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0,
-        response_format={"type": "json_object"},
+    result = generate_json(system=SYSTEM_PROMPT, user=prompt, temperature=0.0)
+    result["document_type"] = (
+        result.get("document_type")
+        if result.get("document_type") in CLASSIFICATION_TYPES
+        else _fallback_type(filename)
     )
-    raw = response.choices[0].message.content or "{}"
-    result = json.loads(raw)
-    result["document_type"] = result.get("document_type") if result.get("document_type") in CLASSIFICATION_TYPES else _fallback_type(filename)
     try:
         result["confidence"] = max(0.0, min(1.0, float(result.get("confidence", 0))))
     except (TypeError, ValueError):
         result["confidence"] = 0.0
     result.setdefault("summary", "")
     result.setdefault("data", {})
+    if not isinstance(result["data"], dict):
+        result["data"] = {}
     result["data"].setdefault("engineering", {})
     result.setdefault("warnings", [])
     return result
-
-VISION_ANALYSIS_MODEL = "gpt-5.6-luna"
 
 
 def build_visual_analysis_prompt(discipline: str = "general") -> str:
@@ -151,27 +140,21 @@ Each symbol should include type, meaning only if clearly identifiable, and evide
 Findings must be evidence-based observations requiring professional review; never approve a design or declare a structure safe/unsafe.
 Do not invent values hidden or unreadable in the image."""
 
+
 def analyze_drawing_page(image_bytes: bytes, discipline: str = "general") -> dict[str, Any]:
-    """Analyze one rendered drawing page with OpenAI vision."""
-    if not settings.openai_api_key:
-        raise RuntimeError("OPENAI_API_KEY is not configured")
-    import base64
-    encoded = base64.b64encode(image_bytes).decode("ascii")
-    client = OpenAI(api_key=settings.openai_api_key)
-    response = client.chat.completions.create(
-        model=VISION_ANALYSIS_MODEL,
-        messages=[
-            {"role": "system", "content": "You are a construction drawing visual-analysis engine. Never invent unreadable information. Findings require professional review."},
-            {"role": "user", "content": [
-                {"type": "text", "text": build_visual_analysis_prompt(discipline)},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encoded}", "detail": "high"}},
-            ]},
-        ],
-        temperature=0,
-        response_format={"type": "json_object"},
+    """Analyze one rendered drawing page with Gemini vision."""
+    if not settings.ai_api_key:
+        raise RuntimeError("GEMINI_API_KEY is not configured")
+    result = generate_vision_json(
+        system=(
+            "You are a construction drawing visual-analysis engine. "
+            "Never invent unreadable information. Findings require professional review."
+        ),
+        prompt=build_visual_analysis_prompt(discipline),
+        image_bytes=image_bytes,
+        mime_type="image/png",
+        temperature=0.0,
     )
-    raw = response.choices[0].message.content or "{}"
-    result = json.loads(raw)
     result.setdefault("elements", [])
     result.setdefault("dimensions", [])
     result.setdefault("symbols", [])
