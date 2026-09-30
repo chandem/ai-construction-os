@@ -142,6 +142,35 @@ export function App() {
 
   function startNewChat() { setConversationId(""); setMessages([]); setError(""); setNotice(""); setView("assistant"); }
 
+  async function pollDocumentStatus(documentId: string, fileName: string) {
+    const maxAttempts = 80;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        const status = await apiGet("/api/v1/documents/" + documentId + "/status", session.access_token);
+        const progress = Number(status.progress ?? 0);
+        if (status.status === "completed") {
+          setNotice(fileName + " processed successfully. AI knowledge index is ready.");
+          await loadDocuments();
+          await loadDesignAssets();
+          return true;
+        }
+        if (status.status === "failed") {
+          setError(status.error_message || (fileName + " processing failed."));
+          await loadDocuments();
+          return false;
+        }
+        setNotice(fileName + " uploaded. AI processing " + progress + "%…");
+      } catch {
+        // The upload already succeeded; transient polling errors should not
+        // turn a successful upload into a false failure.
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+    setNotice(fileName + " is still processing. You can continue working and check the document status again later.");
+    await loadDocuments();
+    return false;
+  }
+
   async function uploadDocument(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; e.target.value = "";
     if (!file || !session || !projectId || uploading) return;
@@ -149,8 +178,9 @@ export function App() {
     try {
       const form = new FormData(); form.append("file", file);
       const j = await apiUpload("/api/v1/projects/" + projectId + "/documents", session.access_token, form);
-      setNotice(file.name + " uploaded. " + (j.chunks ?? 0) + " knowledge chunks created.");
-      await loadDocuments(); await loadDesignAssets();
+      setNotice(file.name + " uploaded. AI processing started…");
+      await loadDocuments();
+      await pollDocumentStatus(j.document_id, file.name);
     } catch (e: any) { setError(e.message || "Document upload failed."); }
     finally { setUploading(false); }
   }
@@ -222,7 +252,12 @@ export function App() {
           <input ref={fileRef} type="file" hidden onChange={uploadDocument} />
           <button className="side-action" type="button" disabled={!projectId || uploading} onClick={() => fileRef.current?.click()}>{uploading ? "Uploading…" : "Upload document"}</button>
           <ul className="doc-list">
-            {documents.slice(0, 8).map((d) => <li key={d.id}>{d.name}</li>)}
+            {documents.slice(0, 8).map((d) => (
+              <li key={d.id}>
+                <span>{d.name}</span>
+                {d.status ? <small>{d.status}</small> : null}
+              </li>
+            ))}
           </ul>
         </aside>
         <section className="main-panel">
