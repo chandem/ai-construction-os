@@ -11,10 +11,8 @@ from pydantic import BaseModel, Field
 
 from .auth import get_access_token, get_current_user
 from .background_jobs import JOB_STATUS_FIELDS, normalize_job_row, schedule_document_job
-from supabase import create_client
-
 from .config import settings
-from .db import supabase, supabase_admin
+from .db import supabase_admin
 from .document_processing import chunk_text_with_metadata, extract_pages
 from .embeddings import embed_texts
 from .document_intelligence import extract_construction_data, analyze_drawing_page
@@ -101,7 +99,10 @@ def _project_for_member(project_id: str, user_id: str, client):
 
 
 def _document_for_member(document_id: str, user_id: str, client):
-    document = client.table("documents").select("id,project_id").eq("id", document_id).single().execute()
+    document = _execute_with_retry(
+        lambda: client.table("documents").select("id,project_id").eq("id", document_id).single().execute(),
+        "checking document access",
+    )
     if not document.data:
         raise HTTPException(status_code=404, detail="Document not found")
     _project_for_member(document.data["project_id"], user_id, client)
@@ -173,8 +174,7 @@ def list_design_reviews(project_id: str, token: str = Depends(get_access_token))
 @router.get("/design/assets/{asset_id}/reviews")
 def list_asset_reviews(asset_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     asset = client.table("design_assets").select("id,project_id").eq("id", asset_id).maybe_single().execute()
     if not asset.data:
         raise HTTPException(status_code=404, detail="Design asset not found")
@@ -300,12 +300,15 @@ def list_documents(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
     client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
-    result = (
-        client.table("documents")
-        .select("id,name,mime_type,status,created_at,storage_path")
-        .eq("project_id", project_id)
-        .order("created_at", desc=True)
-        .execute()
+    result = _execute_with_retry(
+        lambda: (
+            client.table("documents")
+            .select("id,name,mime_type,status,created_at,storage_path")
+            .eq("project_id", project_id)
+            .order("created_at", desc=True)
+            .execute()
+        ),
+        "listing project documents",
     )
     return {"data": result.data or []}
 
