@@ -43,11 +43,25 @@ type EstimateSummary = {
   unpriced_lines?: number;
 };
 
+type EstimateRow = {
+  id?: string;
+  item_code?: string;
+  description?: string;
+  quantity?: number | null;
+  unit?: string | null;
+  unit_rate?: number | null;
+  amount?: number | null;
+  currency?: string | null;
+  status?: string;
+  rate_source?: string | null;
+};
+
 export function DesignCenter({ projectId, token }: Props) {
   const [elements, setElements] = React.useState<ElementRow[]>([]);
   const [quantities, setQuantities] = React.useState<QuantitySummary[]>([]);
   const [boq, setBoq] = React.useState<BoqRow[]>([]);
   const [estimate, setEstimate] = React.useState<EstimateSummary | null>(null);
+  const [estimateRows, setEstimateRows] = React.useState<EstimateRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -78,6 +92,7 @@ export function DesignCenter({ projectId, token }: Props) {
       setQuantities(quantityResult.summary || []);
       setBoq(boqResult.data || []);
       setEstimate(estimateResult.summary || null);
+      setEstimateRows(estimateResult.data || []);
     } catch (e: any) {
       setError(e.message || "Could not load Design Center.");
     } finally {
@@ -292,9 +307,33 @@ export function DesignCenter({ projectId, token }: Props) {
           )}
 
           {estimate && (
-            <div className="hint" style={{ marginTop: 16 }}>
-              <b>Estimate status</b>
-              <span> · {estimate.priced_lines ?? 0} priced lines, {estimate.unpriced_lines ?? 0} unpriced lines. Rates are provisional and must be replaced with project/tender rates.</span>
+            <div style={{ marginTop: 20 }}>
+              <h3>Estimate &amp; Rate Review</h3>
+              <p className="muted small">Enter project/tender rates before treating amounts as an estimate. Default AI rates are provisional.</p>
+              {estimateRows.length > 0 ? (
+                <div className="table-wrap">
+                  <table>
+                    <thead><tr><th>Code</th><th>Description</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th><th>Currency</th></tr></thead>
+                    <tbody>
+                      {estimateRows.map((row, index) => (
+                        <tr key={row.id || row.item_code || index}>
+                          <td>{row.item_code || "—"}</td>
+                          <td>{row.description || "—"}</td>
+                          <td>{row.quantity == null ? "—" : Number(row.quantity).toLocaleString()}</td>
+                          <td>{row.unit || "—"}</td>
+                          <td>{row.unit_rate == null ? "—" : Number(row.unit_rate).toLocaleString()}</td>
+                          <td>{row.amount == null ? "—" : Number(row.amount).toLocaleString()}</td>
+                          <td>{row.currency || estimate.currency || "USD"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <div className="empty"><p>Generate an estimate after reviewing the BOQ.</p></div>}
+              <div className="hint" style={{ marginTop: 12 }}>
+                <b>Estimate status</b>
+                <span> · {estimate.priced_lines ?? 0} priced lines, {estimate.unpriced_lines ?? 0} unpriced lines. Rates are provisional and must be replaced with project/tender rates.</span>
+              </div>
             </div>
           )}
         </>
