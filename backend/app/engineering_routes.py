@@ -22,6 +22,21 @@ from .routes_helpers import (
 router = APIRouter(prefix="/api/v1")
 
 
+class BoqReviewRequest(BaseModel):
+    description: str | None = Field(default=None, max_length=500)
+    quantity: float | None = Field(default=None, ge=0)
+    unit: str | None = Field(default=None, max_length=32)
+    status: str = Field(default="approved", pattern="^(proposed|approved|rejected)$")
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class EstimateRateRequest(BaseModel):
+    unit_rate: float = Field(ge=0)
+    currency: str = Field(default="USD", min_length=1, max_length=8)
+    status: str = Field(default="approved", pattern="^(proposed|approved|rejected)$")
+    rate_source: str = Field(default="user", max_length=100)
+
+
 class ElementReviewRequest(BaseModel):
     quantity: float | None = Field(default=None, ge=0)
     unit: str | None = Field(default=None, max_length=32)
@@ -78,6 +93,83 @@ def review_engineering_element(
         raise HTTPException(status_code=500, detail="Could not save engineering element review.") from exc
     return {"data": result.data[0] if result.data else {**existing.data, **update}}
 
+
+
+@router.post("/projects/{project_id}/engineering/boq/items/{item_id}/review")
+def review_boq_item(
+    project_id: str,
+    item_id: str,
+    payload: BoqReviewRequest,
+    token: str = Depends(get_access_token),
+):
+    user = get_current_user(token)
+    client = _authenticated_client(token)
+    _project_for_member(project_id, user["id"], client)
+    try:
+        existing = (
+            client.table("boq_items")
+            .select("*")
+            .eq("id", item_id)
+            .eq("project_id", project_id)
+            .maybe_single()
+            .execute()
+        )
+        if not existing.data:
+            raise HTTPException(status_code=404, detail="BOQ item not found.")
+        current = existing.data
+        update = {
+            "description": payload.description if payload.description is not None else current.get("description"),
+            "quantity": payload.quantity if payload.quantity is not None else current.get("quantity"),
+            "unit": payload.unit or current.get("unit"),
+            "status": payload.status,
+            "notes": payload.note or current.get("notes"),
+        }
+        result = client.table("boq_items").update(update).eq("id", item_id).eq("project_id", project_id).execute()
+        return {"data": result.data[0] if result.data else {**current, **update}}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Could not save BOQ review.") from exc
+
+
+@router.post("/projects/{project_id}/estimate/items/{item_id}/rate")
+def update_estimate_rate(
+    project_id: str,
+    item_id: str,
+    payload: EstimateRateRequest,
+    token: str = Depends(get_access_token),
+):
+    user = get_current_user(token)
+    client = _authenticated_client(token)
+    _project_for_member(project_id, user["id"], client)
+    try:
+        existing = (
+            client.table("estimate_items")
+            .select("*")
+            .eq("id", item_id)
+            .eq("project_id", project_id)
+            .maybe_single()
+            .execute()
+        )
+        if not existing.data:
+            raise HTTPException(status_code=404, detail="Estimate item not found.")
+        current = existing.data
+        quantity = float(current.get("quantity") or 0)
+        amount = quantity * float(payload.unit_rate)
+        update = {
+            "unit_rate": payload.unit_rate,
+            "amount": amount,
+            "currency": payload.currency,
+            "rate_source": payload.rate_source,
+            "status": payload.status,
+            "notes": current.get("notes"),
+        }
+        result = client.table("estimate_items").update(update).eq("id", item_id).eq("project_id", project_id).execute()
+        return {"data": result.data[0] if result.data else {**current, **update}, "reviewed_by": user["id"]}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Could not save estimate rate.") from exc
 
 
 @router.get("/projects/{project_id}/engineering/elements")
