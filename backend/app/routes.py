@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
 import hashlib
+import time
+
+import httpx
 from pathlib import Path
 from uuid import uuid4
 
@@ -19,6 +22,8 @@ from .engineering_elements import normalize_engineering_elements, persist_engine
 
 router = APIRouter(prefix="/api/v1")
 BUCKET = "construction-documents"
+DB_RETRIES = 3
+DB_RETRY_DELAYS = (0.25, 0.75)
 ALLOWED_TYPES = {
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -55,17 +60,40 @@ def _authenticated_client(token: str):
     return supabase_admin
 
 
+def _execute_with_retry(operation, operation_name: str):
+    """Retry transient Supabase/PostgREST transport failures without retrying API errors."""
+    for attempt in range(DB_RETRIES):
+        try:
+            return operation()
+        except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException, OSError) as exc:
+            if attempt == DB_RETRIES - 1:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Database service temporarily unavailable while {operation_name}. Please retry.",
+                ) from exc
+            time.sleep(DB_RETRY_DELAYS[attempt])
+    raise RuntimeError("Unreachable")
+
+
 def _project_for_member(project_id: str, user_id: str, client):
-    project = client.table("projects").select("id,organization_id").eq("id", project_id).single().execute()
+    project = _execute_with_retry(
+        lambda: client.table("projects")
+        .select("id,organization_id")
+        .eq("id", project_id)
+        .single()
+        .execute(),
+        "checking project access",
+    )
     if not project.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    membership = (
-        client.table("organization_members")
+    membership = _execute_with_retry(
+        lambda: client.table("organization_members")
         .select("organization_id")
         .eq("organization_id", project.data["organization_id"])
         .eq("user_id", user_id)
         .limit(1)
-        .execute()
+        .execute(),
+        "checking organization membership",
     )
     if not membership.data:
         raise HTTPException(status_code=403, detail="You are not a member of this project organization")
@@ -270,8 +298,7 @@ def create_project(payload: CreateProjectRequest, token: str = Depends(get_acces
 @router.get("/projects/{project_id}/documents")
 def list_documents(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     result = (
         client.table("documents")
