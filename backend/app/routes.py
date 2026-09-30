@@ -240,16 +240,25 @@ def create_design_asset(project_id: str, payload: dict, token: str = Depends(get
 def list_projects(token: str = Depends(get_access_token)):
     user = get_current_user(token)
     client = _authenticated_client(token)
-    memberships = client.table("organization_members").select("organization_id").eq("user_id", user["id"]).execute()
+    memberships = _execute_with_retry(
+        lambda: client.table("organization_members")
+        .select("organization_id")
+        .eq("user_id", user["id"])
+        .execute(),
+        "listing organization memberships",
+    )
     org_ids = [row["organization_id"] for row in (memberships.data or [])]
     if not org_ids:
         return {"data": []}
-    result = (
-        client.table("projects")
-        .select("*")
-        .in_("organization_id", org_ids)
-        .order("created_at", desc=True)
-        .execute()
+    result = _execute_with_retry(
+        lambda: (
+            client.table("projects")
+            .select("*")
+            .in_("organization_id", org_ids)
+            .order("created_at", desc=True)
+            .execute()
+        ),
+        "listing projects",
     )
     return {"data": result.data or []}
 
@@ -388,7 +397,6 @@ async def upload_document(project_id: str, background_tasks: BackgroundTasks, fi
             raise RuntimeError("Knowledge document was not created")
         knowledge_id = knowledge.data[0]["id"]
 
-        # Heavy AI work runs after the response is sent (BackgroundTasks).
         schedule_document_job(
             background_tasks,
             project_id=project_id,
