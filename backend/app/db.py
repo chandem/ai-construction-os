@@ -1,19 +1,15 @@
 from supabase import Client, create_client
-from supabase.lib.client_options import ClientOptions
 from .config import settings
 
 if not settings.supabase_key:
     raise RuntimeError("SUPABASE_PUBLISHABLE_KEY is not configured")
 
+# Keep client construction simple. Supabase-py versions with ClientOptions
+# have had compatibility regressions around the storage attribute. The
+# default options are sufficient for this backend.
 supabase: Client = create_client(
     settings.supabase_url,
     settings.supabase_key,
-    options=ClientOptions(
-        auto_refresh_token=False,
-        persist_session=False,
-        postgrest_client_timeout=15,
-        storage_client_timeout=30,
-    ),
 )
 
 
@@ -22,12 +18,6 @@ supabase_admin: Client | None = (
     create_client(
         settings.supabase_url,
         settings.supabase_secret_key,
-        options=ClientOptions(
-            auto_refresh_token=False,
-            persist_session=False,
-            postgrest_client_timeout=15,
-            storage_client_timeout=30,
-        ),
     )
     if settings.supabase_secret_key
     else None
