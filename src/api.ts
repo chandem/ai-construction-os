@@ -83,6 +83,16 @@ export async function apiPost(path: string, token: string, body?: unknown): Prom
   return r.json();
 }
 
+export async function apiPatch(path: string, token: string, body: unknown): Promise<any> {
+  const r = await requestWithAuth(path, token, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(await readError(r, "Update failed"));
+  return r.json();
+}
+
 export async function apiUpload(path: string, token: string, body: FormData): Promise<any> {
   const r = await requestWithAuth(path, token, {
     method: "POST",
