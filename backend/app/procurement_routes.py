@@ -3,6 +3,16 @@ from pydantic import BaseModel, Field
 from .auth import get_access_token, get_current_user
 from .routes import _authenticated_client, _project_for_member
 router = APIRouter(prefix="/api/v1")
+class ProcurementItemUpdate(BaseModel):
+    specification: str | None = Field(default=None, max_length=1000)
+    requested_quantity: float | None = Field(default=None, ge=0)
+    ordered_quantity: float | None = Field(default=None, ge=0)
+    delivered_quantity: float | None = Field(default=None, ge=0)
+    supplier: str | None = Field(default=None, max_length=200)
+    status: str | None = Field(default=None, pattern="^(planned|requested|ordered|partially_delivered|delivered|cancelled)$")
+    required_date: str | None = None
+    notes: str | None = Field(default=None, max_length=1000)
+
 class ProcurementItemRequest(BaseModel):
     material_name: str = Field(min_length=1, max_length=200)
     specification: str | None = Field(default=None, max_length=1000)
@@ -24,6 +34,16 @@ def create_procurement_item(project_id: str,payload: ProcurementItemRequest,toke
     result=client.table("procurement_items").insert(row).execute()
     if not result.data: raise HTTPException(status_code=500,detail="Procurement item was not created.")
     return {"data":result.data[0]}
+@router.patch("/projects/{project_id}/procurement/items/{item_id}")
+def update_procurement_item(project_id: str, item_id: str, payload: ProcurementItemUpdate, token: str = Depends(get_access_token)):
+    user=get_current_user(token); client=_authenticated_client(token); _project_for_member(project_id,user["id"],client)
+    existing=client.table("procurement_items").select("id").eq("id",item_id).eq("project_id",project_id).maybe_single().execute()
+    if not existing.data: raise HTTPException(status_code=404, detail="Procurement item not found.")
+    update={k:v for k,v in payload.model_dump().items() if v is not None}
+    if not update: raise HTTPException(status_code=400, detail="No procurement changes supplied.")
+    result=client.table("procurement_items").update(update).eq("id",item_id).eq("project_id",project_id).execute()
+    return {"data": result.data[0] if result.data else {**existing.data, **update}}
+
 @router.post("/projects/{project_id}/procurement/from-boq")
 def create_procurement_from_boq(project_id: str,token: str=Depends(get_access_token)):
     user=get_current_user(token); client=_authenticated_client(token); _project_for_member(project_id,user["id"],client)
