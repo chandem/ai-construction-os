@@ -11,9 +11,11 @@ from .config import settings
 
 T = TypeVar("T")
 
-# Transient capacity / rate-limit errors from Gemini free tier
+# Transient capacity / rate-limit / upstream gateway errors from Gemini/Google APIs.
 _RETRY_MARKERS = (
     "503",
+    "502",
+    "bad gateway",
     "UNAVAILABLE",
     "high demand",
     "429",
@@ -86,23 +88,31 @@ def generate_text(
     client = get_client()
     model_id = model or settings.resolved_chat_model
 
-    def _call() -> Any:
+    def _call_chat() -> Any:
         try:
+            from google.genai import types
+
+            chat = client.chats.create(
+                model=model_id,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    temperature=temperature,
+                ),
+            )
+            response = chat.send_message(user)
+            return response
+        except Exception:
+            # Fallback for older or differently configured google-genai releases.
             return client.models.generate_content(
                 model=model_id,
-                contents=user,
+                contents=f"{system}\n\n---\n\n{user}",
                 config={
                     "system_instruction": system,
                     "temperature": temperature,
                 },
             )
-        except TypeError:
-            return client.models.generate_content(
-                model=model_id,
-                contents=f"{system}\n\n---\n\n{user}",
-            )
 
-    response = _with_retry(_call, label="generate_text")
+    response = _with_retry(_call_chat, label="generate_text")
     return _extract_text(response).strip()
 
 
@@ -117,24 +127,31 @@ def generate_json(
     model_id = model or settings.resolved_chat_model
     prompt = user + "\n\nRespond with valid JSON only. No markdown fences."
 
-    def _call() -> Any:
+    def _call_json() -> Any:
         try:
+            from google.genai import types
+
+            chat = client.chats.create(
+                model=model_id,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    temperature=temperature,
+                    response_mime_type="application/json",
+                ),
+            )
+            return chat.send_message(prompt)
+        except Exception:
             return client.models.generate_content(
                 model=model_id,
-                contents=prompt,
+                contents=f"{system}\n\n{prompt}",
                 config={
                     "system_instruction": system,
                     "temperature": temperature,
                     "response_mime_type": "application/json",
                 },
             )
-        except Exception:
-            return client.models.generate_content(
-                model=model_id,
-                contents=f"{system}\n\n{prompt}",
-            )
 
-    response = _with_retry(_call, label="generate_json")
+    response = _with_retry(_call_json, label="generate_json")
     raw = _extract_text(response).strip()
     if raw.startswith("```"):
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
@@ -164,8 +181,18 @@ def generate_vision_json(
         prompt + "\n\nRespond with valid JSON only.",
     ]
 
-    def _call() -> Any:
+    def _call_vision() -> Any:
         try:
+            chat = client.chats.create(
+                model=model_id,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    temperature=temperature,
+                    response_mime_type="application/json",
+                ),
+            )
+            return chat.send_message(contents)
+        except Exception:
             return client.models.generate_content(
                 model=model_id,
                 contents=contents,
@@ -175,13 +202,8 @@ def generate_vision_json(
                     "response_mime_type": "application/json",
                 },
             )
-        except Exception:
-            return client.models.generate_content(
-                model=model_id,
-                contents=contents,
-            )
 
-    response = _with_retry(_call, label="generate_vision_json")
+    response = _with_retry(_call_vision, label="generate_vision_json")
     raw = _extract_text(response).strip()
     if raw.startswith("```"):
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
