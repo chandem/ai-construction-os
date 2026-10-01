@@ -46,10 +46,28 @@ function moduleViewId(moduleId: string): string | null {
     cost: "cost-control",
     inventory: "inventory",
   };
+
   if (moduleId in map) return map[moduleId];
-  if (["os-home", "assistant", "design-center", "commercial", "cost-control", "planning", "procurement", "inventory", "field", "quality", "gis", "prediction", "brain", "integrations", "ops"].includes(moduleId)) {
+  if ([
+    "os-home",
+    "assistant",
+    "design-center",
+    "commercial",
+    "cost-control",
+    "planning",
+    "procurement",
+    "inventory",
+    "field",
+    "quality",
+    "gis",
+    "prediction",
+    "brain",
+    "integrations",
+    "ops",
+  ].includes(moduleId)) {
     return moduleId;
   }
+
   return null;
 }
 
@@ -89,8 +107,11 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
     <section className="panel os-home">
       <div className="os-hero">
         <div>
+          <p className="eyebrow">Construction intelligence</p>
           <h1>Construction OS</h1>
-          <p>Project command center for delivery, cost, documents, and field execution.</p>
+          <p>
+            Project command center for delivery, cost, documents, and field execution.
+          </p>
         </div>
         <button type="button" className="button compact" disabled={busy} onClick={load}>
           {busy ? "Refreshing…" : "Refresh"}
@@ -113,7 +134,7 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
             <h3>Get started with this project</h3>
             <p>
               Upload the project record set, activate the AI knowledge layer, and turn drawings,
-              contracts, reports, and site updates into decisions.
+              contracts, reports, and site updates into clear decisions.
             </p>
           </div>
           <div className="os-getting-started-actions">
@@ -129,7 +150,7 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
           </div>
           <ol className="os-steps">
             <li>Upload BOQ, drawings, contracts, or reports</li>
-            <li>Wait for documents to be processed</li>
+            <li>Wait for project content to be processed</li>
             <li>Ask the AI Assistant for summaries, risks, and next steps</li>
           </ol>
         </div>
