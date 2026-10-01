@@ -13,8 +13,8 @@ const labels: Record<string, string> = {
   ready: "Ready",
   active: "Active",
   needs_setup: "Needs setup",
-  empty: "Empty",
-  degraded: "Degraded",
+  empty: "No data yet",
+  degraded: "Action required",
   error: "Error",
 };
 
@@ -47,8 +47,9 @@ function moduleViewId(moduleId: string): string | null {
     inventory: "inventory",
   };
   if (moduleId in map) return map[moduleId];
-  if (["os-home", "assistant", "design-center", "commercial", "cost-control", "planning", "procurement", "inventory", "field", "quality", "gis", "prediction", "brain", "integrations", "ops"].includes(moduleId))
+  if (["os-home", "assistant", "design-center", "commercial", "cost-control", "planning", "procurement", "inventory", "field", "quality", "gis", "prediction", "brain", "integrations", "ops"].includes(moduleId)) {
     return moduleId;
+  }
   return null;
 }
 
@@ -89,7 +90,7 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
       <div className="os-hero">
         <div>
           <h1>Construction OS</h1>
-          <p>Your project command center for delivery, cost, documents and field operations.</p>
+          <p>Project command center for delivery, cost, documents, and field execution.</p>
         </div>
         <button type="button" className="button compact" disabled={busy} onClick={load}>
           {busy ? "Refreshing…" : "Refresh"}
@@ -111,8 +112,8 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
           <div>
             <h3>Get started with this project</h3>
             <p>
-              No documents are indexed yet. Upload a BOQ, contract, drawing, or status report so the
-              Assistant and Design center can work from real project evidence.
+              Upload the project record set, activate the AI knowledge layer, and turn drawings,
+              contracts, reports, and site updates into decisions.
             </p>
           </div>
           <div className="os-getting-started-actions">
@@ -127,9 +128,9 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
             </button>
           </div>
           <ol className="os-steps">
-            <li>Upload PDF / DOCX / spreadsheet</li>
-            <li>Wait until status is processed</li>
-            <li>Ask the Assistant or generate BOQ in Design</li>
+            <li>Upload BOQ, drawings, contracts, or reports</li>
+            <li>Wait for documents to be processed</li>
+            <li>Ask the AI Assistant for summaries, risks, and next steps</li>
           </ol>
         </div>
       )}
@@ -186,6 +187,15 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
           <div className="os-grid">
             {mods.map((m: any) => {
               const target = moduleViewId(String(m.id || ""));
+              const moduleCopy =
+                m.status === "degraded"
+                  ? "This module needs attention before it can be used reliably."
+                  : m.status === "needs_setup"
+                    ? "Complete the setup steps to activate this module."
+                    : m.status === "empty"
+                      ? "No data available yet — upload or generate source content to unlock this module."
+                      : m.message || "Module is active and ready for project work.";
+
               return (
                 <article className="os-module" key={m.id}>
                   <div className="os-module-head">
@@ -194,15 +204,7 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
                       {icons[m.status] || "•"} {labels[m.status] || m.status}
                     </span>
                   </div>
-                  <p>
-                    {m.status === "degraded"
-                      ? "This module needs attention before it can be used reliably."
-                      : m.status === "needs_setup"
-                        ? "Complete the setup steps to activate this module."
-                        : m.status === "empty"
-                          ? "No data yet — generate or upload content for this module."
-                          : m.message || "Module is ready for project work."}
-                  </p>
+                  <p>{moduleCopy}</p>
                   <div className="os-actions">
                     <button
                       className="os-action"
