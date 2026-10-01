@@ -2,9 +2,9 @@ import React from "react";
 import { supabase, supabaseUrl, supabaseKey } from "./supabaseClient";
 
 const benefits = [
-  "Document intelligence for drawings, RFIs, and project records",
-  "AI-assisted estimates, planning, and cost visibility",
-  "Field, QA, and operations insights from the same project source",
+  "Drawings, specs, and document intelligence",
+  "Cost, schedule, and planning visibility",
+  "Field progress, QA, and risk insights",
 ];
 
 export function AuthScreen() {
@@ -48,7 +48,7 @@ export function AuthScreen() {
             <p className="eyebrow small">Construction intelligence platform</p>
             <h1>AI Construction OS</h1>
             <p className="muted hero-copy">
-              One command center for project intelligence, document understanding, cost visibility, field reporting, and operational decisions.
+              From drawings and RFIs to cost, planning, and field reporting — AI gives construction teams one connected view of project truth.
             </p>
           </div>
         </div>
@@ -74,7 +74,7 @@ export function AuthScreen() {
           <button className="button primary" disabled={loading}>{loading ? "Please wait..." : mode === "login" ? "Login" : "Create account"}</button>
         </form>
 
-        <p className="muted small">Your account is securely managed by Supabase Authentication.</p>
+        <p className="muted small auth-tail">Built for project teams, site leaders, and cost stakeholders.</p>
       </section>
     </main>
   );
