@@ -1,6 +1,12 @@
 import React from "react";
 import { supabase, supabaseUrl, supabaseKey } from "./supabaseClient";
 
+const benefits = [
+  "Document intelligence for drawings, RFIs, and project records",
+  "AI-assisted estimates, planning, and cost visibility",
+  "Field, QA, and operations insights from the same project source",
+];
+
 export function AuthScreen() {
   const [mode, setMode] = React.useState<"login" | "signup">("login");
   const [email, setEmail] = React.useState("");
@@ -34,15 +40,30 @@ export function AuthScreen() {
   }
 
   return (
-    <main className="center">
-      <section className="card login">
-        <div className="logo">AI</div>
-        <h1>AI Construction OS</h1>
-        <p className="muted">AI-powered construction project intelligence.</p>
+    <main className="center auth-shell">
+      <section className="card login auth-panel">
+        <div className="auth-hero">
+          <div className="logo">AI</div>
+          <div>
+            <p className="eyebrow small">Construction intelligence platform</p>
+            <h1>AI Construction OS</h1>
+            <p className="muted hero-copy">
+              One command center for project intelligence, document understanding, cost visibility, field reporting, and operational decisions.
+            </p>
+          </div>
+        </div>
+
+        <div className="value-grid">
+          {benefits.map((item) => (
+            <span key={item} className="feature-chip">{item}</span>
+          ))}
+        </div>
+
         <div className="auth-tabs">
           <button className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setError(""); setSuccess(""); }} type="button">Login</button>
           <button className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setError(""); setSuccess(""); }} type="button">Create account</button>
         </div>
+
         <form onSubmit={submit} className="auth-form">
           <label>Email</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
@@ -52,6 +73,7 @@ export function AuthScreen() {
           {success && <div className="success">{success}</div>}
           <button className="button primary" disabled={loading}>{loading ? "Please wait..." : mode === "login" ? "Login" : "Create account"}</button>
         </form>
+
         <p className="muted small">Your account is securely managed by Supabase Authentication.</p>
       </section>
     </main>
