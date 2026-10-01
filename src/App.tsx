@@ -66,51 +66,90 @@ export function App() {
 
   React.useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => subscription.unsubscribe();
   }, []);
 
   React.useEffect(() => {
     if (session) loadProjects();
-    else { setProjects([]); setProjectId(""); }
+    else {
+      setProjects([]);
+      setProjectId("");
+    }
   }, [session]);
 
   React.useEffect(() => {
-    if (session && projectId) { loadDocuments(); loadConversations(); loadDesignAssets(); }
-    else { setDocuments([]); setConversations([]); setDesignAssets([]); setConversationId(""); setMessages([]); }
+    if (session && projectId) {
+      loadDocuments();
+      loadConversations();
+      loadDesignAssets();
+    } else {
+      setDocuments([]);
+      setConversations([]);
+      setDesignAssets([]);
+      setConversationId("");
+      setMessages([]);
+    }
   }, [session, projectId]);
 
-  React.useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
+  React.useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
   async function loadProjects() {
     if (!session) return;
-    if (!API) { setError("API base URL is not configured (VITE_API_BASE_URL)."); return; }
-    setProjectsLoading(true); setError("");
+    if (!API) {
+      setError("API base URL is not configured (VITE_API_BASE_URL).");
+      return;
+    }
+    setProjectsLoading(true);
+    setError("");
     try {
       const j = await apiGet("/api/v1/projects", session.access_token);
       const data = j.data || [];
       setProjects(data);
       if (!projectId && data[0]) setProjectId(data[0].id);
       if (data.length === 0) setShowCreateProject(true);
-    } catch (e: any) { setError(e.message || "Could not load projects."); }
-    finally { setProjectsLoading(false); }
+    } catch (e: any) {
+      setError(e.message || "Could not load projects.");
+    } finally {
+      setProjectsLoading(false);
+    }
   }
 
   async function createProject(e?: React.FormEvent) {
     e?.preventDefault();
     if (!session || creatingProject) return;
     const name = newProjectName.trim();
-    if (!name) { setError("Enter a project name."); return; }
-    setCreatingProject(true); setError(""); setNotice("");
+    if (!name) {
+      setError("Enter a project name.");
+      return;
+    }
+    setCreatingProject(true);
+    setError("");
+    setNotice("");
     try {
-      const j = await apiPost("/api/v1/projects", session.access_token, { name, code: newProjectCode.trim() || null });
+      const j = await apiPost("/api/v1/projects", session.access_token, {
+        name,
+        code: newProjectCode.trim() || null,
+      });
       const created = j.data;
-      setProjects((c) => [created, ...c]); setProjectId(created.id);
-      setNewProjectName(""); setNewProjectCode(""); setShowCreateProject(false);
-      setMessages([]); setConversationId(""); setNotice(`Project "${created.name}" created.`);
+      setProjects((c) => [created, ...c]);
+      setProjectId(created.id);
+      setNewProjectName("");
+      setNewProjectCode("");
+      setShowCreateProject(false);
+      setMessages([]);
+      setConversationId("");
+      setNotice(`Project "${created.name}" created.`);
       setView("os-home");
-    } catch (err: any) { setError(err.message || "Could not create project."); }
-    finally { setCreatingProject(false); }
+    } catch (err: any) {
+      setError(err.message || "Could not create project.");
+    } finally {
+      setCreatingProject(false);
+    }
   }
 
   async function loadDocuments() {
@@ -118,7 +157,9 @@ export function App() {
     try {
       const j = await apiGet("/api/v1/projects/" + projectId + "/documents", session.access_token);
       setDocuments(j.data || []);
-    } catch (e: any) { setError(e.message || "Could not load documents."); }
+    } catch (e: any) {
+      setError(e.message || "Could not load documents.");
+    }
   }
 
   async function loadDesignAssets() {
@@ -126,33 +167,57 @@ export function App() {
     try {
       const j = await apiGet("/api/v1/projects/" + projectId + "/design/assets", session.access_token);
       setDesignAssets(j.data || []);
-    } catch { /* optional */ }
+    } catch {
+      /* optional */
+    }
   }
 
   async function loadConversations() {
     if (!session || !projectId) return;
     try {
-      const j = await apiGet("/api/v1/projects/" + projectId + "/ai/conversations", session.access_token);
+      const j = await apiGet(
+        "/api/v1/projects/" + projectId + "/ai/conversations",
+        session.access_token
+      );
       setConversations(j.data || []);
-    } catch { /* optional */ }
+    } catch {
+      /* optional */
+    }
   }
 
   async function openConversation(id: string) {
     if (!session || !id) return;
-    setConversationId(id); setError(""); setLoading(true); setView("assistant");
+    setConversationId(id);
+    setError("");
+    setLoading(true);
+    setView("assistant");
     try {
       const j = await apiGet("/api/v1/ai/conversations/" + id + "/messages", session.access_token);
       const rows = (j.data || []) as { role: string; content: string }[];
-      setMessages(rows.filter((m) => m.role === "user" || m.role === "assistant").map((m) => ({ role: m.role as "user" | "assistant", content: m.content })));
-    } catch (e: any) { setError(e.message || "Could not load conversation."); }
-    finally { setLoading(false); }
+      setMessages(
+        rows
+          .filter((m) => m.role === "user" || m.role === "assistant")
+          .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))
+      );
+    } catch (e: any) {
+      setError(e.message || "Could not load conversation.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function startNewChat() { setConversationId(""); setMessages([]); setError(""); setNotice(""); setView("assistant"); }
+  function startNewChat() {
+    setConversationId("");
+    setMessages([]);
+    setError("");
+    setNotice("");
+    setView("assistant");
+  }
 
   async function viewExtraction(documentId: string, fileName: string) {
     if (!session || extractionLoading) return;
-    setExtractionLoading(true); setError("");
+    setExtractionLoading(true);
+    setError("");
     try {
       const data = await apiGet("/api/v1/documents/" + documentId + "/extraction", session.access_token);
       setExtraction(data);
@@ -168,7 +233,10 @@ export function App() {
     const maxAttempts = 80;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       try {
-        const status = await apiGet("/api/v1/documents/" + documentId + "/status", session.access_token);
+        const status = await apiGet(
+          "/api/v1/documents/" + documentId + "/status",
+          session.access_token
+        );
         const progress = Number(status.progress ?? 0);
         if (status.status === "completed") {
           setNotice(fileName + " processed successfully. AI knowledge index is ready.");
@@ -177,102 +245,228 @@ export function App() {
           return true;
         }
         if (status.status === "failed") {
-          setError(status.error_message || (fileName + " processing failed."));
+          setError(status.error_message || fileName + " processing failed.");
           await loadDocuments();
           return false;
         }
         setNotice(fileName + " uploaded. AI processing " + progress + "%…");
       } catch {
-        // The upload already succeeded; transient polling errors should not
-        // turn a successful upload into a false failure.
+        /* transient polling */
       }
       await new Promise((resolve) => setTimeout(resolve, 1500));
     }
-    setNotice(fileName + " is still processing. You can continue working and check the document status again later.");
+    setNotice(
+      fileName +
+        " is still processing. You can continue working and check the document status again later."
+    );
     await loadDocuments();
     return false;
   }
 
   async function uploadDocument(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]; e.target.value = "";
+    const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file || !session || !projectId || uploading) return;
-    setUploading(true); setError(""); setNotice("");
+    setUploading(true);
+    setError("");
+    setNotice("");
     try {
-      const form = new FormData(); form.append("file", file);
-      const j = await apiUpload("/api/v1/projects/" + projectId + "/documents", session.access_token, form);
+      const form = new FormData();
+      form.append("file", file);
+      const j = await apiUpload(
+        "/api/v1/projects/" + projectId + "/documents",
+        session.access_token,
+        form
+      );
       setNotice(file.name + " uploaded. AI processing started…");
       await loadDocuments();
       await pollDocumentStatus(j.document_id, file.name);
-    } catch (e: any) { setError(e.message || "Document upload failed."); }
-    finally { setUploading(false); }
+    } catch (e: any) {
+      setError(e.message || "Document upload failed.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function send() {
     if (!input.trim() || !projectId || loading || !session) return;
-    const question = input.trim(); setInput(""); setError("");
-    setMessages((m) => [...m, { role: "user", content: question }]); setLoading(true);
+    const question = input.trim();
+    setInput("");
+    setError("");
+    setMessages((m) => [...m, { role: "user", content: question }]);
+    setLoading(true);
     try {
       const body: { message: string; conversation_id?: string } = { message: question };
       if (conversationId) body.conversation_id = conversationId;
-      const j = await apiPost("/api/v1/projects/" + projectId + "/ai/chat", session.access_token, body);
+      const j = await apiPost(
+        "/api/v1/projects/" + projectId + "/ai/chat",
+        session.access_token,
+        body
+      );
       if (j.conversation_id) setConversationId(j.conversation_id);
-      setMessages((m) => [...m, { role: "assistant", content: j.answer, sources: j.sources || [] }]);
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: j.answer, sources: j.sources || [] },
+      ]);
       await loadConversations();
-    } catch (e: any) { setError(e.message || "AI request failed."); }
-    finally { setLoading(false); }
+    } catch (e: any) {
+      const msg = e.message || "AI request failed.";
+      if (/high demand|503|unavailable/i.test(msg)) {
+        setError("AI is busy (high demand). Wait a minute and try again.");
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
-  async function signOut() { await supabase.auth.signOut(); setMessages([]); setConversationId(""); }
+  async function signOut() {
+    await supabase.auth.signOut();
+    setMessages([]);
+    setConversationId("");
+  }
 
   if (!session) return <AuthScreen />;
 
   const centerProps = { projectId, token };
+  const processedDocs = documents.filter(
+    (d) => d.status === "processed" || d.status === "completed"
+  ).length;
 
   return (
     <div className="app">
       <header>
-        <div><strong>AI Construction OS</strong><span>Construction Intelligence Platform</span></div>
-        <div className="header-actions"><button className="menu-button" type="button" aria-label="Open navigation" onClick={() => setSidebarOpen((v) => !v)}>☰</button><button onClick={signOut}>Sign out</button></div>
+        <div>
+          <strong>AI Construction OS</strong>
+          <span>Construction Intelligence Platform</span>
+        </div>
+        <div className="header-actions">
+          <button
+            className="menu-button"
+            type="button"
+            aria-label="Open navigation"
+            onClick={() => setSidebarOpen((v) => !v)}
+          >
+            ☰
+          </button>
+          <button onClick={signOut}>Sign out</button>
+        </div>
       </header>
       <main className="workspace">
         <aside className={sidebarOpen ? "sidebar-open" : ""}>
           <h2>Project</h2>
           <label>Select project</label>
-          <select value={projectId} onChange={(e) => { setProjectId(e.target.value); setMessages([]); setConversationId(""); setError(""); setNotice(""); setView("os-home"); }}>
-            <option value="">{projectsLoading ? "Loading projects..." : "Select project"}</option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}{p.code ? " · " + p.code : ""}</option>)}
+          <select
+            value={projectId}
+            onChange={(e) => {
+              setProjectId(e.target.value);
+              setMessages([]);
+              setConversationId("");
+              setError("");
+              setNotice("");
+              setView("os-home");
+            }}
+          >
+            <option value="">
+              {projectsLoading ? "Loading projects..." : "Select project"}
+            </option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.code ? " · " + p.code : ""}
+              </option>
+            ))}
           </select>
-          <button className="side-action" type="button" onClick={() => setShowCreateProject((v) => !v)}>{showCreateProject ? "− Hide new project" : "+ New project"}</button>
+          <button
+            className="side-action"
+            type="button"
+            onClick={() => setShowCreateProject((v) => !v)}
+          >
+            {showCreateProject ? "− Hide new project" : "+ New project"}
+          </button>
           {showCreateProject && (
             <form className="create-project" onSubmit={createProject}>
               <label>Project name</label>
-              <input type="text" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="e.g. Addis Ring Road Package 2" disabled={creatingProject} />
+              <input
+                type="text"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                placeholder="e.g. Addis Ring Road Package 2"
+                disabled={creatingProject}
+              />
               <label>Project code (optional)</label>
-              <input type="text" value={newProjectCode} onChange={(e) => setNewProjectCode(e.target.value)} placeholder="e.g. ARR-P2" disabled={creatingProject} />
-              <button className="button primary compact" disabled={creatingProject || !newProjectName.trim()}>{creatingProject ? "Creating..." : "Create project"}</button>
+              <input
+                type="text"
+                value={newProjectCode}
+                onChange={(e) => setNewProjectCode(e.target.value)}
+                placeholder="e.g. ARR-P2"
+                disabled={creatingProject}
+              />
+              <button
+                className="button primary compact"
+                disabled={creatingProject || !newProjectName.trim()}
+              >
+                {creatingProject ? "Creating..." : "Create project"}
+              </button>
             </form>
           )}
           <div className="nav-centers">
             {NAV.map((n) => (
-              <button key={n.id} type="button" className={"side-action" + (view === n.id ? " active-nav" : "")} onClick={() => { setView(n.id); setSidebarOpen(false); }} disabled={!projectId && n.id !== "assistant"}>
+              <button
+                key={n.id}
+                type="button"
+                className={"side-action" + (view === n.id ? " active-nav" : "")}
+                onClick={() => {
+                  setView(n.id);
+                  setSidebarOpen(false);
+                }}
+                disabled={!projectId && n.id !== "assistant"}
+              >
                 {n.label}
               </button>
             ))}
           </div>
           <div className="chat-history">
-            <div className="chat-history-head"><span>Chat history</span><button type="button" onClick={startNewChat} disabled={!projectId}>New</button></div>
+            <div className="chat-history-head">
+              <span>Chat history</span>
+              <button type="button" onClick={startNewChat} disabled={!projectId}>
+                New
+              </button>
+            </div>
             <div className="chat-history-list">
               {conversations.map((c) => (
-                <button key={c.id} type="button" className={"chat-history-item" + (c.id === conversationId ? " active" : "")} onClick={() => openConversation(c.id)}>
+                <button
+                  key={c.id}
+                  type="button"
+                  className={"chat-history-item" + (c.id === conversationId ? " active" : "")}
+                  onClick={() => openConversation(c.id)}
+                >
                   <b>{c.title || "Construction AI chat"}</b>
                   <span>{c.created_at ? new Date(c.created_at).toLocaleString() : ""}</span>
                 </button>
               ))}
             </div>
           </div>
-          <div className="hint"><b>Documents</b></div>
+          <div className="hint">
+            <b>Documents</b>
+            {documents.length > 0 && (
+              <span>
+                {" "}
+                · {documents.length} file{documents.length === 1 ? "" : "s"}
+                {processedDocs > 0 ? ` · ${processedDocs} ready` : ""}
+              </span>
+            )}
+          </div>
           <input ref={fileRef} type="file" hidden onChange={uploadDocument} />
-          <button className="side-action" type="button" disabled={!projectId || uploading} onClick={() => fileRef.current?.click()}>{uploading ? "Uploading…" : "Upload document"}</button>
+          <button
+            className="side-action"
+            type="button"
+            disabled={!projectId || uploading}
+            onClick={() => fileRef.current?.click()}
+          >
+            {uploading ? "Uploading…" : "Upload document"}
+          </button>
           <ul className="doc-list">
             {documents.slice(0, 8).map((d) => (
               <li key={d.id}>
@@ -280,8 +474,12 @@ export function App() {
                   <span>{d.name}</span>
                   {d.status ? <small>{d.status}</small> : null}
                 </div>
-                {d.status === "processed" ? (
-                  <button type="button" onClick={() => viewExtraction(d.id, d.name)} disabled={extractionLoading}>
+                {d.status === "processed" || d.status === "completed" ? (
+                  <button
+                    type="button"
+                    onClick={() => viewExtraction(d.id, d.name)}
+                    disabled={extractionLoading}
+                  >
                     {extractionLoading ? "Loading…" : "AI data"}
                   </button>
                 ) : null}
@@ -299,32 +497,105 @@ export function App() {
                   <strong>AI document intelligence</strong>
                   <span>{extractionDocumentName}</span>
                 </div>
-                <button type="button" onClick={() => setExtraction(null)}>Close</button>
+                <button type="button" onClick={() => setExtraction(null)}>
+                  Close
+                </button>
               </div>
               <pre>{JSON.stringify(extraction.data ?? extraction, null, 2)}</pre>
             </div>
           )}
-          {!projectId && <div className="empty"><p>Select or create a project to open the Construction OS.</p></div>
-          {projectId && view === "os-home" && <OsHome {...centerProps} onNavigate={(next) => { if (NAV.some((n) => n.id === next)) setView(next as WorkspaceView); setSidebarOpen(false); }} />}
+          {!projectId && (
+            <div className="empty empty-card">
+              <h3>Select or create a project</h3>
+              <p>Open the Construction OS by choosing a project in the sidebar.</p>
+            </div>
+          )}
+          {projectId && view === "os-home" && (
+            <OsHome
+              {...centerProps}
+              documentCount={documents.length}
+              onUploadRequest={() => fileRef.current?.click()}
+              onNavigate={(next) => {
+                if (NAV.some((n) => n.id === next)) setView(next as WorkspaceView);
+                setSidebarOpen(false);
+              }}
+            />
+          )}
           {projectId && view === "assistant" && (
             <>
               <div className="messages">
                 {messages.length === 0 && !loading && (
-                  <div className="empty"><div className="logo">AI</div><p>Ask about drawings, BOQ, schedule, risks, or site progress.</p></div>
+                  <div className="empty empty-card">
+                    <div className="logo">AI</div>
+                    {documents.length === 0 ? (
+                      <>
+                        <h3>No project documents yet</h3>
+                        <p>
+                          Upload a BOQ, contract, or report first. The Assistant answers from indexed
+                          project evidence — it will not invent project facts.
+                        </p>
+                        <button
+                          type="button"
+                          className="button primary compact"
+                          disabled={uploading}
+                          onClick={() => fileRef.current?.click()}
+                        >
+                          {uploading ? "Uploading…" : "Upload document"}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <h3>Ask the construction assistant</h3>
+                        <p>
+                          Try: “Summarize uploaded documents”, “List BOQ items”, or “What risks are
+                          mentioned?”
+                        </p>
+                        {processedDocs === 0 && (
+                          <p className="muted small">
+                            Documents are still processing — answers improve once status is
+                            processed.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
                 )}
                 {messages.map((m, i) => (
                   <article key={i} className={"message " + m.role}>
                     <div>{m.content}</div>
-                    {m.sources?.length ? <div className="sources"><b>Sources</b>{m.sources.map((s, j) => <span key={j}>{s.citation}</span>)}</div> : null}
+                    {m.sources?.length ? (
+                      <div className="sources">
+                        <b>Sources</b>
+                        {m.sources.map((s, j) => (
+                          <span key={j}>{s.citation}</span>
+                        ))}
+                      </div>
+                    ) : null}
                   </article>
                 ))}
                 {loading && <div className="message assistant typing">Thinking…</div>}
                 <div ref={messagesEndRef} />
               </div>
               <div className="composer">
-                <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask the construction assistant…" rows={2}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
-                <button type="button" onClick={send} disabled={!projectId || loading || !input.trim()}>Send</button>
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask the construction assistant…"
+                  rows={2}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={send}
+                  disabled={!projectId || loading || !input.trim()}
+                >
+                  Send
+                </button>
               </div>
             </>
           )}
