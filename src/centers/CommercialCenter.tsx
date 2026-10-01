@@ -9,8 +9,17 @@ export function CommercialCenter({ projectId, token }: Props) {
       projectId={projectId}
       token={token}
       title="Commercial Center"
-      endpoints={[{ key: "summary", path: "/api/v1/projects/{id}/commercial/summary" },{ key: "tenders", path: "/api/v1/projects/{id}/tender/packages" },{ key: "contracts", path: "/api/v1/projects/{id}/contracts" }]}
-      actions={[{ path: "/api/v1/projects/{id}/tender/packages/generate", label: "Generate tender packages" }]}
+      endpoints={[
+        { key: "tender", path: "/api/v1/projects/{id}/tender/packages" },
+        { key: "contracts", path: "/api/v1/projects/{id}/contracts" },
+      ]}
+      actions={[
+        {
+          path: "/api/v1/projects/{id}/tender/packages/generate",
+          label: "Generate tender packages",
+        },
+      ]}
+      emptyHint="Tender packages are built from the estimate. Finish Design → BOQ → Estimate, then Generate tender packages."
     />
   );
 }

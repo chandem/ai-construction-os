@@ -9,8 +9,14 @@ export function QualityCenter({ projectId, token }: Props) {
       projectId={projectId}
       token={token}
       title="Quality Center"
-      endpoints={[{ key: "summary", path: "/api/v1/projects/{id}/quality/summary" },{ key: "inspections", path: "/api/v1/projects/{id}/quality/inspections" },{ key: "ncrs", path: "/api/v1/projects/{id}/quality/ncrs" },{ key: "incidents", path: "/api/v1/projects/{id}/quality/incidents" }]}
+      endpoints={[
+        { key: "summary", path: "/api/v1/projects/{id}/quality/summary" },
+        { key: "inspections", path: "/api/v1/projects/{id}/quality/inspections" },
+        { key: "ncrs", path: "/api/v1/projects/{id}/quality/ncrs" },
+        { key: "incidents", path: "/api/v1/projects/{id}/quality/incidents" },
+      ]}
       actions={[]}
+      emptyHint="No inspections, NCRs, or incidents yet. Quality records will show here after they are created for this project."
     />
   );
 }

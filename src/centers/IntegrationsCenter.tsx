@@ -8,9 +8,13 @@ export function IntegrationsCenter({ projectId, token }: Props) {
     <CenterPanel
       projectId={projectId}
       token={token}
-      title="Integrations"
-      endpoints={[{ key: "summary", path: "/api/v1/projects/{id}/integrations/summary" }]}
+      title="Integrations Center"
+      endpoints={[
+        { key: "connectors", path: "/api/v1/projects/{id}/integrations/connectors" },
+        { key: "summary", path: "/api/v1/projects/{id}/integrations/summary" },
+      ]}
       actions={[]}
+      emptyHint="No connectors configured yet. Integration status and sync health will show here when connectors are registered."
     />
   );
 }

@@ -9,8 +9,12 @@ export function GisCenter({ projectId, token }: Props) {
       projectId={projectId}
       token={token}
       title="GIS Center"
-      endpoints={[{ key: "summary", path: "/api/v1/projects/{id}/gis/summary" }]}
-      actions={[{ path: "/api/v1/projects/{id}/gis/assets/from-elements", label: "Assets from elements" }]}
+      endpoints={[
+        { key: "summary", path: "/api/v1/projects/{id}/gis/summary" },
+        { key: "assets", path: "/api/v1/projects/{id}/gis/assets" },
+      ]}
+      actions={[]}
+      emptyHint="GIS assets are linked from engineering elements. Upload drawings and extract elements in Design first."
     />
   );
 }
