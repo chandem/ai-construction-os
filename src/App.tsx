@@ -207,7 +207,7 @@ export function App() {
           <button type="button" className="sidebar-backdrop" aria-label="Close menu" onClick={() => setSidebarOpen(false)} />
         )}
         <aside className={sidebarOpen ? "sidebar-open" : ""}>
-          <div className="sidebar-top">
+          <div className="sidebar-scroll">
             <h2 className="sidebar-section">Project</h2>
             <label>Select project</label>
             <select value={projectId} onChange={(e) => { setProjectId(e.target.value); setMessages([]); setConversationId(""); setError(""); setNotice(""); setView("os-home"); }}>
@@ -226,9 +226,6 @@ export function App() {
                 <button className="button primary compact" disabled={creatingProject || !newProjectName.trim()}>{creatingProject ? "Creating..." : "Create project"}</button>
               </form>
             )}
-            <button type="button" className="sign-out" onClick={signOut}>Sign out</button>
-          </div>
-          <div className="sidebar-scroll">
             {GROUPS.map((group) => (
               <div className="nav-group" key={group.title}>
                 <p className="nav-group-label">{group.title}</p>
@@ -253,6 +250,9 @@ export function App() {
               <span> · {documents.length} uploaded</span>
               <label className="file-upload">{busy ? "Uploading..." : "Upload document"}<input type="file" disabled={!projectId || busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDocument(f); e.target.value = ""; }} /></label>
             </div>
+          </div>
+          <div className="sidebar-footer">
+            <button type="button" className="sign-out" onClick={signOut}>Sign out</button>
           </div>
         </aside>
         <section className="main-panel">
