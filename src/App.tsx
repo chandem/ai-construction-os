@@ -207,47 +207,49 @@ export function App() {
           <button type="button" className="sidebar-backdrop" aria-label="Close menu" onClick={() => setSidebarOpen(false)} />
         )}
         <aside className={sidebarOpen ? "sidebar-open" : ""}>
-          <h2 className="sidebar-section">Project</h2>
-          <label>Select project</label>
-          <select value={projectId} onChange={(e) => { setProjectId(e.target.value); setMessages([]); setConversationId(""); setError(""); setNotice(""); setView("os-home"); }}>
-            <option value="">{projectsLoading ? "Loading projects..." : "Select project"}</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}{p.code ? " · " + p.code : ""}</option>
+          <div className="sidebar-scroll">
+            <h2 className="sidebar-section">Project</h2>
+            <label>Select project</label>
+            <select value={projectId} onChange={(e) => { setProjectId(e.target.value); setMessages([]); setConversationId(""); setError(""); setNotice(""); setView("os-home"); }}>
+              <option value="">{projectsLoading ? "Loading projects..." : "Select project"}</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}{p.code ? " · " + p.code : ""}</option>
+              ))}
+            </select>
+            <button className="side-action" type="button" onClick={() => setShowCreateProject((v) => !v)}>{showCreateProject ? "Hide new project" : "+ New project"}</button>
+            {showCreateProject && (
+              <form className="create-project" onSubmit={createProject}>
+                <label>Project name</label>
+                <input type="text" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="e.g. Office block Package A" disabled={creatingProject} />
+                <label>Project code (optional)</label>
+                <input type="text" value={newProjectCode} onChange={(e) => setNewProjectCode(e.target.value)} placeholder="e.g. ARR-P2" disabled={creatingProject} />
+                <button className="button primary compact" disabled={creatingProject || !newProjectName.trim()}>{creatingProject ? "Creating..." : "Create project"}</button>
+              </form>
+            )}
+            {GROUPS.map((group) => (
+              <div className="nav-group" key={group.title}>
+                <p className="nav-group-label">{group.title}</p>
+                {group.items.map((n) => (
+                  <button key={n.id} type="button" className={"side-action" + (view === n.id ? " active-nav" : "")} onClick={() => openView(n.id)} disabled={!projectId && n.id !== "assistant" && n.id !== "os-home"}>{n.label}</button>
+                ))}
+              </div>
             ))}
-          </select>
-          <button className="side-action" type="button" onClick={() => setShowCreateProject((v) => !v)}>{showCreateProject ? "Hide new project" : "+ New project"}</button>
-          {showCreateProject && (
-            <form className="create-project" onSubmit={createProject}>
-              <label>Project name</label>
-              <input type="text" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="e.g. Office block Package A" disabled={creatingProject} />
-              <label>Project code (optional)</label>
-              <input type="text" value={newProjectCode} onChange={(e) => setNewProjectCode(e.target.value)} placeholder="e.g. ARR-P2" disabled={creatingProject} />
-              <button className="button primary compact" disabled={creatingProject || !newProjectName.trim()}>{creatingProject ? "Creating..." : "Create project"}</button>
-            </form>
-          )}
-          {GROUPS.map((group) => (
-            <div className="nav-group" key={group.title}>
-              <p className="nav-group-label">{group.title}</p>
-              {group.items.map((n) => (
-                <button key={n.id} type="button" className={"side-action" + (view === n.id ? " active-nav" : "")} onClick={() => openView(n.id)} disabled={!projectId && n.id !== "assistant" && n.id !== "os-home"}>{n.label}</button>
-              ))}
+            <div className="chat-history">
+              <div className="chat-history-head"><span>Chat history</span><button type="button" onClick={startNewChat} disabled={!projectId}>New</button></div>
+              <div className="chat-history-list">
+                {conversations.map((c) => (
+                  <button key={c.id} type="button" className={"chat-history-item" + (c.id === conversationId ? " active" : "")} onClick={() => openConversation(c.id)}>
+                    <b>{c.title || "Project AI chat"}</b>
+                    <span>{c.created_at ? new Date(c.created_at).toLocaleString() : ""}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          ))}
-          <div className="chat-history">
-            <div className="chat-history-head"><span>Chat history</span><button type="button" onClick={startNewChat} disabled={!projectId}>New</button></div>
-            <div className="chat-history-list">
-              {conversations.map((c) => (
-                <button key={c.id} type="button" className={"chat-history-item" + (c.id === conversationId ? " active" : "")} onClick={() => openConversation(c.id)}>
-                  <b>{c.title || "Project AI chat"}</b>
-                  <span>{c.created_at ? new Date(c.created_at).toLocaleString() : ""}</span>
-                </button>
-              ))}
+            <div className="hint">
+              <b>Documents</b>
+              <span> · {documents.length} uploaded</span>
+              <label className="file-upload">{busy ? "Uploading..." : "Upload document"}<input type="file" disabled={!projectId || busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDocument(f); e.target.value = ""; }} /></label>
             </div>
-          </div>
-          <div className="hint">
-            <b>Documents</b>
-            <span> · {documents.length} uploaded</span>
-            <label className="file-upload">{busy ? "Uploading..." : "Upload document"}<input type="file" disabled={!projectId || busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDocument(f); e.target.value = ""; }} /></label>
           </div>
           <button type="button" className="sign-out" onClick={signOut}>Sign out</button>
         </aside>
@@ -260,7 +262,7 @@ export function App() {
               <div className="panel-head"><h2>AI Assistant</h2></div>
               <div className="messages">
                 {messages.length === 0 && <div className="empty empty-card"><h3>Ask about this project</h3><p>Upload drawings, specs, or reports, then ask about scope, quantities, schedule, or site status.</p></div>}
-                {messages.map((m, i) => <div key={i} className={"message " + m.role}>{m.content}</div>)}
+                {messages.map((m, i) => <div key={i} className={{"message " + m.role}}>{m.content}</div>)}
                 {busy && <div className="typing">Thinking...</div>}
               </div>
               <form className="composer" onSubmit={sendMessage}>
