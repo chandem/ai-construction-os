@@ -1,44 +1,54 @@
 .sign-out {
   display: block;
   width: 100%;
-  margin: 18px 0 8px;
-  padding: 11px 12px;
+  margin: 12px 0 0;
+  padding: 12px 14px;
   border: 1px solid #f0c2bd;
   border-radius: 10px;
   background: #fff1f0;
   color: #b42318;
   font-weight: 700;
-  text-align: left;
+  text-align: center;
   flex-shrink: 0;
+  min-height: 44px;
 }
 .sign-out:hover { background: #ffe4e1; }
+
+.sidebar-top {
+  flex-shrink: 0;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid #e2e7eb;
+  background: #fff;
+}
 
 .sidebar-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 16px 24px;
 }
 
 @media (max-width: 750px) {
   aside {
-    display: flex;
-    flex-direction: column;
+    display: flex !important;
+    flex-direction: column !important;
+    height: calc(100dvh - 62px) !important;
+    max-height: calc(100dvh - 62px) !important;
+    overflow: hidden !important;
     padding: 0 !important;
   }
-  .sidebar-scroll {
-    padding: 16px 16px 12px;
-  }
-  .sign-out {
-    margin: 0;
-    border-radius: 0;
-    border-left: 0;
-    border-right: 0;
+}
+
+@media (min-width: 751px) {
+  .sidebar-top {
+    padding: 0;
     border-bottom: 0;
-    border-top: 1px solid #f0c2bd;
-    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
-    min-height: 52px;
-    text-align: center;
-    box-shadow: 0 -6px 16px rgba(21, 32, 43, 0.06);
+  }
+  .sidebar-scroll {
+    overflow: visible;
+    padding: 0;
+    margin-top: 8px;
   }
 }
