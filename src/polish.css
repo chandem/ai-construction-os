@@ -37,10 +37,21 @@
   cursor: pointer;
 }
 .file-upload input { display: none; }
-.bottom-tabs {
+.menu-button {
   display: none;
+  width: 44px;
+  height: 44px;
+  padding: 0 !important;
+  border-radius: 12px !important;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.1) !important;
+  border: 1px solid rgba(255,255,255,0.16) !important;
 }
+.menu-button svg { display: block; }
+.bottom-tabs { display: none; }
 @media (max-width: 750px) {
+  .menu-button { display: inline-flex !important; }
   aside {
     overscroll-behavior: contain;
     padding: 16px 16px 24px;
@@ -51,7 +62,6 @@
     padding: 8px 12px;
   }
   .sidebar-head, .sidebar-close { display: none !important; }
-  .app header button { white-space: nowrap; }
   .bottom-tabs {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -81,7 +91,7 @@
   .auth-tabs button { min-height: 44px; }
 }
 @media (max-width: 420px) {
-  header { flex-wrap: wrap; }
+  header { flex-wrap: nowrap; align-items: center; }
   .os-hero { flex-direction: column; }
   .os-hero .button.compact { width: auto; align-self: flex-start; white-space: nowrap; }
 }
