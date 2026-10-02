@@ -339,7 +339,7 @@ export function App() {
       <header>
         <div>
           <strong>AI Construction OS</strong>
-          <span>Construction Intelligence Platform</span>
+          <span>General construction project OS</span>
         </div>
         <div className="header-actions">
           <button
@@ -392,7 +392,7 @@ export function App() {
                 type="text"
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
-                placeholder="e.g. Addis Ring Road Package 2"
+                placeholder="e.g. Office block Package A or Road Package 2"
                 disabled={creatingProject}
               />
               <label>Project code (optional)</label>
@@ -442,7 +442,7 @@ export function App() {
                   className={"chat-history-item" + (c.id === conversationId ? " active" : "")}
                   onClick={() => openConversation(c.id)}
                 >
-                  <b>{c.title || "Construction AI chat"}</b>
+                  <b>{c.title || "Project AI chat"}</b>
                   <span>{c.created_at ? new Date(c.created_at).toLocaleString() : ""}</span>
                 </button>
               ))}
@@ -507,7 +507,7 @@ export function App() {
           {!projectId && (
             <div className="empty empty-card">
               <h3>Select or create a project</h3>
-              <p>Open the Construction OS by choosing a project in the sidebar.</p>
+              <p>Choose or create any construction project — building, civil, or mixed works.</p>
             </div>
           )}
           {projectId && view === "os-home" && (
@@ -531,8 +531,8 @@ export function App() {
                       <>
                         <h3>No project documents yet</h3>
                         <p>
-                          Upload a BOQ, contract, or report first. The Assistant answers from indexed
-                          project evidence — it will not invent project facts.
+                          Upload project documents first (BOQ, drawings, contracts, reports). The
+                          Assistant uses indexed project evidence and will not invent project facts.
                         </p>
                         <button
                           type="button"
@@ -545,7 +545,7 @@ export function App() {
                       </>
                     ) : (
                       <>
-                        <h3>Ask the construction assistant</h3>
+                        <h3>Ask about this construction project</h3>
                         <p>
                           Try: “Summarize uploaded documents”, “List BOQ items”, or “What risks are
                           mentioned?”
@@ -580,7 +580,7 @@ export function App() {
                 <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask the construction assistant…"
+                  placeholder="Ask about documents, BOQ, schedule, cost, or site progress…"
                   rows={2}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
