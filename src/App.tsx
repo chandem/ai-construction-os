@@ -94,6 +94,7 @@ export function App() {
   }, [token, projectId]);
 
   async function signOut() {
+    setSidebarOpen(false);
     await supabase.auth.signOut();
     setSession(null);
     setToken("");
@@ -216,10 +217,7 @@ export function App() {
             aria-expanded={sidebarOpen}
             onClick={() => setSidebarOpen((v) => !v)}
           >
-            {sidebarOpen ? "✕" : "☰"}
-          </button>
-          <button type="button" onClick={signOut}>
-            Sign out
+            {sidebarOpen ? "\u2715" : "\u2630"}
           </button>
         </div>
       </header>
@@ -261,7 +259,7 @@ export function App() {
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
-                {p.code ? " · " + p.code : ""}
+                {p.code ? " \u00b7 " + p.code : ""}
               </option>
             ))}
           </select>
@@ -270,7 +268,7 @@ export function App() {
             type="button"
             onClick={() => setShowCreateProject((v) => !v)}
           >
-            {showCreateProject ? "− Hide new project" : "+ New project"}
+            {showCreateProject ? "\u2212 Hide new project" : "+ New project"}
           </button>
           {showCreateProject && (
             <form className="create-project" onSubmit={createProject}>
@@ -337,7 +335,7 @@ export function App() {
           </div>
           <div className="hint">
             <b>Documents</b>
-            <span> · {documents.length} uploaded</span>
+            <span> \u00b7 {documents.length} uploaded</span>
             <input
               type="file"
               style={{ marginTop: 10 }}
@@ -349,6 +347,9 @@ export function App() {
               }}
             />
           </div>
+          <button type="button" className="sign-out" onClick={signOut}>
+            Sign out
+          </button>
         </aside>
         <section className="main-panel">
           {error && <div className="error">{error}</div>}
@@ -380,13 +381,13 @@ export function App() {
                     {m.content}
                   </div>
                 ))}
-                {busy && <div className="typing">Thinking…</div>}
+                {busy && <div className="typing">Thinking\u2026</div>}
               </div>
               <form className="composer" onSubmit={sendMessage}>
                 <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder={projectId ? "Ask about this project…" : "Select a project first"}
+                  placeholder={projectId ? "Ask about this project\u2026" : "Select a project first"}
                   disabled={!projectId || busy}
                 />
                 <button type="submit" disabled={!projectId || busy || !input.trim()}>
