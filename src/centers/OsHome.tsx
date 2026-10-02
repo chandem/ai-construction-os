@@ -48,30 +48,38 @@ function moduleViewId(moduleId: string): string | null {
   };
 
   if (moduleId in map) return map[moduleId];
-  if ([
-    "os-home",
-    "assistant",
-    "design-center",
-    "commercial",
-    "cost-control",
-    "planning",
-    "procurement",
-    "inventory",
-    "field",
-    "quality",
-    "gis",
-    "prediction",
-    "brain",
-    "integrations",
-    "ops",
-  ].includes(moduleId)) {
+  if (
+    [
+      "os-home",
+      "assistant",
+      "design-center",
+      "commercial",
+      "cost-control",
+      "planning",
+      "procurement",
+      "inventory",
+      "field",
+      "quality",
+      "gis",
+      "prediction",
+      "brain",
+      "integrations",
+      "ops",
+    ].includes(moduleId)
+  ) {
     return moduleId;
   }
 
   return null;
 }
 
-export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUploadRequest }: Props) {
+export function OsHome({
+  projectId,
+  token,
+  documentCount = 0,
+  onNavigate,
+  onUploadRequest,
+}: Props) {
   const [data, setData] = React.useState<any>(null);
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -83,7 +91,9 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
     try {
       setData(await apiGet("/api/v1/projects/" + projectId + "/os/snapshot", token));
     } catch {
-      setError("We couldn't load the project readiness summary. The API may be waking up — try Refresh.");
+      setError(
+        "We couldn't load the project readiness summary. The API may be waking up — try Refresh."
+      );
     } finally {
       setBusy(false);
     }
@@ -107,10 +117,11 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
     <section className="panel os-home">
       <div className="os-hero">
         <div>
-          <p className="eyebrow">Construction intelligence</p>
+          <p className="eyebrow">General construction</p>
           <h1>Construction OS</h1>
           <p>
-            Project command center for delivery, cost, documents, and field execution.
+            One command center for any construction project — documents, quantities, cost, planning,
+            and site delivery.
           </p>
         </div>
         <button type="button" className="button compact" disabled={busy} onClick={load}>
@@ -131,27 +142,35 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
       {noDocs && (
         <div className="os-getting-started">
           <div>
-            <h3>Get started with this project</h3>
+            <h3>Start with your project documents</h3>
             <p>
-              Upload the project record set, activate the AI knowledge layer, and turn drawings,
-              contracts, reports, and site updates into clear decisions.
+              Upload the records that define the works — BOQ, drawings, contracts, method statements,
+              or progress reports. The OS works the same way for building, civil, or mixed packages.
             </p>
           </div>
           <div className="os-getting-started-actions">
-            <button type="button" className="button primary compact" onClick={() => onUploadRequest?.()}>
+            <button
+              type="button"
+              className="button primary compact"
+              onClick={() => onUploadRequest?.()}
+            >
               Upload document
             </button>
             <button type="button" className="button compact" onClick={() => onNavigate?.("assistant")}>
               Open Assistant
             </button>
-            <button type="button" className="button compact" onClick={() => onNavigate?.("design-center")}>
+            <button
+              type="button"
+              className="button compact"
+              onClick={() => onNavigate?.("design-center")}
+            >
               Open Design
             </button>
           </div>
           <ol className="os-steps">
-            <li>Upload BOQ, drawings, contracts, or reports</li>
-            <li>Wait for project content to be processed</li>
-            <li>Ask the AI Assistant for summaries, risks, and next steps</li>
+            <li>Upload BOQ, drawings, contracts, or site reports</li>
+            <li>Wait until processing is complete</li>
+            <li>Use Assistant for questions or Design for quantities and BOQ</li>
           </ol>
         </div>
       )}
@@ -214,8 +233,8 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
                   : m.status === "needs_setup"
                     ? "Complete the setup steps to activate this module."
                     : m.status === "empty"
-                      ? "No data available yet — upload or generate source content to unlock this module."
-                      : m.message || "Module is active and ready for project work.";
+                      ? "No data yet — upload documents or generate data to unlock this module."
+                      : m.message || "Ready for general construction project work.";
 
               return (
                 <article className="os-module" key={m.id}>
@@ -249,7 +268,9 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
           {snap.notes && <p className="muted small">{snap.notes}</p>}
         </>
       ) : (
-        !error && <p className="muted">No readiness data yet. Click Refresh after the API is awake.</p>
+        !error && (
+          <p className="muted">No readiness data yet. Click Refresh after the API is awake.</p>
+        )
       )}
     </section>
   );

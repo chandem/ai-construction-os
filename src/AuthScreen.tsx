@@ -2,9 +2,9 @@ import React from "react";
 import { supabase, supabaseUrl, supabaseKey } from "./supabaseClient";
 
 const benefits = [
-  "Drawings, specs, and document intelligence",
-  "Cost, schedule, and planning visibility",
-  "Field progress, QA, and risk insights",
+  "Works for buildings, civil, and mixed packages",
+  "Documents, BOQ, drawings, contracts, and reports",
+  "Cost, schedule, field progress, and quality",
 ];
 
 export function AuthScreen() {
@@ -17,20 +17,38 @@ export function AuthScreen() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setError(""); setSuccess("");
-    if (!supabaseUrl || !supabaseKey) return setError("Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.");
+    setError("");
+    setSuccess("");
+    if (!supabaseUrl || !supabaseKey) {
+      return setError(
+        "Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY."
+      );
+    }
     if (!email.trim() || !password) return setError("Please enter your email and password.");
     if (password.length < 6) return setError("Password must be at least 6 characters.");
     setLoading(true);
     try {
       if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
         if (error) throw error;
       } else {
-        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+        });
         if (error) throw error;
-        setSuccess(data.session ? "Account created successfully." : "Account created. Check your email to confirm your account.");
-        if (!data.session) { setMode("login"); setPassword(""); }
+        setSuccess(
+          data.session
+            ? "Account created successfully."
+            : "Account created. Check your email to confirm your account."
+        );
+        if (!data.session) {
+          setMode("login");
+          setPassword("");
+        }
       }
     } catch (err: any) {
       setError(err?.message || "Authentication failed.");
@@ -45,36 +63,76 @@ export function AuthScreen() {
         <div className="auth-hero">
           <div className="logo">AI</div>
           <div>
-            <p className="eyebrow small">Construction intelligence platform</p>
+            <p className="eyebrow small">General construction OS</p>
             <h1>AI Construction OS</h1>
             <p className="muted hero-copy">
-              From drawings and RFIs to cost, planning, and field reporting — AI gives construction teams one connected view of project truth.
+              One platform for any construction project — buildings, infrastructure, or mixed works.
+              Connect documents, quantities, cost, planning, and site delivery without locking into a
+              single sector.
             </p>
           </div>
         </div>
 
         <div className="value-grid">
           {benefits.map((item) => (
-            <span key={item} className="feature-chip">{item}</span>
+            <span key={item} className="feature-chip">
+              {item}
+            </span>
           ))}
         </div>
 
         <div className="auth-tabs">
-          <button className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setError(""); setSuccess(""); }} type="button">Login</button>
-          <button className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setError(""); setSuccess(""); }} type="button">Create account</button>
+          <button
+            className={mode === "login" ? "active" : ""}
+            onClick={() => {
+              setMode("login");
+              setError("");
+              setSuccess("");
+            }}
+            type="button"
+          >
+            Login
+          </button>
+          <button
+            className={mode === "signup" ? "active" : ""}
+            onClick={() => {
+              setMode("signup");
+              setError("");
+              setSuccess("");
+            }}
+            type="button"
+          >
+            Create account
+          </button>
         </div>
 
         <form onSubmit={submit} className="auth-form">
           <label>Email</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            autoComplete="email"
+          />
           <label>Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete={mode === "login" ? "current-password" : "new-password"} />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
+          />
           {error && <div className="error">{error}</div>}
           {success && <div className="success">{success}</div>}
-          <button className="button primary" disabled={loading}>{loading ? "Please wait..." : mode === "login" ? "Login" : "Create account"}</button>
+          <button className="button primary" disabled={loading}>
+            {loading ? "Please wait..." : mode === "login" ? "Login" : "Create account"}
+          </button>
         </form>
 
-        <p className="muted small auth-tail">Built for project teams, site leaders, and cost stakeholders.</p>
+        <p className="muted small auth-tail">
+          Built for contractors, consultants, owners, and project teams across general construction.
+        </p>
       </section>
     </main>
   );
