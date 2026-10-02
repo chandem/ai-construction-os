@@ -262,7 +262,7 @@ export function App() {
               <div className="panel-head"><h2>AI Assistant</h2></div>
               <div className="messages">
                 {messages.length === 0 && <div className="empty empty-card"><h3>Ask about this project</h3><p>Upload drawings, specs, or reports, then ask about scope, quantities, schedule, or site status.</p></div>}
-                {messages.map((m, i) => <div key={i} className={{"message " + m.role}}>{m.content}</div>)}
+                {messages.map((m, i) => <div key={i} className={"message " + m.role}>{m.content}</div>)}
                 {busy && <div className="typing">Thinking...</div>}
               </div>
               <form className="composer" onSubmit={sendMessage}>
