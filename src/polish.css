@@ -53,8 +53,10 @@
 @media (max-width: 750px) {
   .menu-button { display: inline-flex !important; }
   aside {
+    display: flex;
+    flex-direction: column;
     overscroll-behavior: contain;
-    padding: 16px 16px 24px;
+    overflow: hidden;
   }
   .side-action {
     min-height: 44px;
