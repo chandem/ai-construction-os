@@ -21,7 +21,7 @@ import { OpsCenter } from "./centers/OpsCenter";
 const NAV: { id: WorkspaceView; label: string }[] = [
   { id: "os-home", label: "OS Home" },
   { id: "assistant", label: "AI Assistant" },
-  { id: "design", label: "Design" },
+  { id: "design-center", label: "Design" },
   { id: "commercial", label: "Commercial" },
   { id: "planning", label: "Planning" },
   { id: "procurement", label: "Procurement" },
@@ -36,7 +36,7 @@ const NAV: { id: WorkspaceView; label: string }[] = [
   { id: "ops", label: "Ops" },
 ];
 
-export default function App() {
+export function App() {
   const [session, setSession] = React.useState<any>(null);
   const [token, setToken] = React.useState("");
   const [projects, setProjects] = React.useState<Project[]>([]);
@@ -357,7 +357,7 @@ export default function App() {
             <OsHome
               projectId={projectId}
               token={token}
-              onNavigate={(v) => setView(v)}
+              onNavigate={(v) => setView(v as WorkspaceView)}
             />
           )}
           {view === "assistant" && (
@@ -395,7 +395,7 @@ export default function App() {
               </form>
             </div>
           )}
-          {projectId && view === "design" && <DesignCenter {...centerProps} />}
+          {projectId && view === "design-center" && <DesignCenter {...centerProps} />}
           {projectId && view === "commercial" && <CommercialCenter {...centerProps} />}
           {projectId && view === "planning" && <PlanningCenter {...centerProps} />}
           {projectId && view === "procurement" && <ProcurementCenter {...centerProps} />}
