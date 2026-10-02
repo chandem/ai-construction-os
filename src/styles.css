@@ -133,3 +133,33 @@ select:focus, input:focus, textarea:focus { border-color: #6b7c8a; box-shadow: 0
 .field-form .button.compact { margin-top: 16px; width: auto; }
 .field-lists h3 { margin: 0 0 10px; font-size: 15px; }
 @media (max-width: 900px) { .field-layout { grid-template-columns: 1fr; } .field-grid { grid-template-columns: 1fr; } }
+
+/* Authentication screen */
+.auth-shell { padding: 32px 16px; min-height: 100vh; }
+.auth-panel { max-width: 520px; padding: 30px 28px 24px; }
+.auth-hero { display: flex; flex-direction: column; align-items: center; }
+.auth-hero .logo { margin-bottom: 14px; }
+.auth-hero h1 { margin: 0; font-size: 30px; line-height: 1.15; letter-spacing: -0.035em; }
+.eyebrow { margin: 0 0 7px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.eyebrow.small { font-size: 12px; }
+.hero-copy { margin: 10px auto 0; max-width: 430px; line-height: 1.55; }
+.value-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 20px 0 18px; text-align: left; }
+.feature-chip { display: flex; align-items: center; min-height: 58px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 11px; background: #f8fafb; color: #44515c; font-size: 11px; line-height: 1.4; }
+.auth-tabs { display: flex; gap: 6px; padding: 4px; margin: 0 0 20px; border: 1px solid var(--line); border-radius: 12px; background: #f1f4f6; }
+.auth-tabs button { flex: 1; min-height: 40px; padding: 9px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-weight: 700; font-size: 13px; }
+.auth-tabs button:hover { background: #e8edf0; color: var(--ink); }
+.auth-tabs button.active { background: var(--accent); color: #fff; box-shadow: 0 2px 6px rgba(21,32,43,0.14); }
+.auth-form { text-align: left; }
+.auth-form label { margin-top: 13px; margin-bottom: 7px; }
+.auth-form label:first-child { margin-top: 0; }
+.auth-form input { display: block; }
+.auth-form .button.primary { margin-top: 20px; }
+.auth-tail { margin: 18px auto 0; max-width: 390px; line-height: 1.45; }
+@media (max-width: 560px) {
+  .auth-shell { padding: 18px 12px; }
+  .auth-panel { padding: 26px 18px 22px; }
+  .auth-hero h1 { font-size: 26px; }
+  .value-grid { grid-template-columns: 1fr; gap: 7px; margin: 18px 0 16px; }
+  .feature-chip { min-height: auto; }
+  .auth-tabs { margin-bottom: 18px; }
+}
