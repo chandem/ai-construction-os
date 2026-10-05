@@ -170,7 +170,7 @@ export function App() {
     setBusy(true);
     setError("");
     try {
-      const r = await apiPost("/api/v1/projects/" + projectId + "/chat", token, { message: text, conversation_id: conversationId || undefined });
+      const r = await apiPost("/api/v1/projects/" + projectId + "/ai/agent", token, { message: text });
       if (r.conversation_id) setConversationId(r.conversation_id);
       setMessages((m) => [...m, { role: "assistant", content: r.reply || r.message || "(no reply)" }]);
       if (r.conversation_id) {
@@ -263,7 +263,7 @@ export function App() {
             <div className="panel">
               <div className="panel-head"><h2>AI Assistant</h2></div>
               <div className="messages">
-                {messages.length === 0 && <div className="empty empty-card"><h3>Ask about this project</h3><p>Upload drawings, specs, or reports, then ask about scope, quantities, schedule, or site status.</p></div>}
+                {messages.length === 0 && <div className="empty empty-card"><h3>Ask about this project</h3><p>Ask about current project status, activities, materials, equipment, costs, or risks. You can also ask for construction calculations.</p></div>}
                 {messages.map((m, i) => <div key={i} className={"message " + m.role}>{m.content}</div>)}
                 {busy && <div className="typing">Thinking...</div>}
               </div>
