@@ -172,7 +172,7 @@ export function App() {
     try {
       const r = await apiPost("/api/v1/projects/" + projectId + "/ai/agent", token, { message: text });
       if (r.conversation_id) setConversationId(r.conversation_id);
-      setMessages((m) => [...m, { role: "assistant", content: r.reply || r.message || "(no reply)" }]);
+      setMessages((m) => [...m, { role: "assistant", content: r.answer || r.reply || r.message || "(no reply)" }]);
       if (r.conversation_id) {
         const list = await apiGet("/api/v1/projects/" + projectId + "/conversations", token);
         setConversations(list.data || []);
