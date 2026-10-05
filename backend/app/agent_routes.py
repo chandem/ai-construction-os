@@ -44,7 +44,7 @@ def construction_agent(
     _get_project_for_user(project_id, user["id"], supabase_admin)
 
     try:
-        answer = run_construction_agent(request.message)
+        answer = run_construction_agent(request.message, project_id, supabase_admin)
     except Exception as exc:
         raise HTTPException(
             status_code=502,
