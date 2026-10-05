@@ -61,14 +61,16 @@ def _generate_with_model(
     project_id: str,
     project_summary_tool,
 ):
-    return client.models.generate_content(
+    chat = client.chats.create(
         model=model_id,
-        contents=f"AUTHORIZED PROJECT ID: {project_id}\n\nUSER REQUEST:\n{message}",
         config=types.GenerateContentConfig(
             system_instruction=CONSTRUCTION_AGENT_SYSTEM,
             temperature=0.2,
             tools=[*BASE_CONSTRUCTION_TOOLS, project_summary_tool],
         ),
+    )
+    return chat.send_message(
+        f"AUTHORIZED PROJECT ID: {project_id}\n\nUSER REQUEST:\n{message}"
     )
 
 
