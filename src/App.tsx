@@ -269,7 +269,7 @@ export function App() {
                 {aiBusy && <div className="typing">AI is thinking...</div>}
               </div>
               <form className="composer" onSubmit={sendMessage}>
-                <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder={projectId ? "Ask about this project..." : "Select a project first"} disabled={!projectId || busy} />
+                <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder={projectId ? "Ask about this project..." : "Select a project first"} disabled={!projectId || aiBusy} />
                 <button type="submit" disabled={!projectId || aiBusy || !input.trim()}>Send</button>
               </form>
             </div>
