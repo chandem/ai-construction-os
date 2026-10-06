@@ -8,6 +8,7 @@ from google.genai import types
 from supabase import Client
 
 from .config import settings
+from .cost_intelligence import make_project_cost_intelligence_tool
 from .construction_tools import (
     calculate_concrete_volume,
     calculate_material_balance,
@@ -51,6 +52,8 @@ Use get_project_management_recommendations when the user asks what management sh
 what decisions should be prioritized, or asks for a consolidated management recommendation.
 Use get_project_performance_score when the user asks for a project performance score, project health score,
 overall project score, or a transparent assessment of project performance.
+Use get_project_cost_intelligence when the user asks about project costs, cost intelligence, budget versus actual,
+cost overruns, cost concentration, cost controls, or cost-data gaps. Never infer an overrun without an approved baseline.
 Forecasting must distinguish
 recorded facts from conditional scenarios and must not invent future values.
 Use calculation tools for concrete volume, project progress percentage, and remaining material quantity.
@@ -112,6 +115,7 @@ def _generate_with_model(
     project_early_warnings_tool,
     project_management_recommendations_tool,
     project_performance_score_tool,
+    project_cost_intelligence_tool,
     document_search_tool,
 ):
     context = _document_context(document_search_tool, message)
@@ -131,6 +135,7 @@ def _generate_with_model(
                 project_early_warnings_tool,
                 project_management_recommendations_tool,
                 project_performance_score_tool,
+                project_cost_intelligence_tool,
                 document_search_tool,
             ],
         ),
@@ -162,6 +167,7 @@ def run_construction_agent(
     project_early_warnings_tool = make_project_early_warnings_tool(db, project_id)
     project_management_recommendations_tool = make_project_management_recommendations_tool(db, project_id)
     project_performance_score_tool = make_project_performance_score_tool(db, project_id)
+    project_cost_intelligence_tool = make_project_cost_intelligence_tool(db, project_id)
     document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
