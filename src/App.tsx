@@ -284,7 +284,16 @@ export function App() {
               <div className="panel-head"><h2>AI Assistant</h2></div>
               <div className="messages">
                 {messages.length === 0 && <div className="empty empty-card"><h3>Ask about this project</h3><p>Ask about uploaded drawings, specs, reports, or BOQs. You can also ask about project status, materials, costs, risks, or construction calculations.</p></div>}
-                {messages.map((m, i) => m.role === "assistant" ? (\n                  <div key={i} className="assistant-message">\n                    <div className="message assistant">{m.content}</div>\n                    <button type="button" className="copy-response" onClick={() => copyAiResponse(i, m.content)} aria-label="Copy AI response">\n                      {copiedMessage === i ? "Copied" : "Copy"}\n                    </button>\n                  </div>\n                ) : (\n                  <div key={i} className="message user">{m.content}</div>\n                ))}
+                {messages.map((m, i) => m.role === "assistant" ? (
+                  <div key={i} className="assistant-message">
+                    <div className="message assistant">{m.content}</div>
+                    <button type="button" className="copy-response" onClick={() => copyAiResponse(i, m.content)} aria-label="Copy AI response">
+                      {copiedMessage === i ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                ) : (
+                  <div key={i} className="message user">{m.content}</div>
+                ))}
                 {aiBusy && <div className="typing">AI is thinking...</div>}
               </div>
               <form className="composer" onSubmit={sendMessage}>
