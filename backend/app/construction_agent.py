@@ -15,6 +15,7 @@ from .risk_prediction import make_project_risk_prediction_tool
 from .contract_intelligence import make_project_contract_intelligence_tool
 from .boq_intelligence import make_project_boq_intelligence_tool
 from .document_intelligence_tool import make_project_document_intelligence_tool
+from .executive_dashboard import make_project_executive_dashboard_tool
 from .resource_optimization import make_project_resource_optimization_tool
 from .construction_tools import (
     calculate_concrete_volume,
@@ -23,7 +24,6 @@ from .construction_tools import (
 )
 from .project_data import (
     make_document_search_tool,
-    make_project_document_intelligence_tool,
     make_project_action_plan_tool,
     make_project_monitoring_tool,
     make_project_risk_analysis_tool,
@@ -86,6 +86,9 @@ Do not treat document processing readiness as proof that a document is approved,
 Use get_project_resource_optimization when the user asks about resource allocation, workforce or equipment
 utilization, material bottlenecks, resource shortages, or how resources should be prioritized. Use only
 recorded workforce, equipment, material, and activity data; do not invent utilization or future resource needs.
+Use get_project_executive_dashboard when the user asks for an executive dashboard, management dashboard,
+project health overview, consolidated executive summary, or a single view across schedule, cost, risks,
+procurement, resources, BOQ, contracts, and documents. Treat it as read-only decision support.
 Forecasting must distinguish
 recorded facts from conditional scenarios and must not invent future values.
 Use calculation tools for concrete volume, project progress percentage, and remaining material quantity.
@@ -153,6 +156,7 @@ def _generate_with_model(
     project_resource_optimization_tool,
     project_boq_intelligence_tool,
     project_document_intelligence_tool,
+    project_executive_dashboard_tool,
     document_search_tool,
 ):
     context = _document_context(document_search_tool, message)
@@ -178,6 +182,7 @@ def _generate_with_model(
                 project_resource_optimization_tool,
                 project_boq_intelligence_tool,
                 project_document_intelligence_tool,
+                project_executive_dashboard_tool,
                 document_search_tool,
             ],
         ),
@@ -215,6 +220,7 @@ def run_construction_agent(
     project_resource_optimization_tool = make_project_resource_optimization_tool(db, project_id)
     project_boq_intelligence_tool = make_project_boq_intelligence_tool(db, project_id)
     project_document_intelligence_tool = make_project_document_intelligence_tool(db, project_id)
+    project_executive_dashboard_tool = make_project_executive_dashboard_tool(db, project_id)
     document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
