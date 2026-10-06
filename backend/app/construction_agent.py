@@ -16,6 +16,7 @@ from .construction_tools import (
 from .project_data import (
     make_document_search_tool,
     make_project_action_plan_tool,
+    make_project_monitoring_tool,
     make_project_priorities_tool,
     make_project_summary_tool,
 )
@@ -32,6 +33,9 @@ Use get_project_priorities when the user asks what to focus on, what needs atten
 next actions, or project priorities.
 Use get_project_action_plan when the user asks for an ordered action plan, implementation steps,
 owners, or what to do next. The action plan is advisory and must not modify project records.
+Use get_project_monitoring when the user asks how the project is performing, what needs attention,
+what is critical, what is on track, schedule variance, or what management should decide next.
+Monitoring is read-only and must be based only on currently recorded project data.
 Use calculation tools for concrete volume, project progress percentage, and remaining material quantity.
 You may also call search_uploaded_documents if the preloaded context is not enough.
 
@@ -98,6 +102,7 @@ def _generate_with_model(
                 project_summary_tool,
                 project_priorities_tool,
                 project_action_plan_tool,
+                project_monitoring_tool,
                 document_search_tool,
             ],
         ),
@@ -123,6 +128,7 @@ def run_construction_agent(
     project_summary_tool = make_project_summary_tool(db, project_id)
     project_priorities_tool = make_project_priorities_tool(db, project_id)
     project_action_plan_tool = make_project_action_plan_tool(db, project_id)
+    project_monitoring_tool = make_project_monitoring_tool(db, project_id)
     document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
@@ -137,6 +143,7 @@ def run_construction_agent(
                 project_summary_tool,
                 project_priorities_tool,
                 project_action_plan_tool,
+                project_monitoring_tool,
                 document_search_tool,
             )
             return (response.text or "").strip()
