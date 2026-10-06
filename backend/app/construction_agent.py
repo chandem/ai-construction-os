@@ -9,6 +9,7 @@ from supabase import Client
 
 from .config import settings
 from .cost_intelligence import make_project_cost_intelligence_tool
+from .procurement_intelligence import make_project_procurement_intelligence_tool
 from .construction_tools import (
     calculate_concrete_volume,
     calculate_material_balance,
@@ -54,6 +55,9 @@ Use get_project_performance_score when the user asks for a project performance s
 overall project score, or a transparent assessment of project performance.
 Use get_project_cost_intelligence when the user asks about project costs, cost intelligence, budget versus actual,
 cost overruns, cost concentration, cost controls, or cost-data gaps. Never infer an overrun without an approved baseline.
+Use get_project_procurement_intelligence when the user asks about procurement, purchasing, material ordering,
+delivery status, procurement priorities, supplier delays, outstanding quantities, or procurement risks.
+Do not invent procurement quantities, supplier status, dates, or shortages.
 Forecasting must distinguish
 recorded facts from conditional scenarios and must not invent future values.
 Use calculation tools for concrete volume, project progress percentage, and remaining material quantity.
@@ -116,6 +120,7 @@ def _generate_with_model(
     project_management_recommendations_tool,
     project_performance_score_tool,
     project_cost_intelligence_tool,
+    project_procurement_intelligence_tool,
     document_search_tool,
 ):
     context = _document_context(document_search_tool, message)
@@ -136,6 +141,7 @@ def _generate_with_model(
                 project_management_recommendations_tool,
                 project_performance_score_tool,
                 project_cost_intelligence_tool,
+                project_procurement_intelligence_tool,
                 document_search_tool,
             ],
         ),
@@ -168,6 +174,7 @@ def run_construction_agent(
     project_management_recommendations_tool = make_project_management_recommendations_tool(db, project_id)
     project_performance_score_tool = make_project_performance_score_tool(db, project_id)
     project_cost_intelligence_tool = make_project_cost_intelligence_tool(db, project_id)
+    project_procurement_intelligence_tool = make_project_procurement_intelligence_tool(db, project_id)
     document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
