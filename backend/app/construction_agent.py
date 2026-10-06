@@ -1,6 +1,8 @@
 """Gemini-powered construction tool-calling agent."""
 from __future__ import annotations
 
+import json
+
 from google import genai
 from google.genai import types
 from supabase import Client
@@ -15,13 +17,14 @@ from .project_data import make_document_search_tool, make_project_summary_tool
 
 CONSTRUCTION_AGENT_SYSTEM = """You are the Construction AI Agent inside an AI-first Construction OS.
 
-When the user asks about an uploaded file, drawing, specification, contract, report, bill of quantities,
-maintenance plan, or any fact that should come from project documents, call search_uploaded_documents first.
-If it returns excerpts, answer from those excerpts and cite the document name and page.
-If it returns a note and no excerpts, repeat that note. Do not describe the tool as broken unless the note says the search failed.
+The user message includes UPLOADED DOCUMENT CONTEXT. Use that context first for questions about
+uploaded files, drawings, specifications, contracts, reports, bills of quantities, or maintenance plans.
+Quote the excerpts and cite the document name. If the context has files but no excerpts, say the files
+are uploaded and repeat the note. Do not call this a system error unless the note says the lookup failed.
 
 Use get_project_summary for current project status, activities, materials, equipment, costs, or risks.
 Use calculation tools for concrete volume, project progress percentage, and remaining material quantity.
+You may also call search_uploaded_documents if the preloaded context is not enough.
 
 Do not invent project-specific facts, quantities, dates, costs, or document contents.
 If the available data is insufficient, say what is missing.
@@ -53,9 +56,16 @@ _TRANSIENT_ERROR_MARKERS = (
 
 
 def _is_transient_gemini_error(exc: Exception) -> bool:
-    """Return True only for errors where trying another model may help."""
     message = str(exc).lower()
     return any(marker in message for marker in _TRANSIENT_ERROR_MARKERS)
+
+
+def _document_context(document_search_tool, message: str) -> str:
+    try:
+        found = document_search_tool(message)
+    except Exception as exc:
+        found = {"matches": [], "note": "Document lookup failed: %s" % exc}
+    return json.dumps(found, default=str)[:8000]
 
 
 def _generate_with_model(
@@ -66,6 +76,7 @@ def _generate_with_model(
     project_summary_tool,
     document_search_tool,
 ):
+    context = _document_context(document_search_tool, message)
     chat = client.chats.create(
         model=model_id,
         config=types.GenerateContentConfig(
@@ -75,7 +86,8 @@ def _generate_with_model(
         ),
     )
     return chat.send_message(
-        f"AUTHORIZED PROJECT ID: {project_id}\n\nUSER REQUEST:\n{message}"
+        "AUTHORIZED PROJECT ID: %s\n\nUPLOADED DOCUMENT CONTEXT:\n%s\n\nUSER REQUEST:\n%s"
+        % (project_id, context, message)
     )
 
 
