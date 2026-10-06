@@ -247,6 +247,7 @@ def run_construction_agent(
                 project_resource_optimization_tool,
                 project_boq_intelligence_tool,
                 project_document_intelligence_tool,
+                project_executive_dashboard_tool,
                 document_search_tool,
             )
             return (response.text or "").strip()
