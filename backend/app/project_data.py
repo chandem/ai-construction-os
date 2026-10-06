@@ -1,8 +1,4 @@
-"""Project-data tools for the Construction AI Agent.
-
-The public tool factory binds a validated project ID before Gemini can call it.
-This prevents the model from choosing an arbitrary project's ID.
-"""
+"""Project-data tools for the Construction AI Agent."""
 
 from __future__ import annotations
 
@@ -22,10 +18,8 @@ def build_project_summary(
     costs: list[dict[str, Any]],
     risks: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Build a compact, deterministic summary from project records."""
     planned = [float(row.get("planned_percent") or 0) for row in activities]
     actual = [float(row.get("actual_percent") or 0) for row in activities]
-
     material_shortages = []
     for row in materials:
         stock = float(row.get("stock_quantity") or 0)
@@ -41,19 +35,14 @@ def build_project_summary(
                     "supplier": row.get("supplier"),
                 }
             )
-
     cost_totals: dict[str, float] = {}
     for row in costs:
         currency = row.get("currency") or "unknown"
-        cost_totals[currency] = cost_totals.get(currency, 0.0) + float(
-            row.get("amount") or 0
-        )
-
+        cost_totals[currency] = cost_totals.get(currency, 0.0) + float(row.get("amount") or 0)
     risk_counts: dict[str, int] = {}
     for row in risks:
         level = row.get("level") or "unknown"
         risk_counts[level] = risk_counts.get(level, 0) + 1
-
     return {
         "project": {
             "id": project.get("id"),
@@ -63,32 +52,20 @@ def build_project_summary(
         },
         "activities": {
             "count": len(activities),
-            "average_planned_percent": round(sum(planned) / len(planned), 2)
-            if planned
-            else 0,
-            "average_actual_percent": round(sum(actual) / len(actual), 2)
-            if actual
-            else 0,
+            "average_planned_percent": round(sum(planned) / len(planned), 2) if planned else 0,
+            "average_actual_percent": round(sum(actual) / len(actual), 2) if actual else 0,
         },
         "materials": {
             "count": len(materials),
             "at_or_below_reorder_level": len(material_shortages),
             "shortages": material_shortages[:20],
         },
-        "equipment": {
-            "count": len(equipment),
-            "status_counts": _count_values(equipment, "status"),
-        },
+        "equipment": {"count": len(equipment), "status_counts": _count_values(equipment, "status")},
         "costs": {
             "entry_count": len(costs),
-            "totals_by_currency": {
-                key: round(value, 2) for key, value in cost_totals.items()
-            },
+            "totals_by_currency": {key: round(value, 2) for key, value in cost_totals.items()},
         },
-        "risks": {
-            "count": len(risks),
-            "level_counts": risk_counts,
-        },
+        "risks": {"count": len(risks), "level_counts": risk_counts},
     }
 
 
@@ -101,53 +78,28 @@ def _count_values(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
 
 
 def make_project_summary_tool(client: Client, project_id: str):
-    """Return a Gemini-callable function bound to one authorized project."""
-
     def get_project_summary() -> dict[str, Any]:
         """Get the current summary of the authorized construction project."""
         project_result = (
-            client.table("projects")
-            .select("id,name,code,status")
-            .eq("id", project_id)
-            .single()
-            .execute()
+            client.table("projects").select("id,name,code,status").eq("id", project_id).single().execute()
         )
         if not project_result.data:
             raise ValueError("Project not found")
 
         def rows(table: str, columns: str) -> list[dict[str, Any]]:
-            result = (
-                client.table(table)
-                .select(columns)
-                .eq("project_id", project_id)
-                .limit(1000)
-                .execute()
-            )
+            result = client.table(table).select(columns).eq("project_id", project_id).limit(1000).execute()
             return result.data or []
 
-        activities = rows("activities", "id,name,status,planned_percent,actual_percent")
-        materials = rows(
-            "materials", "id,code,name,unit,stock_quantity,reorder_level,supplier"
-        )
-        equipment = rows("equipment", "id,code,name,equipment_type,status")
-        costs = rows("cost_entries", "id,category,amount,currency,entry_date")
-        risks = rows("project_risks", "id,risk_code,title,level,status")
         return build_project_summary(
-            project_result.data, activities, materials, equipment, costs, risks
+            project_result.data,
+            rows("activities", "id,name,status,planned_percent,actual_percent"),
+            rows("materials", "id,code,name,unit,stock_quantity,reorder_level,supplier"),
+            rows("equipment", "id,code,name,equipment_type,status"),
+            rows("cost_entries", "id,category,amount,currency,entry_date"),
+            rows("project_risks", "id,risk_code,title,level,status"),
         )
 
     return get_project_summary
-
-
-def _project_documents(client: Client, project_id: str) -> list[dict[str, Any]]:
-    result = (
-        client.table("documents")
-        .select("id,name,status")
-        .eq("project_id", project_id)
-        .limit(30)
-        .execute()
-    )
-    return result.data or []
 
 
 def _excerpt(text: str, question: str) -> str:
@@ -162,82 +114,85 @@ def _excerpt(text: str, question: str) -> str:
 
 
 def make_document_search_tool(client: Client, project_id: str):
-    """Return a Gemini-callable search over text extracted from uploaded files."""
-
     def search_uploaded_documents(query: str) -> dict:
         """Search text extracted from documents uploaded to this project.
 
-        Use this for questions about drawings, specifications, contracts, reports,
-        bills of quantities, maintenance plans, or any other uploaded file.
-        Cite the document name. Do not invent file contents.
+        Use this for drawings, specifications, contracts, reports, bills of quantities,
+        and maintenance plans. Cite the document name. Do not invent file contents.
         """
-        question = (query or "").strip()
-        if not question:
-            return {"matches": [], "note": "A search query is required."}
+        question = (query or "").strip() or "project document"
         try:
-            documents = _project_documents(client, project_id)
-            if not documents:
-                return {"matches": [], "note": "No documents are uploaded for this project."}
-            titles = {
-                str(row.get("id")): row.get("name") or "Uploaded document"
-                for row in documents
-            }
-            listed = ", ".join(
-                "%s (%s)" % (row.get("name") or "document", row.get("status") or "unknown")
-                for row in documents
-            )
-            ids = [row.get("id") for row in documents if row.get("id")]
-            excerpts = []
+            documents = (
+                client.table("documents")
+                .select("id,name,status")
+                .eq("project_id", project_id)
+                .limit(30)
+                .execute()
+            ).data or []
+        except Exception as exc:
+            return {"matches": [], "note": "Could not list documents: %s" % exc}
+        if not documents:
+            return {"matches": [], "note": "No documents are uploaded for this project."}
+
+        titles = {str(row.get("id")): row.get("name") or "Uploaded document" for row in documents}
+        allowed = set(titles)
+        listed = ", ".join(
+            "%s (%s)" % (row.get("name") or "document", row.get("status") or "unknown")
+            for row in documents
+        )
+        excerpts = []
+        errors = []
+
+        try:
             knowledge = (
                 client.table("ai_knowledge_documents")
                 .select("document_id,extracted_text,status")
-                .in_("document_id", ids)
+                .eq("project_id", project_id)
+                .limit(20)
                 .execute()
-            )
-            for row in knowledge.data or []:
-                excerpt = _excerpt(row.get("extracted_text") or "", question)
-                if not excerpt:
+            ).data or []
+            for row in knowledge:
+                if str(row.get("document_id")) not in allowed:
                     continue
-                excerpts.append(
-                    {
-                        "document": titles.get(str(row.get("document_id")), "Uploaded document"),
-                        "page": None,
-                        "excerpt": excerpt,
-                    }
-                )
-            if not excerpts:
-                chunks = (
-                    client.table("ai_knowledge_chunks")
-                    .select("document_id,content,page_number")
-                    .in_("document_id", ids)
-                    .limit(12)
-                    .execute()
-                )
-                for row in chunks.data or []:
-                    excerpt = _excerpt(row.get("content") or "", question)
-                    if not excerpt:
-                        continue
+                excerpt = _excerpt(row.get("extracted_text") or "", question)
+                if excerpt:
                     excerpts.append(
                         {
                             "document": titles.get(str(row.get("document_id")), "Uploaded document"),
-                            "page": row.get("page_number"),
                             "excerpt": excerpt,
                         }
                     )
-            if excerpts:
-                return {"matches": excerpts[:MAX_DOCUMENT_MATCHES]}
-            return {
-                "matches": [],
-                "note": (
-                    "Uploaded files were found, but no extracted text is available yet. "
-                    "Files: %s. Wait until status is processed, then ask again."
-                    % listed
-                ),
-            }
         except Exception as exc:
-            return {
-                "matches": [],
-                "note": "Document search failed: %s" % exc,
-            }
+            errors.append("extracted text: %s" % exc)
+
+        if not excerpts:
+            try:
+                chunks = (
+                    client.table("ai_knowledge_chunks")
+                    .select("document_id,content,page_number")
+                    .limit(40)
+                    .execute()
+                ).data or []
+                for row in chunks:
+                    if str(row.get("document_id")) not in allowed:
+                        continue
+                    excerpt = _excerpt(row.get("content") or "", question)
+                    if excerpt:
+                        excerpts.append(
+                            {
+                                "document": titles.get(str(row.get("document_id")), "Uploaded document"),
+                                "page": row.get("page_number"),
+                                "excerpt": excerpt,
+                            }
+                        )
+            except Exception as exc:
+                errors.append("chunks: %s" % exc)
+
+        if excerpts:
+            return {"matches": excerpts[:MAX_DOCUMENT_MATCHES], "files": listed}
+        note = "Uploaded files: %s. No extracted text is available yet." % listed
+        if errors:
+            note = "%s Lookup detail: %s" % (note, "; ".join(errors))
+        return {"matches": [], "files": listed, "note": note}
 
     return search_uploaded_documents
