@@ -1,4 +1,4 @@
-from app.project_data import build_project_summary
+from app.project_data import build_project_priorities, build_project_summary
 
 
 def test_build_project_summary():
@@ -48,3 +48,25 @@ def test_build_project_summary():
     assert summary["materials"]["at_or_below_reorder_level"] == 1
     assert summary["costs"]["totals_by_currency"]["ETB"] == 1500
     assert summary["risks"]["level_counts"]["high"] == 2
+
+
+def test_build_project_priorities_identifies_missing_controls():
+    summary = build_project_summary(
+        {"id": "p1", "name": "Shakiso-Solomo", "status": "active"},
+        [],
+        [],
+        [],
+        [],
+        [],
+    )
+
+    result = build_project_priorities(summary)
+    areas = {item["area"] for item in result["priorities"]}
+
+    assert result["priority_count"] == 5
+    assert "Progress tracking" in areas
+    assert "Materials" in areas
+    assert "Risk management" in areas
+    assert "Cost control" in areas
+    assert "Equipment" in areas
+    assert result["priorities"][0]["priority"] == "high"
