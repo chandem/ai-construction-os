@@ -736,6 +736,73 @@ def build_project_early_warnings(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_project_management_recommendations(summary: dict[str, Any]) -> dict[str, Any]:
+    """Synthesize current project signals into prioritized, read-only management recommendations."""
+    monitoring = build_project_monitoring(summary)
+    risk_analysis = build_project_risk_analysis(summary)
+    forecast = build_project_forecast(summary)
+    early_warnings = build_project_early_warnings(summary)
+    priorities = build_project_priorities(summary)
+
+    recommendations: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add(priority: str, area: str, recommendation: str, reason: str, source: str) -> None:
+        key = (area, recommendation)
+        if key in seen:
+            return
+        seen.add(key)
+        recommendations.append({
+            "priority": priority,
+            "area": area,
+            "recommendation": recommendation,
+            "reason": reason,
+            "source": source,
+        })
+
+    for item in monitoring.get("critical", []):
+        add("critical", item["area"], item["decision"], item["finding"], "project monitoring")
+    for item in early_warnings.get("warnings", []):
+        severity = item.get("severity", "medium")
+        priority = "critical" if severity == "high" and item.get("area") in {"Schedule", "Materials", "Risk"} else severity
+        add(priority, item["area"], item["recommended_action"], item["early_warning"], "early warning system")
+    for item in risk_analysis.get("recommendations", []):
+        add(item["priority"], item["area"], item["action"], item["finding"], "risk analysis")
+    for item in priorities.get("priorities", []):
+        add(item["priority"], item["area"], item["action"], item["reason"], "project priorities")
+
+    if forecast.get("readiness") == "insufficient_data":
+        add("high", "Forecast readiness", "Establish the missing baseline controls before relying on quantitative project forecasts.", "Forecast readiness is low because required project control data is missing.", "project forecasting")
+
+    rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    recommendations.sort(key=lambda item: rank.get(item["priority"], 4))
+    recommendations = recommendations[:12]
+
+    return {
+        "project": summary.get("project", {}),
+        "recommendation_count": len(recommendations),
+        "overall_priority": recommendations[0]["priority"] if recommendations else "low",
+        "recommendations": recommendations,
+        "decision_basis": {
+            "monitoring_status": monitoring.get("overall_status"),
+            "forecast_readiness": forecast.get("readiness"),
+            "early_warning_count": early_warnings.get("warning_count", 0),
+            "risk_count": risk_analysis.get("recorded_risk_count", 0),
+        },
+        "note": "Recommendations synthesize currently recorded project data and remain read-only. Management should validate recommendations against approved project documents and professional judgment before action.",
+    }
+
+
+def make_project_management_recommendations_tool(client: Client, project_id: str):
+    get_summary = make_project_summary_tool(client, project_id)
+
+    def get_project_management_recommendations() -> dict[str, Any]:
+        """Synthesize project signals into prioritized management recommendations."""
+        return build_project_management_recommendations(get_summary())
+
+    return get_project_management_recommendations
+
+
 def make_project_early_warnings_tool(client: Client, project_id: str):
     get_summary = make_project_summary_tool(client, project_id)
 
