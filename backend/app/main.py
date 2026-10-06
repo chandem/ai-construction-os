@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .ai_assistant import router as ai_router
 from .agent_routes import router as agent_router
 from .config import settings
+from .conversation_aliases import router as conversation_alias_router
 from .db import supabase
 from .engineering_routes import router as engineering_router
 from .procurement_routes import router as procurement_router
@@ -30,11 +31,13 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(ai_router)
 app.include_router(agent_router)
+app.include_router(conversation_alias_router)
 app.include_router(engineering_router)
 app.include_router(procurement_router)
 app.include_router(cost_control_router)
 
 
+@app.get("/")
 @app.get("/health")
 def health():
     return {
