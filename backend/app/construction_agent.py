@@ -143,6 +143,7 @@ def _generate_with_model(
     project_procurement_intelligence_tool,
     project_schedule_intelligence_tool,
     project_resource_optimization_tool,
+    project_boq_intelligence_tool,
     document_search_tool,
 ):
     context = _document_context(document_search_tool, message)
@@ -166,6 +167,7 @@ def _generate_with_model(
                 project_procurement_intelligence_tool,
                 project_schedule_intelligence_tool,
                 project_resource_optimization_tool,
+                project_boq_intelligence_tool,
                 document_search_tool,
             ],
         ),
@@ -201,6 +203,7 @@ def run_construction_agent(
     project_procurement_intelligence_tool = make_project_procurement_intelligence_tool(db, project_id)
     project_schedule_intelligence_tool = make_project_schedule_intelligence_tool(db, project_id)
     project_resource_optimization_tool = make_project_resource_optimization_tool(db, project_id)
+    project_boq_intelligence_tool = make_project_boq_intelligence_tool(db, project_id)
     document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
@@ -225,6 +228,7 @@ def run_construction_agent(
                 project_procurement_intelligence_tool,
                 project_schedule_intelligence_tool,
                 project_resource_optimization_tool,
+                project_boq_intelligence_tool,
                 document_search_tool,
             )
             return (response.text or "").strip()
