@@ -11,6 +11,7 @@ from .config import settings
 from .cost_intelligence import make_project_cost_intelligence_tool
 from .procurement_intelligence import make_project_procurement_intelligence_tool
 from .schedule_intelligence import make_project_schedule_intelligence_tool
+from .risk_prediction import make_project_risk_prediction_tool
 from .resource_optimization import make_project_resource_optimization_tool
 from .construction_tools import (
     calculate_concrete_volume,
@@ -63,6 +64,9 @@ Do not invent procurement quantities, supplier status, dates, or shortages.
 Use get_project_schedule_intelligence when the user asks about schedule performance, activities behind plan,
 planned versus actual progress, schedule variance, or schedule priorities. Do not infer calendar delays,
 completion dates, or future outcomes when those fields are not recorded.
+Use get_project_risk_prediction when the user asks what risks are likely to escalate, risk prediction,
+risk exposure, emerging risk signals, or which recorded risks need preventive attention. Treat it as a
+signal assessment, not a guaranteed future event, and do not invent probabilities, dates, or causes.
 Use get_project_resource_optimization when the user asks about resource allocation, workforce or equipment
 utilization, material bottlenecks, resource shortages, or how resources should be prioritized. Use only
 recorded workforce, equipment, material, and activity data; do not invent utilization or future resource needs.
