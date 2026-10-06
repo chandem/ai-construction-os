@@ -55,6 +55,10 @@ select:focus, input:focus, textarea:focus { border-color: #6b7c8a; box-shadow: 0
 .message { max-width: 78%; padding: 14px 16px; border-radius: 14px; margin: 12px 0; line-height: 1.55; white-space: pre-wrap; }
 .message.user { margin-left: auto; background: var(--accent); color: white; }
 .message.assistant { background: var(--surface); border: 1px solid var(--line); }
+.assistant-message { max-width: 78%; margin: 12px 0; }
+.assistant-message .message.assistant { max-width: 100%; margin: 0; }
+.copy-response { margin-top: 6px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; }
+.copy-response:hover { background: #f1f4f6; color: var(--ink); }
 .typing { color: var(--muted); font-style: italic; }
 .composer { display: flex; gap: 10px; background: var(--surface); padding: 10px; border: 1px solid var(--line); border-radius: 14px; }
 .composer textarea { flex: 1; border: 0; resize: none; min-height: 52px; padding: 10px 12px; outline: 0; background: transparent; }
