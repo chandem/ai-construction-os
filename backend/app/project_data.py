@@ -169,6 +169,144 @@ def build_project_priorities(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_document_intelligence(
+    documents: list[dict[str, Any]],
+    knowledge_documents: list[dict[str, Any]],
+    chunks: list[dict[str, Any]],
+    extractions: list[dict[str, Any]],
+    jobs: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Summarize document processing and extraction readiness without changing records."""
+    from collections import Counter
+
+    knowledge_by_document = {str(row.get("document_id")): row for row in knowledge_documents}
+    chunk_counts = Counter(str(row.get("document_id")) for row in chunks)
+    extraction_counts = Counter(str(row.get("document_id")) for row in extractions)
+    latest_jobs: dict[str, dict[str, Any]] = {}
+    for row in jobs:
+        document_id = str(row.get("document_id"))
+        if document_id not in latest_jobs or str(row.get("created_at") or "") >= str(latest_jobs[document_id].get("created_at") or ""):
+            latest_jobs[document_id] = row
+
+    document_health = []
+    priorities = []
+    for document in documents:
+        document_id = str(document.get("id"))
+        knowledge = knowledge_by_document.get(document_id, {})
+        job = latest_jobs.get(document_id, {})
+        extracted_text = str(knowledge.get("extracted_text") or "")
+        document_status = str(document.get("status") or "unknown").lower()
+        knowledge_status = str(knowledge.get("status") or "missing").lower()
+        job_status = str(job.get("status") or "missing").lower()
+        issues: list[str] = []
+
+        if document_status in {"failed", "error"} or knowledge_status in {"failed", "error"} or job_status in {"failed", "error"}:
+            issues.append("processing_failed")
+        if not knowledge:
+            issues.append("missing_knowledge_record")
+        if knowledge and not extracted_text.strip():
+            issues.append("no_extracted_text")
+        if extracted_text.strip() and chunk_counts.get(document_id, 0) == 0:
+            issues.append("no_search_chunks")
+        if extracted_text.strip() and extraction_counts.get(document_id, 0) == 0:
+            issues.append("no_ai_extraction")
+        if job_status in {"queued", "running", "processing"}:
+            issues.append("processing_in_progress")
+
+        document_health.append({
+            "document": document.get("name") or "Uploaded document",
+            "status": document_status,
+            "knowledge_status": knowledge_status,
+            "job_status": job_status,
+            "page_count": knowledge.get("page_count"),
+            "extracted_characters": len(extracted_text),
+            "chunk_count": chunk_counts.get(document_id, 0),
+            "extraction_count": extraction_counts.get(document_id, 0),
+            "issues": issues,
+        })
+
+        if issues:
+            priorities.append({
+                "priority": "high" if "processing_failed" in issues else "medium",
+                "document": document.get("name") or "Uploaded document",
+                "action": "Review document processing and extraction before relying on this file for project decisions.",
+                "issues": issues,
+            })
+
+    if not documents:
+        priorities.append({
+            "priority": "high",
+            "action": "Upload the approved project drawings, specifications, contracts, BOQ, and key reports.",
+            "reason": "No project documents are available to ground document-based AI answers.",
+        })
+    elif not priorities:
+        priorities.append({
+            "priority": "low",
+            "action": "Keep project documents current and reconcile important extracted data against approved originals.",
+            "reason": "No immediate document-processing gap was detected.",
+        })
+
+    rank = {"high": 0, "medium": 1, "low": 2}
+    priorities.sort(key=lambda item: rank.get(item.get("priority"), 3))
+    return {
+        "status": "no_documents" if not documents else "needs_review" if any(row["issues"] for row in document_health) else "ready",
+        "document_count": len(documents),
+        "status_counts": dict(Counter(str(row.get("status") or "unknown").lower() for row in documents)),
+        "documents": document_health,
+        "priority_count": len(priorities),
+        "priorities": priorities[:10],
+        "note": "Document health describes processing and extraction readiness; it does not certify that a document is approved, complete, current, or technically correct.",
+    }
+
+
+def make_project_document_intelligence_tool(client: Client, project_id: str):
+    def get_project_document_intelligence() -> dict[str, Any]:
+        """Assess uploaded project documents for extraction and AI-search readiness."""
+        documents = (
+            client.table("documents")
+            .select("id,name,status,mime_type,file_size_bytes,created_at")
+            .eq("project_id", project_id)
+            .limit(200)
+            .execute()
+        ).data or []
+        if not documents:
+            return build_document_intelligence([], [], [], [], [])
+
+        ids = [row["id"] for row in documents]
+        knowledge = (
+            client.table("ai_knowledge_documents")
+            .select("document_id,extracted_text,page_count,language,status,created_at,updated_at")
+            .eq("project_id", project_id)
+            .in_("document_id", ids)
+            .limit(500)
+            .execute()
+        ).data or []
+        chunks = (
+            client.table("ai_knowledge_chunks")
+            .select("document_id")
+            .in_("document_id", ids)
+            .limit(10000)
+            .execute()
+        ).data or []
+        extractions = (
+            client.table("ai_extractions")
+            .select("document_id,extraction_type,created_at")
+            .in_("document_id", ids)
+            .limit(2000)
+            .execute()
+        ).data or []
+        jobs = (
+            client.table("document_processing_jobs")
+            .select("document_id,status,processor,progress,error_message,started_at,completed_at,created_at")
+            .in_("document_id", ids)
+            .order("created_at", desc=True)
+            .limit(500)
+            .execute()
+        ).data or []
+        return build_document_intelligence(documents, knowledge, chunks, extractions, jobs)
+
+    return get_project_document_intelligence
+
 def _count_values(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for row in rows:

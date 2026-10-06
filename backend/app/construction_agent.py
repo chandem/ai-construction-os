@@ -22,6 +22,7 @@ from .construction_tools import (
 )
 from .project_data import (
     make_document_search_tool,
+    make_project_document_intelligence_tool,
     make_project_action_plan_tool,
     make_project_monitoring_tool,
     make_project_risk_analysis_tool,
@@ -75,6 +76,9 @@ management priorities. Do not invent clauses, obligations, entitlements, or lega
 Use get_project_boq_intelligence when the user asks about the structured BOQ, quantities, units, rates,
 amounts, work sections, BOQ data quality, or BOQ-related management priorities. Do not invent quantities,
 rates, scope, design intent, or contractual entitlement; use uploaded BOQ documents for supporting context.
+Use get_project_document_intelligence when the user asks whether uploaded documents are processed correctly,
+which files are ready for AI search, document extraction quality, processing failures, missing chunks, or document readiness.
+Do not treat document processing readiness as proof that a document is approved, complete, current, or technically correct.
 Use get_project_resource_optimization when the user asks about resource allocation, workforce or equipment
 utilization, material bottlenecks, resource shortages, or how resources should be prioritized. Use only
 recorded workforce, equipment, material, and activity data; do not invent utilization or future resource needs.
@@ -144,6 +148,7 @@ def _generate_with_model(
     project_schedule_intelligence_tool,
     project_resource_optimization_tool,
     project_boq_intelligence_tool,
+    project_document_intelligence_tool,
     document_search_tool,
 ):
     context = _document_context(document_search_tool, message)
@@ -168,6 +173,7 @@ def _generate_with_model(
                 project_schedule_intelligence_tool,
                 project_resource_optimization_tool,
                 project_boq_intelligence_tool,
+                project_document_intelligence_tool,
                 document_search_tool,
             ],
         ),
@@ -204,6 +210,7 @@ def run_construction_agent(
     project_schedule_intelligence_tool = make_project_schedule_intelligence_tool(db, project_id)
     project_resource_optimization_tool = make_project_resource_optimization_tool(db, project_id)
     project_boq_intelligence_tool = make_project_boq_intelligence_tool(db, project_id)
+    project_document_intelligence_tool = make_project_document_intelligence_tool(db, project_id)
     document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
