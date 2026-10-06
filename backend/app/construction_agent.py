@@ -84,6 +84,7 @@ def _generate_with_model(
     project_id: str,
     project_summary_tool,
     project_priorities_tool,
+    project_action_plan_tool,
     document_search_tool,
 ):
     context = _document_context(document_search_tool, message)
@@ -135,6 +136,7 @@ def run_construction_agent(
                 project_id,
                 project_summary_tool,
                 project_priorities_tool,
+                project_action_plan_tool,
                 document_search_tool,
             )
             return (response.text or "").strip()
