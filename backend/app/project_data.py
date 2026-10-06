@@ -538,3 +538,96 @@ def make_project_monitoring_tool(client: Client, project_id: str):
         return build_project_monitoring(get_summary())
 
     return get_project_monitoring
+
+
+def build_project_forecast(summary: dict[str, Any]) -> dict[str, Any]:
+    """Assess forecast readiness and provide conservative forward-looking guidance."""
+    activities = summary.get("activities", {})
+    materials = summary.get("materials", {})
+    equipment = summary.get("equipment", {})
+    costs = summary.get("costs", {})
+    risks = summary.get("risks", {})
+
+    blockers: list[str] = []
+    available_signals: list[str] = []
+
+    if activities.get("count", 0) == 0:
+        blockers.append("No activity or planned/actual progress records are available.")
+    else:
+        available_signals.append(
+            "Activity planned and actual progress percentages are available."
+        )
+
+    if costs.get("entry_count", 0) == 0:
+        blockers.append("No project cost entries are available.")
+    else:
+        available_signals.append("Recorded project cost entries are available.")
+
+    if materials.get("count", 0) == 0:
+        blockers.append("No material stock and reorder-level records are available.")
+    else:
+        available_signals.append("Material stock and reorder-level records are available.")
+
+    if risks.get("count", 0) == 0:
+        blockers.append("No project risk records are available.")
+    else:
+        available_signals.append("Recorded project risk information is available.")
+
+    if equipment.get("count", 0) == 0:
+        blockers.append("No equipment status records are available.")
+    else:
+        available_signals.append("Equipment status records are available.")
+
+    if blockers:
+        readiness = "insufficient_data"
+        confidence = "low"
+        forecast = (
+            "A reliable quantitative forecast cannot be produced from the current "
+            "project data. The system should establish baseline controls before "
+            "forecasting schedule, cost, material, or equipment performance."
+        )
+    else:
+        readiness = "forecast_ready"
+        confidence = "moderate"
+        forecast = (
+            "The project has the core control registers needed for a forward-looking "
+            "assessment. Forecast outputs should be based on recorded trends and "
+            "reviewed against the approved baseline."
+        )
+
+    return {
+        "project": summary.get("project", {}),
+        "readiness": readiness,
+        "confidence": confidence,
+        "forecast": forecast,
+        "available_signals": available_signals,
+        "blockers": blockers,
+        "required_inputs": [
+            "Approved baseline schedule with planned dates and activity progress.",
+            "Regular actual progress updates against the baseline.",
+            "Project budget or approved cost baseline plus recorded actual costs.",
+            "Material consumption, stock, reorder levels, and procurement lead times.",
+            "Current risk register with owners, status, and mitigation actions.",
+            "Equipment availability and maintenance status where equipment affects delivery.",
+        ],
+        "conditional_guidance": [
+            "Once progress history exists, compare actual versus planned trends before projecting completion.",
+            "Once cost history and a baseline exist, assess cost movement against approved budget.",
+            "Use material stock and procurement lead-time history to identify potential supply interruptions.",
+            "Use the risk register to distinguish recorded risks from conditional future scenarios.",
+        ],
+        "note": (
+            "This forecast is read-only. It does not create or modify project records, "
+            "and it does not treat hypothetical future events as recorded project facts."
+        ),
+    }
+
+
+def make_project_forecast_tool(client: Client, project_id: str):
+    get_summary = make_project_summary_tool(client, project_id)
+
+    def get_project_forecast() -> dict[str, Any]:
+        """Assess project forecast readiness and provide conservative forward-looking guidance."""
+        return build_project_forecast(get_summary())
+
+    return get_project_forecast

@@ -16,7 +16,9 @@ from .construction_tools import (
 from .project_data import (
     make_document_search_tool,
     make_project_action_plan_tool,
-    make_project_monitoring_tool,\n    make_project_risk_analysis_tool,
+    make_project_monitoring_tool,
+    make_project_risk_analysis_tool,
+    make_project_forecast_tool,
     make_project_priorities_tool,
     make_project_summary_tool,
 )
@@ -36,6 +38,11 @@ owners, or what to do next. The action plan is advisory and must not modify proj
 Use get_project_monitoring when the user asks how the project is performing, what needs attention,
 what is critical, what is on track, schedule variance, or what management should decide next.
 Monitoring is read-only and must be based only on currently recorded project data.
+Use get_project_risk_analysis when the user asks about recorded project risks, risk priorities,
+mitigation, or risk-control gaps.
+Use get_project_forecast when the user asks what is likely to happen, project forecasting,
+early warning, forecast readiness, or future performance. Forecasting must distinguish
+recorded facts from conditional scenarios and must not invent future values.
 Use calculation tools for concrete volume, project progress percentage, and remaining material quantity.
 You may also call search_uploaded_documents if the preloaded context is not enough.
 
@@ -90,6 +97,8 @@ def _generate_with_model(
     project_priorities_tool,
     project_action_plan_tool,
     project_monitoring_tool,
+    project_risk_analysis_tool,
+    project_forecast_tool,
     document_search_tool,
 ):
     context = _document_context(document_search_tool, message)
@@ -104,6 +113,8 @@ def _generate_with_model(
                 project_priorities_tool,
                 project_action_plan_tool,
                 project_monitoring_tool,
+                project_risk_analysis_tool,
+                project_forecast_tool,
                 document_search_tool,
             ],
         ),
@@ -129,7 +140,9 @@ def run_construction_agent(
     project_summary_tool = make_project_summary_tool(db, project_id)
     project_priorities_tool = make_project_priorities_tool(db, project_id)
     project_action_plan_tool = make_project_action_plan_tool(db, project_id)
-    project_monitoring_tool = make_project_monitoring_tool(db, project_id)\n    project_risk_analysis_tool = make_project_risk_analysis_tool(db, project_id)
+    project_monitoring_tool = make_project_monitoring_tool(db, project_id)
+    project_risk_analysis_tool = make_project_risk_analysis_tool(db, project_id)
+    project_forecast_tool = make_project_forecast_tool(db, project_id)
     document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
@@ -145,6 +158,8 @@ def run_construction_agent(
                 project_priorities_tool,
                 project_action_plan_tool,
                 project_monitoring_tool,
+                project_risk_analysis_tool,
+                project_forecast_tool,
                 document_search_tool,
             )
             return (response.text or "").strip()
