@@ -13,6 +13,7 @@ from .procurement_intelligence import make_project_procurement_intelligence_tool
 from .schedule_intelligence import make_project_schedule_intelligence_tool
 from .risk_prediction import make_project_risk_prediction_tool
 from .contract_intelligence import make_project_contract_intelligence_tool
+from .boq_intelligence import make_project_boq_intelligence_tool
 from .resource_optimization import make_project_resource_optimization_tool
 from .construction_tools import (
     calculate_concrete_volume,
@@ -71,6 +72,9 @@ signal assessment, not a guaranteed future event, and do not invent probabilitie
 Use get_project_contract_intelligence when the user asks about contract status, contract register data,
 contract dates, parties, contract value, expiry, closeout, contractual data gaps, or contract-related
 management priorities. Do not invent clauses, obligations, entitlements, or legal conclusions.
+Use get_project_boq_intelligence when the user asks about the structured BOQ, quantities, units, rates,
+amounts, work sections, BOQ data quality, or BOQ-related management priorities. Do not invent quantities,
+rates, scope, design intent, or contractual entitlement; use uploaded BOQ documents for supporting context.
 Use get_project_resource_optimization when the user asks about resource allocation, workforce or equipment
 utilization, material bottlenecks, resource shortages, or how resources should be prioritized. Use only
 recorded workforce, equipment, material, and activity data; do not invent utilization or future resource needs.
