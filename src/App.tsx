@@ -50,7 +50,8 @@ export function App() {
   const [conversationId, setConversationId] = React.useState("");
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [input, setInput] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+  const [aiBusy, setAiBusy] = React.useState(false);
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
   const [view, setView] = React.useState<WorkspaceView>("os-home");
@@ -128,7 +129,7 @@ export function App() {
 
   async function uploadDocument(file: File) {
     if (!projectId || !token) return;
-    setBusy(true);
+    setUploading(true);
     setError("");
     try {
       const fd = new FormData();
@@ -140,7 +141,7 @@ export function App() {
     } catch (err: any) {
       setError(err.message || "Upload failed.");
     } finally {
-      setBusy(false);
+      setUploading(false);
     }
   }
 
@@ -163,11 +164,11 @@ export function App() {
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
-    if (!input.trim() || !projectId || busy) return;
+    if (!input.trim() || !projectId || aiBusy) return;
     const text = input.trim();
     setInput("");
     setMessages((m) => [...m, { role: "user", content: text }]);
-    setBusy(true);
+    setAiBusy(true);
     setError("");
     try {
       const r = await apiPost("/api/v1/projects/" + projectId + "/ai/agent", token, { message: text });
@@ -184,7 +185,7 @@ export function App() {
         setMessages((m) => [...m, { role: "assistant", content: "The AI model is busy right now. Please try again in a moment." }]);
       }
     } finally {
-      setBusy(false);
+      setAiBusy(false);
     }
   }
 
@@ -248,7 +249,7 @@ export function App() {
             <div className="hint">
               <b>Documents</b>
               <span> · {documents.length} uploaded</span>
-              <label className="file-upload">{busy ? "Uploading..." : "Upload document"}<input type="file" disabled={!projectId || busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDocument(f); e.target.value = ""; }} /></label>
+              <label className="file-upload">{uploading ? "Uploading..." : "Upload document"}<input type="file" disabled={!projectId || uploading || aiBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDocument(f); e.target.value = ""; }} /></label>
             </div>
           </div>
           <div className="sidebar-footer">
@@ -265,11 +266,11 @@ export function App() {
               <div className="messages">
                 {messages.length === 0 && <div className="empty empty-card"><h3>Ask about this project</h3><p>Ask about current project status, activities, materials, equipment, costs, or risks. You can also ask for construction calculations.</p></div>}
                 {messages.map((m, i) => <div key={i} className={"message " + m.role}>{m.content}</div>)}
-                {busy && <div className="typing">Thinking...</div>}
+                {aiBusy && <div className="typing">AI is thinking...</div>}
               </div>
               <form className="composer" onSubmit={sendMessage}>
-                <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder={projectId ? "Ask about this project..." : "Select a project first"} disabled={!projectId || busy} />
-                <button type="submit" disabled={!projectId || busy || !input.trim()}>Send</button>
+                <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder={projectId ? "Ask about this project..." : "Select a project first"} disabled={!projectId || aiBusy} />
+                <button type="submit" disabled={!projectId || aiBusy || !input.trim()}>Send</button>
               </form>
             </div>
           )}
