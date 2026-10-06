@@ -14,9 +14,13 @@ def build_document_intelligence(document, job, knowledge, extraction, chunk_coun
         confidence = None
     warnings = []
     recommendations = []
+    job_error = str((job or {}).get('error_message') or '').strip()
     if status == 'failed':
-        warnings.append((job or {}).get('error_message') or 'Document processing failed.')
+        warnings.append(job_error or 'Document processing failed.')
         recommendations.append('Reprocess the document after checking the source file and parser compatibility.')
+    elif job_error:
+        warnings.append(f'AI enrichment was incomplete: {job_error}')
+        recommendations.append('Retry AI enrichment when the Gemini service or quota is available; extracted text may still be usable.')
     elif status in {'queued','processing'}:
         warnings.append('Document processing is not complete.')
         recommendations.append('Wait for processing to finish before relying on AI document search.')
@@ -38,9 +42,9 @@ def build_document_intelligence(document, job, knowledge, extraction, chunk_coun
         recommendations.append('Verify extracted structured fields against the source document.')
     if status in {'queued','processing'}:
         readiness = 'processing'
-    elif not warnings and status in {'processed','completed'}:
+    elif text.strip() and chunk_count > 0 and not job_error and not warnings:
         readiness = 'ready'
-    elif text.strip() and chunk_count > 0:
+    elif text.strip() and (chunk_count > 0 or status in {'processed','completed'}):
         readiness = 'partial'
     else:
         readiness = 'needs_review'
