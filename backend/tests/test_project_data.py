@@ -1,6 +1,7 @@
 from app.project_data import (
     build_project_action_plan,
     build_project_monitoring,
+    build_project_risk_analysis,
     build_project_priorities,
     build_project_summary,
 )
@@ -112,3 +113,15 @@ def test_build_project_monitoring_classifies_current_gaps():
     assert any(item["area"] == "Schedule" for item in result["attention"])
     assert result["management_decisions"]
     assert "does not modify project records" in result["note"]
+
+
+def test_build_project_risk_analysis_empty_register():
+    summary = build_project_summary(
+        {"id": "p1", "name": "Shakiso-Solomo", "status": "active"},
+        [], [], [], [], [],
+    )
+    result = build_project_risk_analysis(summary)
+    assert result["recorded_risk_count"] == 0
+    assert result["recorded_risks"] == []
+    assert result["recommendations"][0]["priority"] == "high"
+    assert result["recommendations"][0]["area"] == "Risk register"
