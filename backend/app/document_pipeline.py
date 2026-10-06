@@ -79,6 +79,12 @@ def run_document_pipeline(
         processing_warnings: list[str] = []
         embeddings: list[list[float]] = []
 
+        # Remove stale vectors before rebuilding the index. If enrichment
+        # fails, retrieval must not accidentally serve an older document version.
+        client.table("ai_knowledge_chunks").delete().eq(
+            "knowledge_document_id", knowledge_id
+        ).execute()
+
         try:
             embeddings = embed_texts([chunk["content"] for chunk in chunks]) if chunks else []
         except Exception as exc:
@@ -99,7 +105,7 @@ def run_document_pipeline(
             processing_warnings.append(f"AI structured extraction unavailable: {str(exc)[:500]}")
         _set_job(client, job_id, progress=75)
 
-        if extraction.get("document_type") == "drawing_specification":
+        if extraction and extraction.get("document_type") == "drawing_specification":
             engineering = extraction.get("data", {}).get("engineering", {})
             design_asset_result = client.table("design_assets").insert(
                 {
