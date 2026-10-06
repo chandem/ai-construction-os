@@ -11,6 +11,7 @@ from .config import settings
 from .cost_intelligence import make_project_cost_intelligence_tool
 from .procurement_intelligence import make_project_procurement_intelligence_tool
 from .schedule_intelligence import make_project_schedule_intelligence_tool
+from .resource_optimization import make_project_resource_optimization_tool
 from .construction_tools import (
     calculate_concrete_volume,
     calculate_material_balance,
@@ -62,6 +63,9 @@ Do not invent procurement quantities, supplier status, dates, or shortages.
 Use get_project_schedule_intelligence when the user asks about schedule performance, activities behind plan,
 planned versus actual progress, schedule variance, or schedule priorities. Do not infer calendar delays,
 completion dates, or future outcomes when those fields are not recorded.
+Use get_project_resource_optimization when the user asks about resource allocation, workforce or equipment
+utilization, material bottlenecks, resource shortages, or how resources should be prioritized. Use only
+recorded workforce, equipment, material, and activity data; do not invent utilization or future resource needs.
 Forecasting must distinguish
 recorded facts from conditional scenarios and must not invent future values.
 Use calculation tools for concrete volume, project progress percentage, and remaining material quantity.
@@ -126,6 +130,7 @@ def _generate_with_model(
     project_cost_intelligence_tool,
     project_procurement_intelligence_tool,
     project_schedule_intelligence_tool,
+    project_resource_optimization_tool,
     document_search_tool,
 ):
     context = _document_context(document_search_tool, message)
@@ -148,6 +153,7 @@ def _generate_with_model(
                 project_cost_intelligence_tool,
                 project_procurement_intelligence_tool,
                 project_schedule_intelligence_tool,
+                project_resource_optimization_tool,
                 document_search_tool,
             ],
         ),
@@ -182,6 +188,7 @@ def run_construction_agent(
     project_cost_intelligence_tool = make_project_cost_intelligence_tool(db, project_id)
     project_procurement_intelligence_tool = make_project_procurement_intelligence_tool(db, project_id)
     project_schedule_intelligence_tool = make_project_schedule_intelligence_tool(db, project_id)
+    project_resource_optimization_tool = make_project_resource_optimization_tool(db, project_id)
     document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
@@ -205,6 +212,7 @@ def run_construction_agent(
                 project_cost_intelligence_tool,
                 project_procurement_intelligence_tool,
                 project_schedule_intelligence_tool,
+                project_resource_optimization_tool,
                 document_search_tool,
             )
             return (response.text or "").strip()
