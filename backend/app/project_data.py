@@ -749,6 +749,95 @@ def build_project_early_warnings(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_project_performance_score(summary: dict[str, Any]) -> dict[str, Any]:
+    """Calculate a transparent, read-only project performance score from recorded controls."""
+    activities = summary.get("activities", {})
+    materials = summary.get("materials", {})
+    equipment = summary.get("equipment", {})
+    costs = summary.get("costs", {})
+    risks = summary.get("risks", {})
+
+    components: list[dict[str, Any]] = []
+    data_gaps: list[str] = []
+
+    if activities.get("count", 0):
+        planned = float(activities.get("average_planned_percent", 0) or 0)
+        actual = float(activities.get("average_actual_percent", 0) or 0)
+        schedule_score = max(0.0, min(100.0, 100.0 + (actual - planned)))
+        components.append({"area": "Schedule", "score": round(schedule_score, 1), "weight": 25, "basis": f"Average actual progress is {actual:.2f}% versus {planned:.2f}% planned."})
+    else:
+        data_gaps.append("No activity or planned/actual progress records are available.")
+        components.append({"area": "Schedule", "score": None, "weight": 25, "basis": "Insufficient schedule data."})
+
+    if costs.get("entry_count", 0):
+        components.append({"area": "Cost", "score": 100.0, "weight": 15, "basis": "Cost entries are recorded, but no approved cost baseline is available for variance scoring."})
+        data_gaps.append("No approved cost baseline is available, so cost performance is not quantitatively scored.")
+    else:
+        components.append({"area": "Cost", "score": None, "weight": 15, "basis": "No cost entries are recorded."})
+        data_gaps.append("No project cost entries are available.")
+
+    if materials.get("count", 0):
+        shortages = int(materials.get("at_or_below_reorder_level", 0) or 0)
+        count = int(materials.get("count", 0) or 0)
+        material_score = 100.0 if shortages == 0 else max(0.0, 100.0 * (1 - shortages / count))
+        components.append({"area": "Materials", "score": round(material_score, 1), "weight": 15, "basis": f"{shortages} of {count} tracked material item(s) are at or below reorder level."})
+    else:
+        components.append({"area": "Materials", "score": None, "weight": 15, "basis": "No material records are available."})
+        data_gaps.append("No material stock and reorder-level records are available.")
+
+    if equipment.get("count", 0):
+        components.append({"area": "Equipment", "score": 100.0, "weight": 10, "basis": "Equipment records are present, but utilization/availability history is not available for a more precise score."})
+        data_gaps.append("Equipment availability history is not available for quantitative performance scoring.")
+    else:
+        components.append({"area": "Equipment", "score": None, "weight": 10, "basis": "No equipment records are available."})
+        data_gaps.append("No equipment status records are available.")
+
+    high_risks = int(risks.get("level_counts", {}).get("high", 0) or 0)
+    medium_risks = int(risks.get("level_counts", {}).get("medium", 0) or 0)
+    if risks.get("count", 0):
+        risk_score = max(0.0, 100.0 - high_risks * 25.0 - medium_risks * 10.0)
+        components.append({"area": "Risk", "score": round(risk_score, 1), "weight": 15, "basis": f"{high_risks} high and {medium_risks} medium risk(s) are recorded."})
+    else:
+        components.append({"area": "Risk", "score": None, "weight": 15, "basis": "No project risks are recorded."})
+        data_gaps.append("No project risk records are available.")
+
+    available_weight = sum(item["weight"] for item in components if item["score"] is not None)
+    weighted_total = sum(item["score"] * item["weight"] for item in components if item["score"] is not None)
+    score = round(weighted_total / available_weight, 1) if available_weight else None
+
+    if score is None:
+        status = "insufficient_data"
+    elif len(data_gaps) >= 4 or available_weight < 50:
+        status = "low_confidence"
+    elif score < 50:
+        status = "critical"
+    elif score < 70:
+        status = "at_risk"
+    elif score < 85:
+        status = "stable"
+    else:
+        status = "healthy"
+
+    return {
+        "project": summary.get("project", {}),
+        "score": score,
+        "status": status,
+        "confidence": "low" if len(data_gaps) >= 4 else "moderate" if data_gaps else "high",
+        "components": components,
+        "scoring_method": "Weighted score from recorded schedule, cost, materials, equipment, and risk signals. Missing components are excluded rather than treated as zero.",
+        "data_gaps": data_gaps,
+        "note": "This score is read-only and indicative. It does not replace approved baselines, engineering judgment, project controls, or formal management reporting.",
+    }
+
+def make_project_performance_score_tool(client: Client, project_id: str):
+    get_summary = make_project_summary_tool(client, project_id)
+
+    def get_project_performance_score() -> dict[str, Any]:
+        """Calculate a transparent, read-only project performance score."""
+        return build_project_performance_score(get_summary())
+
+    return get_project_performance_score
+
 def build_project_management_recommendations(summary: dict[str, Any]) -> dict[str, Any]:
     """Synthesize current project signals into prioritized, read-only management recommendations."""
     monitoring = build_project_monitoring(summary)
