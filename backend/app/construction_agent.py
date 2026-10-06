@@ -188,6 +188,7 @@ def run_construction_agent(
                 project_early_warnings_tool,
                 project_management_recommendations_tool,
                 project_performance_score_tool,
+                project_cost_intelligence_tool,
                 document_search_tool,
             )
             return (response.text or "").strip()
