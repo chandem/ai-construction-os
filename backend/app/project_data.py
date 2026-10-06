@@ -10,9 +10,8 @@ from typing import Any
 
 from supabase import Client
 
-MIN_DOCUMENT_SIMILARITY = 0.35
 MAX_DOCUMENT_MATCHES = 6
-MAX_EXCERPT_CHARS = 1200
+MAX_EXCERPT_CHARS = 1500
 
 
 def build_project_summary(
@@ -126,30 +125,15 @@ def make_project_summary_tool(client: Client, project_id: str):
             )
             return result.data or []
 
-        activities = rows(
-            "activities", "id,name,status,planned_percent,actual_percent"
-        )
+        activities = rows("activities", "id,name,status,planned_percent,actual_percent")
         materials = rows(
-            "materials",
-            "id,code,name,unit,stock_quantity,reorder_level,supplier",
+            "materials", "id,code,name,unit,stock_quantity,reorder_level,supplier"
         )
-        equipment = rows(
-            "equipment", "id,code,name,equipment_type,status"
-        )
-        costs = rows(
-            "cost_entries", "id,category,amount,currency,entry_date"
-        )
-        risks = rows(
-            "project_risks", "id,risk_code,title,level,status"
-        )
-
+        equipment = rows("equipment", "id,code,name,equipment_type,status")
+        costs = rows("cost_entries", "id,category,amount,currency,entry_date")
+        risks = rows("project_risks", "id,risk_code,title,level,status")
         return build_project_summary(
-            project_result.data,
-            activities,
-            materials,
-            equipment,
-            costs,
-            risks,
+            project_result.data, activities, materials, equipment, costs, risks
         )
 
     return get_project_summary
@@ -166,137 +150,94 @@ def _project_documents(client: Client, project_id: str) -> list[dict[str, Any]]:
     return result.data or []
 
 
-def _keyword_excerpts(client: Client, project_id: str, question: str) -> dict[str, Any]:
-    """Read extracted document text when vector search is unavailable."""
-    documents = _project_documents(client, project_id)
-    if not documents:
-        return {
-            "matches": [],
-            "note": "No documents are uploaded for this project.",
-        }
-
-    titles = {str(row["id"]): row.get("name") or "Uploaded document" for row in documents}
-    listed = ", ".join(
-        f"{row.get('name') or 'document'} ({row.get('status') or 'unknown'})"
-        for row in documents
-    )
-    knowledge = (
-        client.table("ai_knowledge_documents")
-        .select("document_id,extracted_text,status")
-        .in_("document_id", [row["id"] for row in documents])
-        .execute()
-    )
+def _excerpt(text: str, question: str) -> str:
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return ""
+    lowered = cleaned.lower()
     words = [word.lower() for word in question.split() if len(word) > 3][:8]
-    excerpts = []
-    for row in knowledge.data or []:
-        text = (row.get("extracted_text") or "").strip()
-        if not text:
-            continue
-        lowered = text.lower()
-        hit = next((word for word in words if word in lowered), None)
-        start = max(0, lowered.find(hit) - 180) if hit else 0
-        excerpts.append(
-            {
-                "document": titles.get(str(row.get("document_id")), "Uploaded document"),
-                "page": None,
-                "excerpt": text[start : start + MAX_EXCERPT_CHARS],
-            }
-        )
-    if excerpts:
-        return {
-            "matches": excerpts[:MAX_DOCUMENT_MATCHES],
-            "note": "Returned from extracted document text because vector search was unavailable.",
-        }
-    return {
-        "matches": [],
-        "note": (
-            "Uploaded files were found, but no extracted text is available yet. "
-            f"Files: {listed}. Wait for processing to finish, or reprocess the document."
-        ),
-    }
+    hit = next((word for word in words if word in lowered), None)
+    start = max(0, lowered.find(hit) - 200) if hit else 0
+    return cleaned[start : start + MAX_EXCERPT_CHARS]
 
 
 def make_document_search_tool(client: Client, project_id: str):
     """Return a Gemini-callable search over text extracted from uploaded files."""
 
-    def search_uploaded_documents(query: str) -> dict[str, Any]:
+    def search_uploaded_documents(query: str) -> dict:
         """Search text extracted from documents uploaded to this project.
 
         Use this for questions about drawings, specifications, contracts, reports,
-        bills of quantities, or any other uploaded file. Cite the document name
-        and page from the returned excerpts. Do not invent file contents.
+        bills of quantities, maintenance plans, or any other uploaded file.
+        Cite the document name. Do not invent file contents.
         """
         question = (query or "").strip()
         if not question:
             return {"matches": [], "note": "A search query is required."}
-
         try:
-            from .embeddings import embed_texts
-
-            embeddings = embed_texts([question])
-            if not embeddings:
-                return _keyword_excerpts(client, project_id, question)
-
-            vector = embeddings[0]
-            if not isinstance(vector, str):
-                vector = "[" + ",".join(str(value) for value in vector) + "]"
-            result = client.rpc(
-                "match_ai_knowledge_chunks",
-                {
-                    "query_embedding": vector,
-                    "match_project_id": project_id,
-                    "match_count": MAX_DOCUMENT_MATCHES,
-                },
-            ).execute()
-            matches = [
-                row
-                for row in (result.data or [])
-                if (row.get("similarity") or 0) >= MIN_DOCUMENT_SIMILARITY
-            ]
-            if not matches:
-                fallback = _keyword_excerpts(client, project_id, question)
-                if fallback.get("matches"):
-                    return fallback
-                return {
-                    "matches": [],
-                    "note": fallback.get("note")
-                    or "No relevant text was found in uploaded documents.",
-                }
-
-            document_ids = list(
-                {str(row.get("document_id")) for row in matches if row.get("document_id")}
-            )
+            documents = _project_documents(client, project_id)
+            if not documents:
+                return {"matches": [], "note": "No documents are uploaded for this project."}
             titles = {
-                str(row["id"]): row.get("name") or str(row["id"])
-                for row in _project_documents(client, project_id)
-                if str(row["id"]) in document_ids
+                str(row.get("id")): row.get("name") or "Uploaded document"
+                for row in documents
             }
+            listed = ", ".join(
+                "%s (%s)" % (row.get("name") or "document", row.get("status") or "unknown")
+                for row in documents
+            )
+            ids = [row.get("id") for row in documents if row.get("id")]
             excerpts = []
-            for row in matches:
-                document_id = str(row.get("document_id") or "")
+            knowledge = (
+                client.table("ai_knowledge_documents")
+                .select("document_id,extracted_text,status")
+                .in_("document_id", ids)
+                .execute()
+            )
+            for row in knowledge.data or []:
+                excerpt = _excerpt(row.get("extracted_text") or "", question)
+                if not excerpt:
+                    continue
                 excerpts.append(
                     {
-                        "document": titles.get(document_id) or document_id or "Uploaded document",
-                        "page": row.get("page_number"),
-                        "similarity": row.get("similarity"),
-                        "excerpt": (row.get("content") or "").strip()[:MAX_EXCERPT_CHARS],
+                        "document": titles.get(str(row.get("document_id")), "Uploaded document"),
+                        "page": None,
+                        "excerpt": excerpt,
                     }
                 )
-            return {"matches": excerpts}
-        except Exception as exc:
-            try:
-                fallback = _keyword_excerpts(client, project_id, question)
-            except Exception as fallback_exc:
-                return {
-                    "matches": [],
-                    "note": f"Document search failed: {exc}. Text fallback also failed: {fallback_exc}",
-                }
-            if fallback.get("matches"):
-                return fallback
-            note = fallback.get("note") or "No extracted document text was found."
+            if not excerpts:
+                chunks = (
+                    client.table("ai_knowledge_chunks")
+                    .select("document_id,content,page_number")
+                    .in_("document_id", ids)
+                    .limit(12)
+                    .execute()
+                )
+                for row in chunks.data or []:
+                    excerpt = _excerpt(row.get("content") or "", question)
+                    if not excerpt:
+                        continue
+                    excerpts.append(
+                        {
+                            "document": titles.get(str(row.get("document_id")), "Uploaded document"),
+                            "page": row.get("page_number"),
+                            "excerpt": excerpt,
+                        }
+                    )
+            if excerpts:
+                return {"matches": excerpts[:MAX_DOCUMENT_MATCHES]}
             return {
                 "matches": [],
-                "note": f"{note} Vector search error: {exc}",
+                "note": (
+                    "Uploaded files were found, but no extracted text is available yet. "
+                    "Files: %s. Wait until status is processed, then ask again."
+                    % listed
+                ),
+            }
+        except Exception as exc:
+            return {
+                "matches": [],
+                "note": "Document search failed: %s" % exc,
             }
 
     return search_uploaded_documents
