@@ -15,6 +15,7 @@ from .construction_tools import (
 )
 from .project_data import (
     make_document_search_tool,
+    make_project_action_plan_tool,
     make_project_priorities_tool,
     make_project_summary_tool,
 )
@@ -29,6 +30,8 @@ are uploaded and repeat the note. Do not call this a system error unless the not
 Use get_project_summary for current project status, activities, materials, equipment, costs, or risks.
 Use get_project_priorities when the user asks what to focus on, what needs attention, recommended
 next actions, or project priorities.
+Use get_project_action_plan when the user asks for an ordered action plan, implementation steps,
+owners, or what to do next. The action plan is advisory and must not modify project records.
 Use calculation tools for concrete volume, project progress percentage, and remaining material quantity.
 You may also call search_uploaded_documents if the preloaded context is not enough.
 
@@ -93,6 +96,7 @@ def _generate_with_model(
                 *BASE_CONSTRUCTION_TOOLS,
                 project_summary_tool,
                 project_priorities_tool,
+                project_action_plan_tool,
                 document_search_tool,
             ],
         ),
@@ -117,6 +121,7 @@ def run_construction_agent(
     models_to_try = [model_id, *settings.resolved_chat_fallback_models]
     project_summary_tool = make_project_summary_tool(db, project_id)
     project_priorities_tool = make_project_priorities_tool(db, project_id)
+    project_action_plan_tool = make_project_action_plan_tool(db, project_id)
     document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
