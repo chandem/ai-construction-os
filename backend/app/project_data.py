@@ -293,3 +293,74 @@ def make_document_search_tool(client: Client, project_id: str):
         return {"matches": [], "files": listed, "note": note}
 
     return search_uploaded_documents
+
+
+
+def build_project_action_plan(summary: dict[str, Any]) -> dict[str, Any]:
+    """Convert current project priorities into a conservative, ordered action plan."""
+    priority_result = build_project_priorities(summary)
+    actions: list[dict[str, Any]] = []
+    templates = {
+        "Progress tracking": {
+            "owner": "Project manager / planning engineer",
+            "step": "Create the activity register, define planned quantities and dates, then record actual progress regularly.",
+            "evidence": "Approved activity list and updated progress records.",
+        },
+        "Schedule": {
+            "owner": "Project manager / planning engineer",
+            "step": "Identify activities behind plan, determine causes, and agree recovery measures with the responsible team.",
+            "evidence": "Updated schedule and documented recovery actions.",
+        },
+        "Materials": {
+            "owner": "Procurement / store officer",
+            "step": "Review low-stock materials, confirm required quantities and lead times, then initiate replenishment where justified.",
+            "evidence": "Updated material register and procurement/replenishment records.",
+        },
+        "Risk management": {
+            "owner": "Project manager / risk owner",
+            "step": "Create or review the risk register, assign owners, assess priority, and record mitigation actions.",
+            "evidence": "Current risk register with owners and mitigation actions.",
+        },
+        "Cost control": {
+            "owner": "Quantity surveyor / cost controller",
+            "step": "Start recording project costs and link each entry to the relevant activity, category, date, and currency.",
+            "evidence": "Updated cost ledger and supporting records.",
+        },
+        "Equipment": {
+            "owner": "Plant / equipment officer",
+            "step": "Register equipment and record availability, operational status, and maintenance requirements.",
+            "evidence": "Current equipment register and maintenance status.",
+        },
+        "Routine control": {
+            "owner": "Project management team",
+            "step": "Continue routine updates and review progress, costs, materials, equipment, and risks at the agreed reporting interval.",
+            "evidence": "Current project dashboard and periodic management report.",
+        },
+    }
+    for index, priority in enumerate(priority_result["priorities"], start=1):
+        template = templates.get(priority["area"], templates["Routine control"])
+        actions.append({
+            "sequence": index,
+            "priority": priority["priority"],
+            "area": priority["area"],
+            "owner": template["owner"],
+            "action": template["step"],
+            "reason": priority["reason"],
+            "evidence": template["evidence"],
+        })
+    return {
+        "project": summary.get("project", {}),
+        "action_count": len(actions),
+        "actions": actions,
+        "note": "This plan recommends actions but does not change project records automatically.",
+    }
+
+
+def make_project_action_plan_tool(client: Client, project_id: str):
+    get_summary = make_project_summary_tool(client, project_id)
+
+    def get_project_action_plan() -> dict[str, Any]:
+        """Create an ordered management action plan from current project data."""
+        return build_project_action_plan(get_summary())
+
+    return get_project_action_plan
