@@ -6,6 +6,7 @@ from .agent_routes import router as agent_router
 from .config import settings
 from .conversation_aliases import router as conversation_alias_router
 from .db import supabase
+from .document_files import router as document_file_router
 from .engineering_routes import router as engineering_router
 from .procurement_routes import router as procurement_router
 from .cost_control_routes import router as cost_control_router
@@ -20,8 +21,6 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
-    # Support Vercel preview/production deployment URLs while retaining
-    # credentials for Supabase-authenticated browser requests.
     allow_origin_regex=r"^https://[a-zA-Z0-9-]+\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
@@ -32,6 +31,7 @@ app.include_router(router)
 app.include_router(ai_router)
 app.include_router(agent_router)
 app.include_router(conversation_alias_router)
+app.include_router(document_file_router)
 app.include_router(engineering_router)
 app.include_router(procurement_router)
 app.include_router(cost_control_router)
@@ -49,7 +49,6 @@ def health():
 
 @app.get("/health/cors")
 def cors_health():
-    """Public list of configured CORS origins (no secrets) for deploy debugging."""
     return {
         "status": "ok",
         "allow_origins": settings.cors_origin_list,
