@@ -47,7 +47,8 @@ forecast readiness, or future performance.
 Use get_project_early_warnings when the user asks for early warnings, emerging issues,
 preventive alerts, or what could become a problem if current conditions persist.
 Use get_project_management_recommendations when the user asks what management should do,
-what decisions should be prioritized, or asks for a consolidated management recommendation. Forecasting must distinguish
+what decisions should be prioritized, or asks for a consolidated management recommendation.
+Forecasting must distinguish
 recorded facts from conditional scenarios and must not invent future values.
 Use calculation tools for concrete volume, project progress percentage, and remaining material quantity.
 You may also call search_uploaded_documents if the preloaded context is not enough.
@@ -172,6 +173,8 @@ def run_construction_agent(
                 project_monitoring_tool,
                 project_risk_analysis_tool,
                 project_forecast_tool,
+                project_early_warnings_tool,
+                project_management_recommendations_tool,
                 document_search_tool,
             )
             return (response.text or "").strip()
