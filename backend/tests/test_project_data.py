@@ -5,6 +5,7 @@ from app.project_data import (
     build_project_forecast,
     build_project_early_warnings,
     build_project_management_recommendations,
+    build_project_performance_score,
     build_project_priorities,
     build_project_summary,
 )
@@ -191,6 +192,36 @@ def test_build_project_early_warnings_flags_schedule_and_material_signals():
     assert any(item["area"] == "Schedule" for item in result["warnings"])
     assert any(item["area"] == "Materials" for item in result["warnings"])
     assert any(item["area"] == "Risk visibility" for item in result["warnings"])
+
+
+def test_build_project_performance_score_is_transparent_and_read_only():
+    summary = build_project_summary(
+        {"id": "p1", "name": "G+2 Building", "status": "active"},
+        [{"planned_percent": 80, "actual_percent": 70}],
+        [{"name": "Cement", "stock_quantity": 80, "reorder_level": 100}],
+        [{"status": "available"}],
+        [{"amount": 1000, "currency": "ETB"}],
+        [{"level": "medium", "status": "open"}],
+    )
+    result = build_project_performance_score(summary)
+
+    assert result["score"] is not None
+    assert result["status"] in {"critical", "at_risk", "stable", "healthy", "low_confidence"}
+    assert {item["area"] for item in result["components"]} == {"Schedule", "Cost", "Materials", "Equipment", "Risk"}
+    assert result["data_gaps"]
+    assert "read-only" in result["note"]
+
+
+def test_build_project_performance_score_handles_missing_controls():
+    summary = build_project_summary(
+        {"id": "p1", "name": "Shakiso-Solomo", "status": "active"},
+        [], [], [], [], [],
+    )
+    result = build_project_performance_score(summary)
+
+    assert result["score"] is None
+    assert result["status"] == "insufficient_data"
+    assert len(result["data_gaps"]) == 5
 
 
 def test_build_project_management_recommendations_synthesizes_signals():
