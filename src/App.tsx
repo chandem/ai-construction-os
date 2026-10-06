@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 import { apiGet, apiPost, apiUpload } from "./api";
 import { AuthScreen } from "./AuthScreen";
 import { MenuButton } from "./MenuButton";
+import { openDocumentFile } from "./documentFile";
 import type { Project, Document, Message, Conversation, DesignAsset, WorkspaceView } from "./types";
 import { OsHome } from "./centers/OsHome";
 import { DesignCenter } from "./centers/DesignCenter";
@@ -214,7 +215,7 @@ export function App() {
             <select value={projectId} onChange={(e) => { setProjectId(e.target.value); setMessages([]); setConversationId(""); setError(""); setNotice(""); setView("os-home"); }}>
               <option value="">{projectsLoading ? "Loading projects..." : "Select project"}</option>
               {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}{p.code ? " · " + p.code : ""}</option>
+                <option key={p.id} value={p.id}>{p.name}{p.code ? " \u00b7 " + p.code : ""}</option>
               ))}
             </select>
             <button className="side-action" type="button" onClick={() => setShowCreateProject((v) => !v)}>{showCreateProject ? "Hide new project" : "+ New project"}</button>
@@ -248,8 +249,15 @@ export function App() {
             </div>
             <div className="hint">
               <b>Documents</b>
-              <span> · {documents.length} uploaded</span>
+              <span> \u00b7 {documents.length} uploaded</span>
               <label className="file-upload">{uploading ? "Uploading..." : "Upload document"}<input type="file" disabled={!projectId || uploading || aiBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDocument(f); e.target.value = ""; }} /></label>
+              <div className="doc-list">
+                {documents.map((d) => (
+                  <button key={d.id} type="button" className="side-action" onClick={() => openDocumentFile(d.id, token, d.name).catch((err) => setError(err.message || "Could not open file"))}>
+                    {d.name} \u00b7 {d.status || "uploaded"}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           <div className="sidebar-footer">
@@ -264,7 +272,7 @@ export function App() {
             <div className="panel">
               <div className="panel-head"><h2>AI Assistant</h2></div>
               <div className="messages">
-                {messages.length === 0 && <div className="empty empty-card"><h3>Ask about this project</h3><p>Ask about current project status, activities, materials, equipment, costs, or risks. You can also ask for construction calculations.</p></div>}
+                {messages.length === 0 && <div className="empty empty-card"><h3>Ask about this project</h3><p>Ask about uploaded drawings, specs, reports, or BOQs. You can also ask about project status, materials, costs, risks, or construction calculations.</p></div>}
                 {messages.map((m, i) => <div key={i} className={"message " + m.role}>{m.content}</div>)}
                 {aiBusy && <div className="typing">AI is thinking...</div>}
               </div>
