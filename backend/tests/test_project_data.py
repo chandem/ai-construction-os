@@ -1,4 +1,9 @@
-from app.project_data import build_project_action_plan, build_project_priorities, build_project_summary
+from app.project_data import (
+    build_project_action_plan,
+    build_project_monitoring,
+    build_project_priorities,
+    build_project_summary,
+)
 
 
 def test_build_project_summary():
@@ -86,3 +91,24 @@ def test_build_project_action_plan_is_ordered_and_advisory():
     assert "owner" in result["actions"][0]
     assert "evidence" in result["actions"][0]
     assert "does not change project records" in result["note"]
+
+
+def test_build_project_monitoring_classifies_current_gaps():
+    summary = build_project_summary(
+        {"id": "p1", "name": "Shakiso-Solomo", "status": "active"},
+        [{"planned_percent": 60, "actual_percent": 40}],
+        [{"name": "Cement", "stock_quantity": 80, "reorder_level": 100}],
+        [{"status": "available"}],
+        [{"amount": 1000, "currency": "ETB"}],
+        [{"level": "high"}],
+    )
+
+    result = build_project_monitoring(summary)
+
+    assert result["overall_status"] == "critical"
+    assert result["schedule"]["variance_percentage_points"] == -20
+    assert any(item["area"] == "Risk management" for item in result["critical"])
+    assert any(item["area"] == "Materials" for item in result["critical"])
+    assert any(item["area"] == "Schedule" for item in result["attention"])
+    assert result["management_decisions"]
+    assert "does not modify project records" in result["note"]

@@ -364,3 +364,115 @@ def make_project_action_plan_tool(client: Client, project_id: str):
         return build_project_action_plan(get_summary())
 
     return get_project_action_plan
+
+
+def build_project_monitoring(summary: dict[str, Any]) -> dict[str, Any]:
+    """Classify current project health and recommend read-only management decisions."""
+    activities = summary.get("activities", {})
+    materials = summary.get("materials", {})
+    equipment = summary.get("equipment", {})
+    costs = summary.get("costs", {})
+    risks = summary.get("risks", {})
+
+    planned = float(activities.get("average_planned_percent", 0) or 0)
+    actual = float(activities.get("average_actual_percent", 0) or 0)
+    schedule_variance = round(actual - planned, 2) if activities.get("count", 0) else None
+
+    critical: list[dict[str, Any]] = []
+    attention: list[dict[str, Any]] = []
+    on_track: list[dict[str, Any]] = []
+
+    high_risks = int(risks.get("level_counts", {}).get("high", 0) or 0)
+    shortages = int(materials.get("at_or_below_reorder_level", 0) or 0)
+
+    if high_risks:
+        critical.append({
+            "area": "Risk management",
+            "finding": f"{high_risks} high-level risk(s) are logged.",
+            "decision": "Review ownership and mitigation actions for high-level risks.",
+        })
+    if shortages:
+        critical.append({
+            "area": "Materials",
+            "finding": f"{shortages} material item(s) are at or below reorder level.",
+            "decision": "Confirm requirements and replenishment lead times before work is affected.",
+        })
+    if activities.get("count", 0) == 0:
+        attention.append({
+            "area": "Progress tracking",
+            "finding": "No activities are tracked, so schedule performance cannot be measured.",
+            "decision": "Establish the approved activity register and begin planned/actual progress reporting.",
+        })
+    elif schedule_variance is not None and schedule_variance < 0:
+        attention.append({
+            "area": "Schedule",
+            "finding": f"Average actual progress is {abs(schedule_variance):.2f} percentage points below plan.",
+            "decision": "Identify the causes of delay and agree recovery measures with responsible owners.",
+        })
+    elif schedule_variance is not None:
+        on_track.append({
+            "area": "Schedule",
+            "finding": f"Average actual progress is {schedule_variance:.2f} percentage points at or above plan.",
+        })
+
+    if materials.get("count", 0) == 0:
+        attention.append({
+            "area": "Materials",
+            "finding": "No materials are tracked.",
+            "decision": "Establish the material register and reorder levels.",
+        })
+    if risks.get("count", 0) == 0:
+        attention.append({
+            "area": "Risk management",
+            "finding": "No project risks are logged.",
+            "decision": "Create and review a project risk register.",
+        })
+    if costs.get("entry_count", 0) == 0:
+        attention.append({
+            "area": "Cost control",
+            "finding": "No cost entries are recorded.",
+            "decision": "Start a project cost ledger before cost performance can be assessed.",
+        })
+    if equipment.get("count", 0) == 0:
+        attention.append({
+            "area": "Equipment",
+            "finding": "No equipment is tracked.",
+            "decision": "Register equipment and record availability and maintenance status.",
+        })
+
+    if not critical and not attention:
+        on_track.append({
+            "area": "Overall control",
+            "finding": "No critical issue or immediate control gap was identified from the available project data.",
+        })
+
+    overall = "critical" if critical else "attention" if attention else "on_track"
+    return {
+        "project": summary.get("project", {}),
+        "overall_status": overall,
+        "schedule": {
+            "planned_percent": planned,
+            "actual_percent": actual,
+            "variance_percentage_points": schedule_variance,
+            "trend": "not_available" if activities.get("count", 0) == 0 else "below_plan" if schedule_variance < 0 else "at_or_above_plan",
+        },
+        "critical": critical,
+        "attention": attention,
+        "on_track": on_track,
+        "management_decisions": [
+            item["decision"]
+            for item in [*critical, *attention]
+            if item.get("decision")
+        ],
+        "note": "Monitoring is based only on currently recorded project data and does not modify project records.",
+    }
+
+
+def make_project_monitoring_tool(client: Client, project_id: str):
+    get_summary = make_project_summary_tool(client, project_id)
+
+    def get_project_monitoring() -> dict[str, Any]:
+        """Monitor current project health and return read-only management decision support."""
+        return build_project_monitoring(get_summary())
+
+    return get_project_monitoring
