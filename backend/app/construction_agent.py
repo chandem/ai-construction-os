@@ -204,6 +204,7 @@ def run_construction_agent(
                 project_performance_score_tool,
                 project_cost_intelligence_tool,
                 project_procurement_intelligence_tool,
+                project_schedule_intelligence_tool,
                 document_search_tool,
             )
             return (response.text or "").strip()
