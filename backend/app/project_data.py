@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from supabase import Client
-
 MAX_DOCUMENT_MATCHES = 6
 MAX_EXCERPT_CHARS = 1500
 
@@ -69,6 +67,95 @@ def build_project_summary(
     }
 
 
+def build_project_priorities(summary: dict[str, Any]) -> dict[str, Any]:
+    """Turn a project summary into conservative, actionable management priorities."""
+    priorities: list[dict[str, Any]] = []
+    activities = summary.get("activities", {})
+    materials = summary.get("materials", {})
+    equipment = summary.get("equipment", {})
+    costs = summary.get("costs", {})
+    risks = summary.get("risks", {})
+
+    if activities.get("count", 0) == 0:
+        priorities.append({
+            "priority": "high",
+            "area": "Progress tracking",
+            "action": "Create the project's activities and start recording planned and actual progress.",
+            "reason": "No activities are currently tracked, so schedule performance cannot be measured.",
+        })
+    elif activities.get("average_actual_percent", 0) < activities.get("average_planned_percent", 0):
+        priorities.append({
+            "priority": "high",
+            "area": "Schedule",
+            "action": "Review activities behind plan and identify recovery actions.",
+            "reason": "Average actual progress is below average planned progress.",
+        })
+
+    shortages = materials.get("shortages", [])
+    if shortages:
+        priorities.append({
+            "priority": "high",
+            "area": "Materials",
+            "action": "Review and replenish materials at or below reorder level.",
+            "reason": "One or more tracked materials are at or below their reorder level.",
+            "items": shortages[:10],
+        })
+    elif materials.get("count", 0) == 0:
+        priorities.append({
+            "priority": "medium",
+            "area": "Materials",
+            "action": "Set up the material register with quantities and reorder levels.",
+            "reason": "No materials are currently tracked.",
+        })
+
+    if risks.get("count", 0) == 0:
+        priorities.append({
+            "priority": "medium",
+            "area": "Risk management",
+            "action": "Create an initial project risk register and review it regularly.",
+            "reason": "No project risks are currently logged.",
+        })
+    elif risks.get("level_counts", {}).get("high", 0):
+        priorities.append({
+            "priority": "high",
+            "area": "Risk management",
+            "action": "Review and assign mitigation actions for high-level risks.",
+            "reason": "High-level risks are present in the project register.",
+        })
+
+    if costs.get("entry_count", 0) == 0:
+        priorities.append({
+            "priority": "medium",
+            "area": "Cost control",
+            "action": "Start recording project cost entries and link them to the relevant work.",
+            "reason": "No cost entries are currently recorded, so cost performance cannot be assessed.",
+        })
+
+    if equipment.get("count", 0) == 0:
+        priorities.append({
+            "priority": "medium",
+            "area": "Equipment",
+            "action": "Register project equipment and track availability and maintenance status.",
+            "reason": "No equipment is currently tracked.",
+        })
+
+    if not priorities:
+        priorities.append({
+            "priority": "low",
+            "area": "Routine control",
+            "action": "Continue updating progress, costs, materials, equipment, and risks.",
+            "reason": "No immediate data-quality or control gap was identified from the current summary.",
+        })
+
+    rank = {"high": 0, "medium": 1, "low": 2}
+    priorities.sort(key=lambda item: rank.get(item["priority"], 3))
+    return {
+        "project": summary.get("project", {}),
+        "priority_count": len(priorities),
+        "priorities": priorities[:10],
+    }
+
+
 def _count_values(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for row in rows:
@@ -100,6 +187,16 @@ def make_project_summary_tool(client: Client, project_id: str):
         )
 
     return get_project_summary
+
+
+def make_project_priorities_tool(client: Client, project_id: str):
+    get_summary = make_project_summary_tool(client, project_id)
+
+    def get_project_priorities() -> dict[str, Any]:
+        """Analyze the current project data and return prioritized management actions."""
+        return build_project_priorities(get_summary())
+
+    return get_project_priorities
 
 
 def _excerpt(text: str, question: str) -> str:
