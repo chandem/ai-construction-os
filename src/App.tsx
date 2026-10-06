@@ -53,6 +53,7 @@ export function App() {
   const [input, setInput] = React.useState("");
   const [uploading, setUploading] = React.useState(false);
   const [aiBusy, setAiBusy] = React.useState(false);
+  const [copiedMessage, setCopiedMessage] = React.useState<number | null>(null);
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
   const [view, setView] = React.useState<WorkspaceView>("os-home");
@@ -160,6 +161,16 @@ export function App() {
       setMessages(r.data || []);
     } catch {
       setMessages([]);
+    }
+  }
+
+  async function copyAiResponse(index: number, content: string) {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedMessage(index);
+      window.setTimeout(() => setCopiedMessage((current) => current === index ? null : current), 1600);
+    } catch {
+      setError("Could not copy the AI response. Please copy it manually.");
     }
   }
 
@@ -273,7 +284,7 @@ export function App() {
               <div className="panel-head"><h2>AI Assistant</h2></div>
               <div className="messages">
                 {messages.length === 0 && <div className="empty empty-card"><h3>Ask about this project</h3><p>Ask about uploaded drawings, specs, reports, or BOQs. You can also ask about project status, materials, costs, risks, or construction calculations.</p></div>}
-                {messages.map((m, i) => <div key={i} className={"message " + m.role}>{m.content}</div>)}
+                {messages.map((m, i) => m.role === "assistant" ? (\n                  <div key={i} className="assistant-message">\n                    <div className="message assistant">{m.content}</div>\n                    <button type="button" className="copy-response" onClick={() => copyAiResponse(i, m.content)} aria-label="Copy AI response">\n                      {copiedMessage === i ? "Copied" : "Copy"}\n                    </button>\n                  </div>\n                ) : (\n                  <div key={i} className="message user">{m.content}</div>\n                ))}
                 {aiBusy && <div className="typing">AI is thinking...</div>}
               </div>
               <form className="composer" onSubmit={sendMessage}>
