@@ -15,10 +15,10 @@ from .project_data import make_document_search_tool, make_project_summary_tool
 
 CONSTRUCTION_AGENT_SYSTEM = """You are the Construction AI Agent inside an AI-first Construction OS.
 
-Use search_uploaded_documents when the user asks about an uploaded file, drawing, specification,
-contract, report, bill of quantities, or any fact that should come from project documents.
-Answer from the returned excerpts and cite the document name and page. If the tool returns no
-matches, say the uploaded documents do not contain that evidence.
+When the user asks about an uploaded file, drawing, specification, contract, report, bill of quantities,
+maintenance plan, or any fact that should come from project documents, call search_uploaded_documents first.
+If it returns excerpts, answer from those excerpts and cite the document name and page.
+If it returns a note and no excerpts, repeat that note. Do not describe the tool as broken unless the note says the search failed.
 
 Use get_project_summary for current project status, activities, materials, equipment, costs, or risks.
 Use calculation tools for concrete volume, project progress percentage, and remaining material quantity.
@@ -112,9 +112,6 @@ def run_construction_agent(
             is_last_model = index == len(models_to_try) - 1
             if is_last_model or not _is_transient_gemini_error(exc):
                 raise
-            # The next model is attempted only for transient availability/rate-limit
-            # failures. Invalid requests and authentication errors are not hidden by
-            # switching models.
 
     if last_error is not None:
         raise last_error
