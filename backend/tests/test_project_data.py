@@ -3,6 +3,7 @@ from app.project_data import (
     build_project_monitoring,
     build_project_risk_analysis,
     build_project_forecast,
+    build_project_early_warnings,
     build_project_priorities,
     build_project_summary,
 )
@@ -158,3 +159,34 @@ def test_build_project_forecast_ready_when_core_controls_exist():
     assert result["confidence"] == "moderate"
     assert not result["blockers"]
     assert "core control registers" in result["forecast"]
+
+
+def test_build_project_early_warnings_identifies_control_gaps():
+    summary = build_project_summary(
+        {"id": "p1", "name": "Shakiso-Solomo", "status": "active"},
+        [], [], [], [], [],
+    )
+    result = build_project_early_warnings(summary)
+
+    assert result["warning_count"] == 5
+    assert result["warnings"][0]["severity"] == "high"
+    assert any(item["area"] == "Schedule visibility" for item in result["warnings"])
+    assert any(item["area"] == "Cost visibility" for item in result["warnings"])
+    assert "do not modify project records" in result["note"]
+
+
+def test_build_project_early_warnings_flags_schedule_and_material_signals():
+    summary = build_project_summary(
+        {"id": "p1", "name": "G+2 Building", "status": "active"},
+        [{"planned_percent": 70, "actual_percent": 55}],
+        [{"name": "Cement", "stock_quantity": 50, "reorder_level": 100}],
+        [{"status": "available"}],
+        [{"amount": 1000, "currency": "ETB"}],
+        [],
+    )
+    result = build_project_early_warnings(summary)
+
+    assert result["warning_count"] == 3
+    assert any(item["area"] == "Schedule" for item in result["warnings"])
+    assert any(item["area"] == "Materials" for item in result["warnings"])
+    assert any(item["area"] == "Risk visibility" for item in result["warnings"])
