@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
 
     gemini_chat_model: str = _DEFAULT_GEMINI_CHAT
+    # Comma-separated fallback models used only for transient Gemini availability errors.
+    gemini_chat_fallback_models: str = "gemini-3.6-flash,gemini-3.5-flash-lite"
     embedding_model: str = _DEFAULT_GEMINI_EMBEDDING
 
     cors_origins: str = ",".join(_DEFAULT_CORS)
@@ -63,6 +65,24 @@ class Settings(BaseSettings):
         ):
             return _DEFAULT_GEMINI_CHAT
         return raw
+
+    @property
+    def resolved_chat_fallback_models(self) -> list[str]:
+        primary = self.resolved_chat_model.lower()
+        models: list[str] = []
+        for raw in (self.gemini_chat_fallback_models or "").split(","):
+            name = raw.strip()
+            if not name:
+                continue
+            if name.startswith("models/"):
+                name = name[len("models/") :]
+            if name.lower() == primary:
+                continue
+            if name.lower() in {m.replace("models/", "").lower() for m in _RETIRED_CHAT_MODELS}:
+                continue
+            if name not in models:
+                models.append(name)
+        return models
 
     @property
     def gemini_embedding_model(self) -> str:

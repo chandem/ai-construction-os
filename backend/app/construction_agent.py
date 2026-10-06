@@ -31,6 +31,48 @@ BASE_CONSTRUCTION_TOOLS = [
     calculate_material_balance,
 ]
 
+_TRANSIENT_ERROR_MARKERS = (
+    "429",
+    "resource_exhausted",
+    "rate_limit",
+    "rate limit",
+    "too_many_requests",
+    "503",
+    "service_unavailable",
+    "temporarily unavailable",
+    "temporarily overloaded",
+    "overloaded",
+    "unavailable",
+    "deadline exceeded",
+    "timeout",
+)
+
+
+def _is_transient_gemini_error(exc: Exception) -> bool:
+    """Return True only for errors where trying another model may help."""
+    message = str(exc).lower()
+    return any(marker in message for marker in _TRANSIENT_ERROR_MARKERS)
+
+
+def _generate_with_model(
+    client: genai.Client,
+    model_id: str,
+    message: str,
+    project_id: str,
+    project_summary_tool,
+):
+    chat = client.chats.create(
+        model=model_id,
+        config=types.GenerateContentConfig(
+            system_instruction=CONSTRUCTION_AGENT_SYSTEM,
+            temperature=0.2,
+            tools=[*BASE_CONSTRUCTION_TOOLS, project_summary_tool],
+        ),
+    )
+    return chat.send_message(
+        f"AUTHORIZED PROJECT ID: {project_id}\n\nUSER REQUEST:\n{message}"
+    )
+
 
 def run_construction_agent(
     message: str,
@@ -43,15 +85,31 @@ def run_construction_agent(
 
     client = genai.Client(api_key=settings.ai_api_key)
     model_id = model or settings.resolved_chat_model
+    models_to_try = [model_id, *settings.resolved_chat_fallback_models]
     project_summary_tool = make_project_summary_tool(db, project_id)
 
-    response = client.models.generate_content(
-        model=model_id,
-        contents=f"AUTHORIZED PROJECT ID: {project_id}\n\nUSER REQUEST:\n{message}",
-        config=types.GenerateContentConfig(
-            system_instruction=CONSTRUCTION_AGENT_SYSTEM,
-            temperature=0.2,
-            tools=[*BASE_CONSTRUCTION_TOOLS, project_summary_tool],
-        ),
-    )
-    return (response.text or "").strip()
+    last_error: Exception | None = None
+
+    for index, candidate_model in enumerate(models_to_try):
+        try:
+            response = _generate_with_model(
+                client,
+                candidate_model,
+                message,
+                project_id,
+                project_summary_tool,
+            )
+            return (response.text or "").strip()
+        except Exception as exc:
+            last_error = exc
+            is_last_model = index == len(models_to_try) - 1
+            if is_last_model or not _is_transient_gemini_error(exc):
+                raise
+            # The next model is attempted only for transient availability/rate-limit
+            # failures. Invalid requests and authentication errors are not hidden by
+            # switching models.
+
+    if last_error is not None:
+        raise last_error
+
+    raise RuntimeError("No Gemini chat model is configured")
