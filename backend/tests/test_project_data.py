@@ -2,6 +2,7 @@ from app.project_data import (
     build_project_action_plan,
     build_project_monitoring,
     build_project_risk_analysis,
+    build_project_forecast,
     build_project_priorities,
     build_project_summary,
 )
@@ -125,3 +126,35 @@ def test_build_project_risk_analysis_empty_register():
     assert result["recorded_risks"] == []
     assert result["recommendations"][0]["priority"] == "high"
     assert result["recommendations"][0]["area"] == "Risk register"
+
+
+def test_build_project_forecast_reports_insufficient_data():
+    summary = build_project_summary(
+        {"id": "p1", "name": "Shakiso-Solomo", "status": "active"},
+        [], [], [], [], [],
+    )
+    result = build_project_forecast(summary)
+
+    assert result["readiness"] == "insufficient_data"
+    assert result["confidence"] == "low"
+    assert result["blockers"]
+    assert "No activity or planned/actual progress records are available." in result["blockers"]
+    assert "cannot be produced" in result["forecast"]
+    assert "does not create or modify project records" in result["note"]
+
+
+def test_build_project_forecast_ready_when_core_controls_exist():
+    summary = build_project_summary(
+        {"id": "p1", "name": "G+2 Building", "status": "active"},
+        [{"planned_percent": 60, "actual_percent": 55}],
+        [{"name": "Cement", "stock_quantity": 200, "reorder_level": 100}],
+        [{"status": "available"}],
+        [{"amount": 1000, "currency": "ETB"}],
+        [{"level": "medium", "status": "open"}],
+    )
+    result = build_project_forecast(summary)
+
+    assert result["readiness"] == "forecast_ready"
+    assert result["confidence"] == "moderate"
+    assert not result["blockers"]
+    assert "core control registers" in result["forecast"]
