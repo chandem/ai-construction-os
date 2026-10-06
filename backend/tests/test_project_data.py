@@ -1,4 +1,4 @@
-from app.project_data import build_project_priorities, build_project_summary
+from app.project_data import build_project_action_plan, build_project_priorities, build_project_summary
 
 
 def test_build_project_summary():
@@ -70,3 +70,19 @@ def test_build_project_priorities_identifies_missing_controls():
     assert "Cost control" in areas
     assert "Equipment" in areas
     assert result["priorities"][0]["priority"] == "high"
+
+
+
+def test_build_project_action_plan_is_ordered_and_advisory():
+    summary = build_project_summary(
+        {"id": "p1", "name": "Shakiso-Solomo", "status": "active"},
+        [], [], [], [], [],
+    )
+    result = build_project_action_plan(summary)
+
+    assert result["action_count"] == 5
+    assert result["actions"][0]["area"] == "Progress tracking"
+    assert result["actions"][0]["priority"] == "high"
+    assert "owner" in result["actions"][0]
+    assert "evidence" in result["actions"][0]
+    assert "does not change project records" in result["note"]
