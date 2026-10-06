@@ -20,6 +20,7 @@ from .project_data import (
     make_project_risk_analysis_tool,
     make_project_forecast_tool,
     make_project_early_warnings_tool,
+    make_project_management_recommendations_tool,
     make_project_priorities_tool,
     make_project_summary_tool,
 )
@@ -44,7 +45,10 @@ mitigation, or risk-control gaps.
 Use get_project_forecast when the user asks what is likely to happen, project forecasting,
 forecast readiness, or future performance.
 Use get_project_early_warnings when the user asks for early warnings, emerging issues,
-preventive alerts, or what could become a problem if current conditions persist. Forecasting must distinguish
+preventive alerts, or what could become a problem if current conditions persist.
+Use get_project_management_recommendations when the user asks what management should do,
+what decisions should be prioritized, or asks for a consolidated management recommendation.
+Forecasting must distinguish
 recorded facts from conditional scenarios and must not invent future values.
 Use calculation tools for concrete volume, project progress percentage, and remaining material quantity.
 You may also call search_uploaded_documents if the preloaded context is not enough.
@@ -103,6 +107,7 @@ def _generate_with_model(
     project_risk_analysis_tool,
     project_forecast_tool,
     project_early_warnings_tool,
+    project_management_recommendations_tool,
     document_search_tool,
 ):
     context = _document_context(document_search_tool, message)
@@ -120,6 +125,7 @@ def _generate_with_model(
                 project_risk_analysis_tool,
                 project_forecast_tool,
                 project_early_warnings_tool,
+                project_management_recommendations_tool,
                 document_search_tool,
             ],
         ),
@@ -149,6 +155,7 @@ def run_construction_agent(
     project_risk_analysis_tool = make_project_risk_analysis_tool(db, project_id)
     project_forecast_tool = make_project_forecast_tool(db, project_id)
     project_early_warnings_tool = make_project_early_warnings_tool(db, project_id)
+    project_management_recommendations_tool = make_project_management_recommendations_tool(db, project_id)
     document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
@@ -166,6 +173,8 @@ def run_construction_agent(
                 project_monitoring_tool,
                 project_risk_analysis_tool,
                 project_forecast_tool,
+                project_early_warnings_tool,
+                project_management_recommendations_tool,
                 document_search_tool,
             )
             return (response.text or "").strip()
