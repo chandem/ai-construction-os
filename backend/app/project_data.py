@@ -631,3 +631,116 @@ def make_project_forecast_tool(client: Client, project_id: str):
         return build_project_forecast(get_summary())
 
     return get_project_forecast
+
+
+def build_project_early_warnings(summary: dict[str, Any]) -> dict[str, Any]:
+    """Identify conservative early-warning signals from currently recorded project data."""
+    activities = summary.get("activities", {})
+    materials = summary.get("materials", {})
+    equipment = summary.get("equipment", {})
+    costs = summary.get("costs", {})
+    risks = summary.get("risks", {})
+
+    warnings: list[dict[str, Any]] = []
+
+    if activities.get("count", 0) == 0:
+        warnings.append({
+            "severity": "high",
+            "area": "Schedule visibility",
+            "signal": "No activity or planned/actual progress records are available.",
+            "early_warning": "Schedule slippage could go undetected because there is no baseline progress signal.",
+            "recommended_action": "Establish the approved activity register and begin regular planned-versus-actual updates.",
+        })
+    else:
+        planned = float(activities.get("average_planned_percent", 0) or 0)
+        actual = float(activities.get("average_actual_percent", 0) or 0)
+        variance = round(actual - planned, 2)
+        if variance < 0:
+            warnings.append({
+                "severity": "high" if variance <= -10 else "medium",
+                "area": "Schedule",
+                "signal": f"Average actual progress is {abs(variance):.2f} percentage points below plan.",
+                "early_warning": "If the negative variance persists, planned completion may be affected.",
+                "recommended_action": "Identify the activities driving the variance and agree documented recovery measures.",
+            })
+
+    shortages = materials.get("shortages", [])
+    if shortages:
+        warnings.append({
+            "severity": "high",
+            "area": "Materials",
+            "signal": f"{len(shortages)} material item(s) are at or below reorder level.",
+            "early_warning": "Continued consumption without replenishment could interrupt planned work.",
+            "recommended_action": "Confirm quantities, supplier lead times, and replenishment actions for the affected items.",
+        })
+    elif materials.get("count", 0) == 0:
+        warnings.append({
+            "severity": "medium",
+            "area": "Materials visibility",
+            "signal": "No material records are available.",
+            "early_warning": "Material shortages may remain undetected without stock and reorder-level tracking.",
+            "recommended_action": "Establish material stock, consumption, reorder-level, and procurement tracking.",
+        })
+
+    high_risks = int(risks.get("level_counts", {}).get("high", 0) or 0)
+    if high_risks:
+        warnings.append({
+            "severity": "high",
+            "area": "Risk",
+            "signal": f"{high_risks} high-level risk(s) are recorded.",
+            "early_warning": "Uncontrolled high-level risks may affect project delivery.",
+            "recommended_action": "Confirm risk owners, mitigation measures, current status, and review dates.",
+        })
+    elif risks.get("count", 0) == 0:
+        warnings.append({
+            "severity": "medium",
+            "area": "Risk visibility",
+            "signal": "No project risks are recorded.",
+            "early_warning": "Emerging threats may not be visible to management without a risk register.",
+            "recommended_action": "Create and routinely review a project risk register.",
+        })
+
+    if costs.get("entry_count", 0) == 0:
+        warnings.append({
+            "severity": "medium",
+            "area": "Cost visibility",
+            "signal": "No project cost entries are recorded.",
+            "early_warning": "Cost overruns cannot be detected from the system until a cost baseline and actual entries exist.",
+            "recommended_action": "Establish an approved cost baseline and start recording actual project costs.",
+        })
+
+    if equipment.get("count", 0) == 0:
+        warnings.append({
+            "severity": "low",
+            "area": "Equipment visibility",
+            "signal": "No equipment records are available.",
+            "early_warning": "Equipment availability or maintenance constraints may not be visible.",
+            "recommended_action": "Register critical equipment and maintain availability and maintenance status.",
+        })
+
+    rank = {"high": 0, "medium": 1, "low": 2}
+    warnings.sort(key=lambda item: rank.get(item["severity"], 3))
+
+    return {
+        "project": summary.get("project", {}),
+        "warning_count": len(warnings),
+        "warnings": warnings[:15],
+        "severity_counts": {
+            level: sum(1 for item in warnings if item["severity"] == level)
+            for level in ("high", "medium", "low")
+        },
+        "note": (
+            "Early warnings are signals derived only from currently recorded data. "
+            "They are not predictions of events that have already occurred and do not modify project records."
+        ),
+    }
+
+
+def make_project_early_warnings_tool(client: Client, project_id: str):
+    get_summary = make_project_summary_tool(client, project_id)
+
+    def get_project_early_warnings() -> dict[str, Any]:
+        """Identify early-warning signals and recommended preventive actions."""
+        return build_project_early_warnings(get_summary())
+
+    return get_project_early_warnings
