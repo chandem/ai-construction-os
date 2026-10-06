@@ -16,7 +16,9 @@ from .construction_tools import (
 from .project_data import (
     make_document_search_tool,
     make_project_action_plan_tool,
-    make_project_monitoring_tool,\n    make_project_risk_analysis_tool,
+    make_project_monitoring_tool,
+    make_project_risk_analysis_tool,
+    make_project_forecast_tool,
     make_project_priorities_tool,
     make_project_summary_tool,
 )
@@ -138,7 +140,9 @@ def run_construction_agent(
     project_summary_tool = make_project_summary_tool(db, project_id)
     project_priorities_tool = make_project_priorities_tool(db, project_id)
     project_action_plan_tool = make_project_action_plan_tool(db, project_id)
-    project_monitoring_tool = make_project_monitoring_tool(db, project_id)\n    project_risk_analysis_tool = make_project_risk_analysis_tool(db, project_id)
+    project_monitoring_tool = make_project_monitoring_tool(db, project_id)
+    project_risk_analysis_tool = make_project_risk_analysis_tool(db, project_id)
+    project_forecast_tool = make_project_forecast_tool(db, project_id)
     document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
