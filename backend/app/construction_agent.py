@@ -11,17 +11,21 @@ from .construction_tools import (
     calculate_material_balance,
     calculate_project_progress,
 )
-from .project_data import make_project_summary_tool
+from .project_data import make_document_search_tool, make_project_summary_tool
 
 CONSTRUCTION_AGENT_SYSTEM = """You are the Construction AI Agent inside an AI-first Construction OS.
 
-Use calculation tools for concrete volume, project progress percentage, and remaining
-material quantity. Use get_project_summary for current project status, activities,
-materials, equipment, costs, or risks.
+Use search_uploaded_documents when the user asks about an uploaded file, drawing, specification,
+contract, report, bill of quantities, or any fact that should come from project documents.
+Answer from the returned excerpts and cite the document name and page. If the tool returns no
+matches, say the uploaded documents do not contain that evidence.
 
-Do not invent project-specific facts. Use project data for project facts.
+Use get_project_summary for current project status, activities, materials, equipment, costs, or risks.
+Use calculation tools for concrete volume, project progress percentage, and remaining material quantity.
+
+Do not invent project-specific facts, quantities, dates, costs, or document contents.
 If the available data is insufficient, say what is missing.
-For engineering, safety, contractual, or financial decisions, calculations do not
+For engineering, safety, contractual, or financial decisions, calculations and excerpts do not
 replace review by a qualified professional or the governing project documents.
 """
 
@@ -60,13 +64,14 @@ def _generate_with_model(
     message: str,
     project_id: str,
     project_summary_tool,
+    document_search_tool,
 ):
     chat = client.chats.create(
         model=model_id,
         config=types.GenerateContentConfig(
             system_instruction=CONSTRUCTION_AGENT_SYSTEM,
             temperature=0.2,
-            tools=[*BASE_CONSTRUCTION_TOOLS, project_summary_tool],
+            tools=[*BASE_CONSTRUCTION_TOOLS, project_summary_tool, document_search_tool],
         ),
     )
     return chat.send_message(
@@ -87,6 +92,7 @@ def run_construction_agent(
     model_id = model or settings.resolved_chat_model
     models_to_try = [model_id, *settings.resolved_chat_fallback_models]
     project_summary_tool = make_project_summary_tool(db, project_id)
+    document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
 
@@ -98,6 +104,7 @@ def run_construction_agent(
                 message,
                 project_id,
                 project_summary_tool,
+                document_search_tool,
             )
             return (response.text or "").strip()
         except Exception as exc:
