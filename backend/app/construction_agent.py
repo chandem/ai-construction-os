@@ -14,6 +14,7 @@ from .schedule_intelligence import make_project_schedule_intelligence_tool
 from .risk_prediction import make_project_risk_prediction_tool
 from .contract_intelligence import make_project_contract_intelligence_tool
 from .boq_intelligence import make_project_boq_intelligence_tool
+from .document_intelligence_tool import make_project_document_intelligence_tool
 from .resource_optimization import make_project_resource_optimization_tool
 from .construction_tools import (
     calculate_concrete_volume,
@@ -76,6 +77,9 @@ management priorities. Do not invent clauses, obligations, entitlements, or lega
 Use get_project_boq_intelligence when the user asks about the structured BOQ, quantities, units, rates,
 amounts, work sections, BOQ data quality, or BOQ-related management priorities. Do not invent quantities,
 rates, scope, design intent, or contractual entitlement; use uploaded BOQ documents for supporting context.
+Use get_project_document_intelligence when the user asks whether project documents are processed, searchable,
+complete enough for AI use, failed, missing extracted text, or need reprocessing. Treat readiness as a processing
+quality signal, not proof that the source document is technically or contractually correct.
 Use get_project_document_intelligence when the user asks whether uploaded documents are processed correctly,
 which files are ready for AI search, document extraction quality, processing failures, missing chunks, or document readiness.
 Do not treat document processing readiness as proof that a document is approved, complete, current, or technically correct.
@@ -236,6 +240,7 @@ def run_construction_agent(
                 project_schedule_intelligence_tool,
                 project_resource_optimization_tool,
                 project_boq_intelligence_tool,
+                project_document_intelligence_tool,
                 document_search_tool,
             )
             return (response.text or "").strip()
