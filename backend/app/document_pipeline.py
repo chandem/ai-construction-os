@@ -70,24 +70,42 @@ def run_document_pipeline(
 
         _set_job(client, job_id, progress=40)
 
-        embeddings = embed_texts([chunk["content"] for chunk in chunks]) if chunks else []
-        _set_job(client, job_id, progress=60)
-
+        # Persist parser output before any remote AI call. A Gemini outage or
+        # quota error must not destroy otherwise-valid extracted document text.
         client.table("ai_knowledge_documents").update(
-            {"extracted_text": text_content, "page_count": page_count, "status": "ready"}
+            {"extracted_text": text_content, "page_count": page_count, "status": "processing"}
         ).eq("id", knowledge_id).execute()
 
-        extraction = extract_construction_data(safe_name, text_content)
-        client.table("ai_extractions").insert(
-            {
-                "document_id": document_id,
-                "extraction_type": extraction["document_type"],
-                "data": extraction,
-            }
+        processing_warnings: list[str] = []
+        embeddings: list[list[float]] = []
+
+        # Remove stale vectors before rebuilding the index. If enrichment
+        # fails, retrieval must not accidentally serve an older document version.
+        client.table("ai_knowledge_chunks").delete().eq(
+            "knowledge_document_id", knowledge_id
         ).execute()
+
+        try:
+            embeddings = embed_texts([chunk["content"] for chunk in chunks]) if chunks else []
+        except Exception as exc:
+            processing_warnings.append(f"Semantic embeddings unavailable: {str(exc)[:500]}")
+        _set_job(client, job_id, progress=60)
+
+        extraction = None
+        try:
+            extraction = extract_construction_data(safe_name, text_content)
+            client.table("ai_extractions").insert(
+                {
+                    "document_id": document_id,
+                    "extraction_type": extraction["document_type"],
+                    "data": extraction,
+                }
+            ).execute()
+        except Exception as exc:
+            processing_warnings.append(f"AI structured extraction unavailable: {str(exc)[:500]}")
         _set_job(client, job_id, progress=75)
 
-        if extraction.get("document_type") == "drawing_specification":
+        if extraction and extraction.get("document_type") == "drawing_specification":
             engineering = extraction.get("data", {}).get("engineering", {})
             design_asset_result = client.table("design_assets").insert(
                 {
@@ -197,7 +215,7 @@ def run_document_pipeline(
 
         _set_job(client, job_id, progress=90)
 
-        if chunks:
+        if chunks and len(embeddings) == len(chunks) and all(embeddings):
             # Reprocessing must be idempotent for the vector index. Remove
             # prior chunks for this knowledge document before inserting the
             # newly extracted/embedded chunks.
@@ -221,20 +239,22 @@ def run_document_pipeline(
                 for i, chunk in enumerate(chunks)
             ]
             client.table("ai_knowledge_chunks").insert(rows).execute()
-        else:
+        elif not chunks:
             # A valid document with no extracted text should not retain stale
             # vectors from an earlier processing run.
             client.table("ai_knowledge_chunks").delete().eq(
                 "knowledge_document_id", knowledge_id
             ).execute()
 
+        warning_text = "; ".join(processing_warnings)[:2000] or None
+        _set_knowledge(client, knowledge_id, status="ready" if not processing_warnings else "partial")
         _set_job(
             client,
             job_id,
             status="completed",
             progress=100,
             completed_at=_now(),
-            error_message=None,
+            error_message=warning_text,
         )
         _set_document(client, document_id, status="processed")
 
