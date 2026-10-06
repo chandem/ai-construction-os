@@ -10,6 +10,10 @@ from typing import Any
 
 from supabase import Client
 
+MIN_DOCUMENT_SIMILARITY = 0.35
+MAX_DOCUMENT_MATCHES = 6
+MAX_EXCERPT_CHARS = 1200
+
 
 def build_project_summary(
     project: dict[str, Any],
@@ -149,3 +153,79 @@ def make_project_summary_tool(client: Client, project_id: str):
         )
 
     return get_project_summary
+
+
+def make_document_search_tool(client: Client, project_id: str):
+    """Return a Gemini-callable search over text extracted from uploaded files."""
+
+    def search_uploaded_documents(query: str) -> dict[str, Any]:
+        """Search text extracted from documents uploaded to this project.
+
+        Use this for questions about drawings, specifications, contracts, reports,
+        bills of quantities, or any other uploaded file. Cite the document name
+        and page from the returned excerpts. Do not invent file contents.
+        """
+        from .embeddings import embed_texts
+
+        question = (query or "").strip()
+        if not question:
+            return {"matches": [], "note": "A search query is required."}
+
+        embeddings = embed_texts([question])
+        if not embeddings:
+            return {"matches": [], "note": "Could not embed the question."}
+
+        result = client.rpc(
+            "match_ai_knowledge_chunks",
+            {
+                "query_embedding": embeddings[0],
+                "match_project_id": project_id,
+                "match_count": MAX_DOCUMENT_MATCHES,
+            },
+        ).execute()
+        matches = [
+            row
+            for row in (result.data or [])
+            if (row.get("similarity") or 0) >= MIN_DOCUMENT_SIMILARITY
+        ]
+        document_ids = list(
+            {str(row.get("document_id")) for row in matches if row.get("document_id")}
+        )
+        titles: dict[str, str] = {}
+        if document_ids:
+            docs = (
+                client.table("documents")
+                .select("id,name,status")
+                .eq("project_id", project_id)
+                .in_("id", document_ids)
+                .execute()
+            )
+            titles = {
+                str(row["id"]): row.get("name") or str(row["id"])
+                for row in (docs.data or [])
+            }
+
+        excerpts = []
+        for row in matches:
+            document_id = str(row.get("document_id") or "")
+            content = (row.get("content") or "").strip()
+            excerpts.append(
+                {
+                    "document": titles.get(document_id) or document_id or "Uploaded document",
+                    "page": row.get("page_number"),
+                    "similarity": row.get("similarity"),
+                    "excerpt": content[:MAX_EXCERPT_CHARS],
+                }
+            )
+
+        if not excerpts:
+            return {
+                "matches": [],
+                "note": (
+                    "No relevant text was found in uploaded documents. "
+                    "The file may still be processing, or it may not contain extractable text."
+                ),
+            }
+        return {"matches": excerpts}
+
+    return search_uploaded_documents
