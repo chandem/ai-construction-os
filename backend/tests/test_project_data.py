@@ -4,6 +4,7 @@ from app.project_data import (
     build_project_risk_analysis,
     build_project_forecast,
     build_project_early_warnings,
+    build_project_management_recommendations,
     build_project_priorities,
     build_project_summary,
 )
@@ -190,3 +191,17 @@ def test_build_project_early_warnings_flags_schedule_and_material_signals():
     assert any(item["area"] == "Schedule" for item in result["warnings"])
     assert any(item["area"] == "Materials" for item in result["warnings"])
     assert any(item["area"] == "Risk visibility" for item in result["warnings"])
+
+
+def test_build_project_management_recommendations_synthesizes_signals():
+    summary = build_project_summary(
+        {"id": "p1", "name": "Shakiso-Solomo", "status": "active"},
+        [], [], [], [], [],
+    )
+    result = build_project_management_recommendations(summary)
+
+    assert result["recommendation_count"] > 0
+    assert result["overall_priority"] == "high"
+    assert any(item["area"] == "Progress tracking" for item in result["recommendations"])
+    assert result["decision_basis"]["forecast_readiness"] == "insufficient_data"
+    assert "read-only" in result["note"]
