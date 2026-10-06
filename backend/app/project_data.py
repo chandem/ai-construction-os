@@ -63,7 +63,7 @@ def build_project_summary(
             "entry_count": len(costs),
             "totals_by_currency": {key: round(value, 2) for key, value in cost_totals.items()},
         },
-        "risks": {"count": len(risks), "level_counts": risk_counts},
+        "risks": {\n            "count": len(risks),\n            "level_counts": risk_counts,\n            "status_counts": _count_values(risks, "status"),\n            "items": [\n                {\n                    "risk_code": row.get("risk_code"),\n                    "title": row.get("title"),\n                    "level": row.get("level"),\n                    "status": row.get("status"),\n                }\n                for row in risks\n            ][:20],\n        },
     }
 
 
@@ -466,6 +466,68 @@ def build_project_monitoring(summary: dict[str, Any]) -> dict[str, Any]:
         ],
         "note": "Monitoring is based only on currently recorded project data and does not modify project records.",
     }
+
+
+def build_project_risk_analysis(summary: dict[str, Any]) -> dict[str, Any]:
+    """Analyze recorded risks and identify conservative risk-control gaps."""
+    risks = summary.get("risks", {})
+    recorded = risks.get("items", [])
+    level_counts = risks.get("level_counts", {})
+    status_counts = risks.get("status_counts", {})
+
+    high = int(level_counts.get("high", 0) or 0)
+    medium = int(level_counts.get("medium", 0) or 0)
+    low = int(level_counts.get("low", 0) or 0)
+
+    recommendations: list[dict[str, Any]] = []
+    if not recorded:
+        recommendations.append({
+            "priority": "high",
+            "area": "Risk register",
+            "finding": "No project risks are currently recorded.",
+            "action": "Create an initial risk register covering schedule, procurement/materials, cost, quality, safety, equipment, and contractual interfaces as applicable.",
+        })
+    if high:
+        recommendations.append({
+            "priority": "high",
+            "area": "High-level risks",
+            "finding": f"{high} high-level risk(s) are recorded.",
+            "action": "Review each high-level risk, confirm an owner, current status, mitigation measure, and target review date.",
+        })
+    elif medium:
+        recommendations.append({
+            "priority": "medium",
+            "area": "Medium-level risks",
+            "finding": f"{medium} medium-level risk(s) are recorded.",
+            "action": "Confirm ownership and active mitigation measures for medium-level risks.",
+        })
+
+    if risks.get("count", 0) and not status_counts:
+        recommendations.append({
+            "priority": "medium",
+            "area": "Risk status",
+            "finding": "Risk status information is incomplete in the available summary.",
+            "action": "Review risk status fields before using the register for formal management reporting.",
+        })
+
+    return {
+        "project": summary.get("project", {}),
+        "recorded_risk_count": risks.get("count", 0),
+        "recorded_risks": recorded[:20],
+        "level_counts": {"high": high, "medium": medium, "low": low},
+        "status_counts": status_counts,
+        "recommendations": recommendations,
+        "note": "This analysis reports recorded risk data and control recommendations only. It does not create, edit, or close risks automatically.",
+    }
+
+def make_project_risk_analysis_tool(client: Client, project_id: str):
+    get_summary = make_project_summary_tool(client, project_id)
+
+    def get_project_risk_analysis() -> dict[str, Any]:
+        """Analyze recorded project risks and recommend conservative risk-control actions."""
+        return build_project_risk_analysis(get_summary())
+
+    return get_project_risk_analysis
 
 
 def make_project_monitoring_tool(client: Client, project_id: str):
