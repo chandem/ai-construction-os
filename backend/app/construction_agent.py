@@ -13,7 +13,11 @@ from .construction_tools import (
     calculate_material_balance,
     calculate_project_progress,
 )
-from .project_data import make_document_search_tool, make_project_summary_tool
+from .project_data import (
+    make_document_search_tool,
+    make_project_priorities_tool,
+    make_project_summary_tool,
+)
 
 CONSTRUCTION_AGENT_SYSTEM = """You are the Construction AI Agent inside an AI-first Construction OS.
 
@@ -23,6 +27,8 @@ Quote the excerpts and cite the document name. If the context has files but no e
 are uploaded and repeat the note. Do not call this a system error unless the note says the lookup failed.
 
 Use get_project_summary for current project status, activities, materials, equipment, costs, or risks.
+Use get_project_priorities when the user asks what to focus on, what needs attention, recommended
+next actions, or project priorities.
 Use calculation tools for concrete volume, project progress percentage, and remaining material quantity.
 You may also call search_uploaded_documents if the preloaded context is not enough.
 
@@ -74,6 +80,7 @@ def _generate_with_model(
     message: str,
     project_id: str,
     project_summary_tool,
+    project_priorities_tool,
     document_search_tool,
 ):
     context = _document_context(document_search_tool, message)
@@ -82,7 +89,12 @@ def _generate_with_model(
         config=types.GenerateContentConfig(
             system_instruction=CONSTRUCTION_AGENT_SYSTEM,
             temperature=0.2,
-            tools=[*BASE_CONSTRUCTION_TOOLS, project_summary_tool, document_search_tool],
+            tools=[
+                *BASE_CONSTRUCTION_TOOLS,
+                project_summary_tool,
+                project_priorities_tool,
+                document_search_tool,
+            ],
         ),
     )
     return chat.send_message(
@@ -104,6 +116,7 @@ def run_construction_agent(
     model_id = model or settings.resolved_chat_model
     models_to_try = [model_id, *settings.resolved_chat_fallback_models]
     project_summary_tool = make_project_summary_tool(db, project_id)
+    project_priorities_tool = make_project_priorities_tool(db, project_id)
     document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
@@ -116,6 +129,7 @@ def run_construction_agent(
                 message,
                 project_id,
                 project_summary_tool,
+                project_priorities_tool,
                 document_search_tool,
             )
             return (response.text or "").strip()
