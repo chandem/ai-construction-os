@@ -63,7 +63,20 @@ def build_project_summary(
             "entry_count": len(costs),
             "totals_by_currency": {key: round(value, 2) for key, value in cost_totals.items()},
         },
-        "risks": {\n            "count": len(risks),\n            "level_counts": risk_counts,\n            "status_counts": _count_values(risks, "status"),\n            "items": [\n                {\n                    "risk_code": row.get("risk_code"),\n                    "title": row.get("title"),\n                    "level": row.get("level"),\n                    "status": row.get("status"),\n                }\n                for row in risks\n            ][:20],\n        },
+        "risks": {
+            "count": len(risks),
+            "level_counts": risk_counts,
+            "status_counts": _count_values(risks, "status"),
+            "items": [
+                {
+                    "risk_code": row.get("risk_code"),
+                    "title": row.get("title"),
+                    "level": row.get("level"),
+                    "status": row.get("status"),
+                }
+                for row in risks
+            ][:20],
+        },
     }
 
 
