@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from supabase import Client
+
 MAX_DOCUMENT_MATCHES = 6
 MAX_EXCERPT_CHARS = 1500
 
@@ -307,6 +309,7 @@ def make_project_document_intelligence_tool(client: Client, project_id: str):
 
     return get_project_document_intelligence
 
+
 def _count_values(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for row in rows:
@@ -444,7 +447,6 @@ def make_document_search_tool(client: Client, project_id: str):
         return {"matches": [], "files": listed, "note": note}
 
     return search_uploaded_documents
-
 
 
 def build_project_action_plan(summary: dict[str, Any]) -> dict[str, Any]:
@@ -670,6 +672,7 @@ def build_project_risk_analysis(summary: dict[str, Any]) -> dict[str, Any]:
         "recommendations": recommendations,
         "note": "This analysis reports recorded risk data and control recommendations only. It does not create, edit, or close risks automatically.",
     }
+
 
 def make_project_risk_analysis_tool(client: Client, project_id: str):
     get_summary = make_project_summary_tool(client, project_id)
@@ -967,6 +970,7 @@ def build_project_performance_score(summary: dict[str, Any]) -> dict[str, Any]:
         "note": "This score is read-only and indicative. It does not replace approved baselines, engineering judgment, project controls, or formal management reporting.",
     }
 
+
 def make_project_performance_score_tool(client: Client, project_id: str):
     get_summary = make_project_summary_tool(client, project_id)
 
@@ -975,6 +979,7 @@ def make_project_performance_score_tool(client: Client, project_id: str):
         return build_project_performance_score(get_summary())
 
     return get_project_performance_score
+
 
 def build_project_management_recommendations(summary: dict[str, Any]) -> dict[str, Any]:
     """Synthesize current project signals into prioritized, read-only management recommendations."""
@@ -1012,7 +1017,7 @@ def build_project_management_recommendations(summary: dict[str, Any]) -> dict[st
         add(item["priority"], item["area"], item["action"], item["reason"], "project priorities")
 
     if forecast.get("readiness") == "insufficient_data":
-        add("high", "Forecast readiness", "Establish the missing baseline controls before relying on quantitative project forecasts.", "Forecast readiness is low because required project control data is missing.", "project forecasting")
+        add("high", "Forecast readiness", "Establish the missing baseline controls before relying on quantitative project forecasts.", "Forecast readiness is low because required project control data is missing.", "forecast readiness")
 
     rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     recommendations.sort(key=lambda item: rank.get(item["priority"], 4))
@@ -1029,7 +1034,7 @@ def build_project_management_recommendations(summary: dict[str, Any]) -> dict[st
             "early_warning_count": early_warnings.get("warning_count", 0),
             "risk_count": risk_analysis.get("recorded_risk_count", 0),
         },
-        "note": "Recommendations synthesize currently recorded project data and remain read-only. Management should validate recommendations against approved project documents and professional judgment before action.",
+        "note": "Recommendations synthesize currently recorded project data and remain read-only. Management should validate recommendations against approved project documents and professional judgment.",
     }
 
 
