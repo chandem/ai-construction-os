@@ -4,5 +4,15 @@ import "./styles.css";
 import "./sign-out.css";
 import "./polish.css";
 import { App } from "./App";
+import { ErrorBoundary } from "./ErrorBoundary";
 
-createRoot(document.getElementById("root")!).render(<App />);
+const rootEl = document.getElementById("root");
+if (!rootEl) {
+  throw new Error("Root element #root was not found in index.html");
+}
+
+createRoot(rootEl).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>,
+);
