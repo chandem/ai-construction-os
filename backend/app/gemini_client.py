@@ -229,9 +229,15 @@ def embed_texts_gemini(texts: list[str]) -> list[list[float]]:
         for text in batch:
 
             def _call(t: str = text) -> Any:
+                # The production pgvector column is vector(1536). Gemini embedding
+                # models default to 3072 dimensions, so request a compatible
+                # 1536-dimensional representation explicitly.
+                from google.genai import types
+
                 return client.models.embed_content(
                     model=model_id,
                     contents=t,
+                    config=types.EmbedContentConfig(output_dimensionality=1536),
                 )
 
             result = _with_retry(_call, label="embed_content")
