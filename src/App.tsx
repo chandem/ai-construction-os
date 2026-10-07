@@ -52,6 +52,8 @@ export function App() {
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [input, setInput] = React.useState("");
   const [uploading, setUploading] = React.useState(false);
+  const [reprocessingDocuments, setReprocessingDocuments] = React.useState<Record<string, boolean>>({});
+  const [documentJobs, setDocumentJobs] = React.useState<Record<string, any>>({});
   const [aiBusy, setAiBusy] = React.useState(false);
   const [copiedMessage, setCopiedMessage] = React.useState<number | null>(null);
   const [error, setError] = React.useState("");
@@ -81,15 +83,40 @@ export function App() {
       .finally(() => setProjectsLoading(false));
   }, [token]);
 
+  async function loadProjectDocuments() {
+    if (!token || !projectId) {
+      setDocuments([]);
+      setDocumentJobs({});
+      return;
+    }
+    try {
+      const r = await apiGet("/api/v1/projects/" + projectId + "/documents", token);
+      const docs = r.data || [];
+      setDocuments(docs);
+      const statuses = await Promise.all(
+        docs.map(async (d: Document) => {
+          try {
+            return [d.id, await apiGet("/api/v1/documents/" + d.id + "/status", token)] as const;
+          } catch {
+            return [d.id, null] as const;
+          }
+        }),
+      );
+      setDocumentJobs(Object.fromEntries(statuses.filter(([, status]) => status)));
+    } catch {
+      setDocuments([]);
+      setDocumentJobs({});
+    }
+  }
+
   React.useEffect(() => {
     if (!token || !projectId) {
       setDocuments([]);
+      setDocumentJobs({});
       setConversations([]);
       return;
     }
-    apiGet("/api/v1/projects/" + projectId + "/documents", token)
-      .then((r) => setDocuments(r.data || []))
-      .catch(() => setDocuments([]));
+    loadProjectDocuments();
     apiGet("/api/v1/projects/" + projectId + "/conversations", token)
       .then((r) => setConversations(r.data || []))
       .catch(() => setConversations([]));
@@ -137,13 +164,49 @@ export function App() {
       const fd = new FormData();
       fd.append("file", file);
       await apiUpload("/api/v1/projects/" + projectId + "/documents", token, fd);
-      const r = await apiGet("/api/v1/projects/" + projectId + "/documents", token);
-      setDocuments(r.data || []);
+      await loadProjectDocuments();
       setNotice("Document uploaded and queued for processing.");
     } catch (err: any) {
       setError(err.message || "Upload failed.");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function reprocessDocument(documentId: string, documentName: string) {
+    if (!token || reprocessingDocuments[documentId]) return;
+    setReprocessingDocuments((current) => ({ ...current, [documentId]: true }));
+    setError("");
+    setNotice("");
+    try {
+      await apiPost("/api/v1/documents/" + documentId + "/reprocess", token);
+      await loadProjectDocuments();
+      setNotice("Reprocessing started for " + documentName + ".");
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
+        const job = await apiGet("/api/v1/documents/" + documentId + "/status", token);
+        setDocumentJobs((current) => ({ ...current, [documentId]: job }));
+        if (job.status === "completed" || job.status === "failed") {
+          await loadProjectDocuments();
+          if (job.status === "completed" && job.error_message) {
+            setNotice(documentName + " is processed, but AI enrichment is partial. " + job.error_message);
+          } else if (job.status === "completed") {
+            setNotice(documentName + " finished processing.");
+          } else {
+            setError(documentName + " processing failed: " + (job.error_message || "Unknown processing error"));
+          }
+          break;
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || "Could not reprocess document.");
+    } finally {
+      setReprocessingDocuments((current) => {
+        const next = { ...current };
+        delete next[documentId];
+        return next;
+      });
     }
   }
 
@@ -263,11 +326,31 @@ export function App() {
               <span> - {documents.length} uploaded</span>
               <label className="file-upload">{uploading ? "Uploading..." : "Upload document"}<input type="file" disabled={!projectId || uploading || aiBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDocument(f); e.target.value = ""; }} /></label>
               <div className="doc-list">
-                {documents.map((d) => (
-                  <button key={d.id} type="button" className="side-action" onClick={() => openDocumentFile(d.id, token, d.name).catch((err) => setError(err.message || "Could not open file"))}>
-                    Open {d.name} ({d.status || "uploaded"})
-                  </button>
-                ))}
+                {documents.map((d) => {
+                  const job = documentJobs[d.id];
+                  const busy = !!reprocessingDocuments[d.id];
+                  const jobStatus = job?.status;
+                  const partial = jobStatus === "completed" && !!job?.error_message;
+                  const displayStatus = busy ? "processing" : partial ? "partial" : (d.status || jobStatus || "uploaded");
+                  const canRetry = !busy && (d.status === "failed" || jobStatus === "failed" || partial);
+                  return (
+                    <div key={d.id} className="document-row">
+                      <button type="button" className="side-action" onClick={() => openDocumentFile(d.id, token, d.name).catch((err) => setError(err.message || "Could not open file"))}>
+                        Open {d.name} ({displayStatus})
+                      </button>
+                      {canRetry && (
+                        <button
+                          type="button"
+                          className="document-retry"
+                          onClick={() => reprocessDocument(d.id, d.name)}
+                          disabled={busy}
+                        >
+                          {busy ? "Processing..." : "Retry processing"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
