@@ -200,14 +200,41 @@ def _history(conversation_id: str, client: Client) -> list[dict[str, str]]:
     ]
 
 
+def _keyword_retrieve(project_id: str, question: str, client: Client) -> list[dict[str, Any]]:
+    documents = _db_execute(
+        lambda: client.table("documents").select("id").eq("project_id", project_id).execute(),
+        "loading project documents for keyword search",
+    )
+    document_ids = [str(row["id"]) for row in (documents.data or []) if row.get("id")]
+    if not document_ids:
+        return []
+
+    try:
+        result = _db_execute(
+            lambda: (
+                client.table("ai_knowledge_chunks")
+                .select("document_id,chunk_index,content,page_number,metadata")
+                .in_("document_id", document_ids)
+                .text_search("content", question, options={"type": "plain", "config": "english"})
+                .limit(MAX_SOURCES)
+                .execute()
+            ),
+            "searching project knowledge by keywords",
+        )
+    except Exception:
+        return []
+
+    return [{**match, "similarity": 0.0, "match_type": "keyword"} for match in (result.data or [])]
+
+
 def _retrieve(project_id: str, question: str, client: Client) -> list[dict[str, Any]]:
     try:
         embeddings = embed_texts([question])
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Knowledge search unavailable: {exc}") from exc
+    except Exception:
+        return _keyword_retrieve(project_id, question, client)
 
     if not embeddings:
-        return []
+        return _keyword_retrieve(project_id, question, client)
 
     try:
         result = _db_execute(
@@ -221,14 +248,18 @@ def _retrieve(project_id: str, question: str, client: Client) -> list[dict[str, 
             ).execute(),
             "searching project knowledge",
         )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Knowledge search failed: {exc}") from exc
+        matches = result.data or []
+        semantic_matches = [
+            {**match, "match_type": "semantic"}
+            for match in matches
+            if (match.get("similarity") or 0) >= MIN_SIMILARITY
+        ]
+        if semantic_matches:
+            return semantic_matches
+    except Exception:
+        pass
 
-    matches = result.data or []
-    return [match for match in matches if (match.get("similarity") or 0) >= MIN_SIMILARITY]
-
+    return _keyword_retrieve(project_id, question, client)
 
 def _document_titles(project_id: str, document_ids: list[str], client: Client) -> dict[str, str]:
     if not document_ids:
