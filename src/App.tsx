@@ -332,7 +332,7 @@ export function App() {
                   const jobStatus = job?.status;
                   const partial = jobStatus === "completed" && !!job?.error_message;
                   const displayStatus = busy ? "processing" : partial ? "partial" : (d.status || jobStatus || "uploaded");
-                  const canRetry = !busy && (d.status === "failed" || jobStatus === "failed" || partial);
+                  const canRetry = !busy;
                   return (
                     <div key={d.id} className="document-row">
                       <button type="button" className="side-action" onClick={() => openDocumentFile(d.id, token, d.name).catch((err) => setError(err.message || "Could not open file"))}>
@@ -345,7 +345,7 @@ export function App() {
                           onClick={() => reprocessDocument(d.id, d.name)}
                           disabled={busy}
                         >
-                          {busy ? "Processing..." : "Retry processing"}
+                          {busy ? "Processing..." : "Reprocess"}
                         </button>
                       )}
                     </div>
