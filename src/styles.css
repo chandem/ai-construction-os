@@ -189,3 +189,8 @@ select:focus, input:focus, textarea:focus { border-color: #6b7c8a; box-shadow: 0
   .auth-hero h1 { font-size: 26px; }
   .value-grid { grid-template-columns: 1fr; }
 }
+
+.document-row { display: grid; gap: 6px; margin-top: 10px; }
+.document-row .side-action { margin-top: 0; }
+.document-retry { width: 100%; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 9px; background: #eef2f5; color: var(--ink); font-size: 11px; font-weight: 750; text-align: center; }
+.document-retry:hover:not(:disabled) { background: #e3e8ec; }
