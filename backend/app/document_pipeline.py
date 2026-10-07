@@ -215,14 +215,16 @@ def run_document_pipeline(
 
         _set_job(client, job_id, progress=90)
 
-        if chunks and len(embeddings) == len(chunks) and all(embeddings):
-            # Reprocessing must be idempotent for the vector index. Remove
-            # prior chunks for this knowledge document before inserting the
-            # newly extracted/embedded chunks.
+        if chunks:
+            # Always persist extracted chunks, even when semantic embeddings
+            # are unavailable. The embedding column is nullable, so keyword
+            # retrieval can still use the stored text while semantic indexing
+            # is retried later.
             client.table("ai_knowledge_chunks").delete().eq(
                 "knowledge_document_id", knowledge_id
             ).execute()
 
+            semantic_indexed = len(embeddings) == len(chunks) and all(embeddings)
             rows = [
                 {
                     "knowledge_document_id": knowledge_id,
@@ -233,15 +235,16 @@ def run_document_pipeline(
                     "metadata": {
                         "source": safe_name,
                         "processor": "construction-text-embedding-v1",
+                        "semantic_indexed": bool(semantic_indexed),
                     },
-                    "embedding": embeddings[i],
+                    "embedding": embeddings[i] if semantic_indexed else None,
                 }
                 for i, chunk in enumerate(chunks)
             ]
             client.table("ai_knowledge_chunks").insert(rows).execute()
-        elif not chunks:
+        else:
             # A valid document with no extracted text should not retain stale
-            # vectors from an earlier processing run.
+            # chunks from an earlier processing run.
             client.table("ai_knowledge_chunks").delete().eq(
                 "knowledge_document_id", knowledge_id
             ).execute()
