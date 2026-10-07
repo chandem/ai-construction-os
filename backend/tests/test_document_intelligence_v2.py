@@ -40,3 +40,17 @@ def test_document_is_ready_only_when_processing_completed_without_errors():
         3,
     )
     assert result['readiness'] == 'partial'
+
+
+def test_document_is_text_searchable_when_embeddings_are_unavailable():
+    result = build_document_intelligence(
+        {'id':'1','name':'maintenance.xlsx'},
+        {'status':'completed','error_message':'Semantic embeddings unavailable: 429 RESOURCE_EXHAUSTED'},
+        {'extracted_text':'Maintenance plan text '*20,'page_count':4},
+        None,
+        0,
+    )
+    assert result['readiness'] == 'partial'
+    assert result['text_searchable'] is True
+    assert result['semantic_searchable'] is False
+    assert any('text search remains available' in warning for warning in result['warnings'])
