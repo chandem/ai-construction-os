@@ -201,33 +201,55 @@ def _history(conversation_id: str, client: Client) -> list[dict[str, str]]:
 
 
 def _retrieve(project_id: str, question: str, client: Client) -> list[dict[str, Any]]:
+    # Prefer semantic retrieval when embeddings are available. If Gemini
+    # embeddings are unavailable, fall back to Postgres full-text search so
+    # extracted document text remains useful during AI outages or quota limits.
     try:
         embeddings = embed_texts([question])
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Knowledge search unavailable: {exc}") from exc
+    except Exception:
+        embeddings = []
 
-    if not embeddings:
-        return []
+    if embeddings:
+        try:
+            result = _db_execute(
+                lambda: client.rpc(
+                    "match_ai_knowledge_chunks",
+                    {
+                        "query_embedding": embeddings[0],
+                        "match_project_id": project_id,
+                        "match_count": MAX_SOURCES,
+                    },
+                ).execute(),
+                "searching project knowledge",
+            )
+            matches = result.data or []
+            semantic_matches = [
+                match for match in matches if (match.get("similarity") or 0) >= MIN_SIMILARITY
+            ]
+            if semantic_matches:
+                return semantic_matches
+        except Exception:
+            # Text search below is the resilience fallback.
+            pass
 
     try:
         result = _db_execute(
             lambda: client.rpc(
-                "match_ai_knowledge_chunks",
+                "match_ai_knowledge_chunks_text",
                 {
-                    "query_embedding": embeddings[0],
+                    "search_query": question,
                     "match_project_id": project_id,
                     "match_count": MAX_SOURCES,
                 },
             ).execute(),
-            "searching project knowledge",
+            "searching project document text",
         )
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Knowledge search failed: {exc}") from exc
 
-    matches = result.data or []
-    return [match for match in matches if (match.get("similarity") or 0) >= MIN_SIMILARITY]
+    return result.data or []
 
 
 def _document_titles(project_id: str, document_ids: list[str], client: Client) -> dict[str, str]:
