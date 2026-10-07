@@ -457,13 +457,16 @@ def document_status(document_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
     client = _authenticated_client(token)
     _document_for_member(document_id, user["id"], client)
-    result = (
-        client.table("document_processing_jobs")
-        .select(JOB_STATUS_FIELDS)
-        .eq("document_id", document_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
+    result = _execute_with_retry(
+        lambda: (
+            client.table("document_processing_jobs")
+            .select(JOB_STATUS_FIELDS)
+            .eq("document_id", document_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ),
+        "checking document processing status",
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Processing job not found")
