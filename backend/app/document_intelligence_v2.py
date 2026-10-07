@@ -28,8 +28,8 @@ def build_document_intelligence(document, job, knowledge, extraction, chunk_coun
         warnings.append('No extractable text is currently stored.')
         recommendations.append('Check whether the file is scanned or image-only; OCR or a text-based source may be required.')
     elif chunk_count == 0:
-        warnings.append('Text was extracted but no searchable chunks are stored.')
-        recommendations.append('Reprocess the document to rebuild the searchable knowledge index.')
+        warnings.append('Text was extracted, but semantic search chunks are unavailable; text search remains available.')
+        recommendations.append('Retry AI enrichment when Gemini is available to rebuild semantic search chunks.')
     if page_count and text.strip():
         try:
             if len(text.strip()) / int(page_count) < 80:
@@ -50,7 +50,7 @@ def build_document_intelligence(document, job, knowledge, extraction, chunk_coun
         readiness = 'needs_review'
     if not recommendations:
         recommendations.append('Use the processed document with source-page verification for project decisions.')
-    return {'document_id': document.get('id'), 'name': document.get('name'), 'status': status, 'readiness': readiness, 'mime_type': document.get('mime_type'), 'file_size_bytes': document.get('file_size_bytes'), 'page_count': page_count, 'extracted_characters': len(text.strip()), 'chunk_count': chunk_count, 'extraction_type': extraction_type, 'extraction_confidence': confidence, 'warnings': warnings[:10], 'recommendations': recommendations[:10], 'error_message': (job or {}).get('error_message')}
+    return {'document_id': document.get('id'), 'name': document.get('name'), 'status': status, 'readiness': readiness, 'mime_type': document.get('mime_type'), 'file_size_bytes': document.get('file_size_bytes'), 'page_count': page_count, 'extracted_characters': len(text.strip()), 'chunk_count': chunk_count, 'text_searchable': bool(text.strip()), 'semantic_searchable': chunk_count > 0, 'extraction_type': extraction_type, 'extraction_confidence': confidence, 'warnings': warnings[:10], 'recommendations': recommendations[:10], 'error_message': (job or {}).get('error_message')}
 
 
 def build_project_document_intelligence(documents):
