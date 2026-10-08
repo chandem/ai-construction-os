@@ -21,8 +21,19 @@ _RETRY_MARKERS = (
     "429",
     "RESOURCE_EXHAUSTED",
     "rate limit",
-    "quota",
     "try again",
+)
+
+# Daily/free-tier quota exhaustion will not be resolved by a short retry.
+# Failing fast lets the document pipeline preserve extracted text and mark
+# AI enrichment as partial instead of spending minutes retrying the same error.
+_NON_RETRYABLE_QUOTA_MARKERS = (
+    "generate_content_free_tier_requests",
+    "generate_content_free_tier_input_token_count",
+    "generaterequestsperdayperprojectpermodelfreetier",
+    "daily quota",
+    "quota exceeded",
+    "exceeded your current quota",
 )
 _MAX_RETRIES = 4
 _RETRY_DELAYS = (1.5, 3.0, 6.0, 12.0)
@@ -43,6 +54,8 @@ def get_client():
 
 def _is_transient(exc: BaseException) -> bool:
     msg = str(exc).lower()
+    if any(m.lower() in msg for m in _NON_RETRYABLE_QUOTA_MARKERS):
+        return False
     return any(m.lower() in msg for m in _RETRY_MARKERS)
 
 
@@ -225,33 +238,34 @@ def embed_texts_gemini(texts: list[str]) -> list[list[float]]:
     batch_size = 16
     for start in range(0, len(texts), batch_size):
         batch = texts[start : start + batch_size]
+
+        def _call_batch() -> Any:
+            # Gemini supports multiple separate Content inputs in one embedding
+            # request. This reduces network/API calls substantially for large
+            # documents while preserving one embedding per chunk.
+            from google.genai import types
+
+            contents = [
+                types.Content(parts=[types.Part.from_text(text=text)])
+                for text in batch
+            ]
+            return client.models.embed_content(
+                model=model_id,
+                contents=contents,
+                config=types.EmbedContentConfig(output_dimensionality=1536),
+            )
+
+        result = _with_retry(_call_batch, label="embed_content_batch")
+        embeddings = getattr(result, "embeddings", None) or []
         batch_vecs: list[list[float]] = []
-        for text in batch:
-
-            def _call(t: str = text) -> Any:
-                # The production pgvector column is vector(1536). Gemini embedding
-                # models default to 3072 dimensions, so request a compatible
-                # 1536-dimensional representation explicitly.
-                from google.genai import types
-
-                return client.models.embed_content(
-                    model=model_id,
-                    contents=t,
-                    config=types.EmbedContentConfig(output_dimensionality=1536),
-                )
-
-            result = _with_retry(_call, label="embed_content")
-            values = None
-            embeddings = getattr(result, "embeddings", None)
-            if embeddings and len(embeddings) > 0:
-                emb = embeddings[0]
-                values = getattr(emb, "values", None) or getattr(emb, "embedding", None)
-            if values is None:
-                values = getattr(result, "values", None)
-            if values is None and hasattr(result, "embedding"):
-                values = getattr(result.embedding, "values", None) or result.embedding
+        for embedding in embeddings:
+            values = getattr(embedding, "values", None) or getattr(embedding, "embedding", None)
             batch_vecs.append(list(values) if values is not None else [])
-        out.extend(batch_vecs)
+
+        # Preserve input order/count if the SDK returns fewer embeddings.
+        while len(batch_vecs) < len(batch):
+            batch_vecs.append([])
+        out.extend(batch_vecs[: len(batch)])
     while len(out) < len(texts):
         out.append([])
     return out[: len(texts)]
