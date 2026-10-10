@@ -49,6 +49,10 @@ export function App() {
   const [uploading, setUploading] = React.useState(false);
   const [reprocessingDocuments, setReprocessingDocuments] = React.useState<Record<string, boolean>>({});
   const [documentJobs, setDocumentJobs] = React.useState<Record<string, any>>({});
+  const [resultsDocument, setResultsDocument] = React.useState<Document | null>(null);
+  const [documentResults, setDocumentResults] = React.useState<any>(null);
+  const [resultsLoading, setResultsLoading] = React.useState(false);
+  const [resultsError, setResultsError] = React.useState("");
   const [aiBusy, setAiBusy] = React.useState(false);
   const [copiedMessage, setCopiedMessage] = React.useState<number | null>(null);
   const [error, setError] = React.useState("");
@@ -210,6 +214,34 @@ export function App() {
     }
   }
   
+  async function viewDocumentResults(document: Document) {
+    if (!token) return;
+    setResultsDocument(document);
+    setDocumentResults(null);
+    setResultsError("");
+    setResultsLoading(true);
+    try {
+      const result = await apiGet("/api/v1/documents/" + document.id + "/results", token);
+      setDocumentResults(result);
+    } catch (err: any) {
+      setResultsError(err.message || "Could not load document results.");
+    } finally {
+      setResultsLoading(false);
+    }
+  }
+
+  function downloadExtractedText() {
+    const text = documentResults?.knowledge?.extracted_text;
+    if (!text || !resultsDocument) return;
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = window.document.createElement("a");
+    link.href = url;
+    link.download = resultsDocument.name.replace(/\\.[^.]+$/, "") + "-extracted.txt";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function startNewChat() {
     setConversationId("");
     setMessages([]);
@@ -419,6 +451,13 @@ export function App() {
                       <button
                         type="button"
                         className="document-retry"
+                        onClick={() => viewDocumentResults(d)}
+                      >
+                        View results
+                      </button>
+                      <button
+                        type="button"
+                        className="document-retry"
                         onClick={() => reprocessDocument(d.id, d.name)}
                         disabled={busy}
                       >
@@ -439,6 +478,57 @@ export function App() {
         <section className="main-panel">
           {error && <div className="error">{error}</div>}
           {notice && <div className="success">{notice}</div>}
+          {resultsDocument && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="document-results-title"
+              style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+            >
+              <div style={{ background: "var(--panel, #fff)", color: "var(--text, #17202a)", width: "min(900px, 100%)", maxHeight: "90vh", overflow: "auto", borderRadius: 14, padding: 20, boxShadow: "0 20px 70px rgba(0,0,0,.35)" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
+                  <div>
+                    <h2 id="document-results-title" style={{ margin: "0 0 6px" }}>Document Results</h2>
+                    <div style={{ overflowWrap: "anywhere", opacity: .75 }}>{resultsDocument.name}</div>
+                  </div>
+                  <button type="button" className="document-retry" onClick={() => { setResultsDocument(null); setDocumentResults(null); setResultsError(""); }}>Close</button>
+                </div>
+                {resultsLoading && <p>Loading extracted results…</p>}
+                {resultsError && <div className="error">{resultsError}</div>}
+                {!resultsLoading && !resultsError && documentResults && (
+                  <>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                      <span className="hint">Processing: {documentResults.knowledge?.status || "No extracted text record"}</span>
+                      {documentResults.knowledge?.page_count != null && <span className="hint">Pages: {documentResults.knowledge.page_count}</span>}
+                      {documentResults.extraction?.extraction_type && <span className="hint">Type: {documentResults.extraction.extraction_type}</span>}
+                    </div>
+                    <section style={{ marginBottom: 20 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+                        <h3 style={{ margin: 0 }}>Structured AI data</h3>
+                      </div>
+                      {documentResults.extraction?.data ? (
+                        <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 340, overflow: "auto", padding: 14, borderRadius: 8, background: "var(--surface, #f3f5f7)", fontSize: 13 }}>{JSON.stringify(documentResults.extraction.data, null, 2)}</pre>
+                      ) : (
+                        <p>No structured AI extraction is available yet. If processing completed with partial AI enrichment, the text below may still be available.</p>
+                      )}
+                    </section>
+                    <section>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 8 }}>
+                        <h3 style={{ margin: 0 }}>Extracted text</h3>
+                        <button type="button" className="document-retry" onClick={downloadExtractedText} disabled={!documentResults.knowledge?.extracted_text}>Download text</button>
+                      </div>
+                      {documentResults.knowledge?.extracted_text ? (
+                        <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 360, overflow: "auto", padding: 14, borderRadius: 8, background: "var(--surface, #f3f5f7)", fontSize: 13 }}>{documentResults.knowledge.extracted_text}</pre>
+                      ) : (
+                        <p>No extracted text is stored for this document. Try reprocessing it, then reopen results.</p>
+                      )}
+                    </section>
+                    <p style={{ fontSize: 12, opacity: .7 }}>AI-extracted quantities and prices must be checked against the original tender PDF before being used for a bid.</p>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
           {view === "os-home" && (
             <OsHome
               projectId={projectId}
