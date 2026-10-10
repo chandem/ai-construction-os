@@ -451,6 +451,43 @@ def document_extraction(document_id: str, token: str = Depends(get_access_token)
     return result.data[0]
 
 
+
+
+@router.get("/documents/{document_id}/results")
+def document_results(document_id: str, token: str = Depends(get_access_token)):
+    """Return extracted text and the latest structured AI extraction for an authorized document."""
+    user = get_current_user(token)
+    client = _authenticated_client(token)
+    _document_for_member(document_id, user["id"], client)
+
+    extraction_result = _execute_with_retry(
+        lambda: (
+            client.table("ai_extractions")
+            .select("id,document_id,extraction_type,data,created_at")
+            .eq("document_id", document_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ),
+        "loading document extraction results",
+    )
+    knowledge_result = _execute_with_retry(
+        lambda: (
+            client.table("ai_knowledge_documents")
+            .select("extracted_text,page_count,status,processing_job_id,created_at")
+            .eq("document_id", document_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ),
+        "loading extracted document text",
+    )
+    return {
+        "extraction": extraction_result.data[0] if extraction_result.data else None,
+        "knowledge": knowledge_result.data[0] if knowledge_result.data else None,
+    }
+
+
 @router.get("/documents/{document_id}/status")
 def document_status(document_id: str, token: str = Depends(get_access_token)):
     """Latest processing job for a document (queued | processing | completed | failed)."""
