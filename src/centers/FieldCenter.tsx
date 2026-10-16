@@ -117,6 +117,7 @@ export function FieldCenter({ projectId, token }: Props) {
 
   React.useEffect(() => {
     load();
+    loadPhotoEvidence();
   }, [projectId, token]);
 
   async function loadPhotoEvidence() {
@@ -169,7 +170,7 @@ export function FieldCenter({ projectId, token }: Props) {
         storage_path: uploadedPath,
         caption: photoCaption.trim() || null,
         work_section: photoSection.trim() || null,
-        captured_at: new Date(photoFile.lastModified || Date.now()).toISOString(),
+        captured_at: new Date().toISOString(),
       });
       if (insertError) {
         await supabase.storage.from("field-photo-evidence").remove([uploadedPath]);
