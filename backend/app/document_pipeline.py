@@ -218,3 +218,28 @@ def run_document_pipeline(
         except Exception:
             pass
         return {"status": "failed", "document_id": document_id, "error": msg}
+
+
+
+def run_document_pipeline_safe(client, **kwargs: Any) -> dict[str, Any]:
+    """Run the document pipeline while containing unexpected background-job errors.
+
+    The safe entry point is used by background_jobs.py. The main pipeline
+    already handles most processing failures; this wrapper also catches errors
+    raised before or outside its internal processing block.
+    """
+    try:
+        return run_document_pipeline(client, **kwargs)
+    except Exception as exc:
+        msg = str(exc)[:1000]
+        job_id = str(kwargs.get("job_id") or "")
+        document_id = str(kwargs.get("document_id") or "")
+        knowledge_id = str(kwargs.get("knowledge_id") or "")
+        _set_job(client, job_id, status="failed", progress=100, error_message=msg)
+        _set_document(client, document_id, status="failed")
+        _set_knowledge(client, knowledge_id, status="failed")
+        return {
+            "status": "failed",
+            "document_id": document_id,
+            "error": msg,
+        }
