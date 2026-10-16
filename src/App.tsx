@@ -236,7 +236,7 @@ export function App() {
       await apiDownload(
         "/api/v1/documents/" + resultsDocument.id + "/boq.xlsx",
         token,
-        resultsDocument.name.replace(/\\.[^.]+$/, "") + "-boq-analysis.xlsx",
+        resultsDocument.name.replace(/\.[^.]+$/, "") + "-boq-analysis.xlsx",
       );
     } catch (err: any) {
       setResultsError(err.message || "Could not export BOQ to Excel.");
