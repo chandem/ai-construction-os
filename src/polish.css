@@ -186,3 +186,11 @@
 @media (prefers-reduced-motion: reduce) {
   .bottom-tab { transition: none; }
 }
+
+
+/* Keep the mobile tab bar out of the way while the navigation drawer is open. */
+@media (max-width: 750px) {
+  .app:has(aside.sidebar-open) .bottom-tabs {
+    display: none;
+  }
+}
