@@ -495,9 +495,10 @@ def document_results(document_id: str, token: str = Depends(get_access_token)):
     return {
         "extraction": extraction,
         "knowledge": knowledge_result.data[0] if knowledge_result.data else None,
-        "boq_analysis": normalize_boq_extraction(extraction.get("data") | {"document_type": extraction.get("extraction_type")})
-        if is_boq and isinstance(extraction.get("data"), dict)
-        else (normalize_boq_extraction({"data": extraction.get("data"), "document_type": extraction.get("extraction_type")}) if is_boq else None),
+        "boq_analysis": normalize_boq_extraction({
+            "data": extraction.get("data"),
+            "document_type": extraction.get("extraction_type"),
+        }) if is_boq else None,
     }
 
 
