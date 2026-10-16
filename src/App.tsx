@@ -28,11 +28,12 @@ const GROUPS: { title: string; items: { id: WorkspaceView; label: string }[] }[]
   { title: "Intelligence", items: [{ id: "prediction", label: "Prediction" }, { id: "brain", label: "Brain" }, { id: "gis", label: "GIS" }] },
   { title: "System", items: [{ id: "integrations", label: "Integrations" }, { id: "ops", label: "Ops" }] },
 ];
-const TABS: { id: WorkspaceView; label: string; icon: string }[] = [
+const TABS: { id: WorkspaceView | "more"; label: string; icon: string }[] = [
   { id: "os-home", label: "Home", icon: "⌂" },
   { id: "design-center", label: "Design", icon: "◇" },
   { id: "field", label: "Field", icon: "▦" },
   { id: "assistant", label: "AI", icon: "✦" },
+  { id: "more", label: "More", icon: "⋯" },
 ];
 export function App() {
   const [session, setSession] = React.useState<any>(null);
@@ -569,15 +570,19 @@ export function App() {
       </main>
       <nav className="bottom-tabs" aria-label="Primary navigation">
         {TABS.map((t) => {
-          const active = view === t.id;
+          const active = t.id === "more" ? sidebarOpen : view === t.id;
           return (
             <button
               key={t.id}
               type="button"
               className={`bottom-tab${active ? " active" : ""}`}
-              onClick={() => openView(t.id)}
-              aria-current={active ? "page" : undefined}
-              aria-label={t.label === "AI" ? "AI Assistant" : t.label}
+              onClick={() => {
+                if (t.id === "more") setSidebarOpen(true);
+                else openView(t.id);
+              }}
+              aria-current={t.id !== "more" && active ? "page" : undefined}
+              aria-expanded={t.id === "more" ? sidebarOpen : undefined}
+              aria-label={t.label === "AI" ? "AI Assistant" : t.id === "more" ? "More modules, open menu" : t.label}
             >
               <span className="bottom-tab-icon" aria-hidden="true">{t.icon}</span>
               <span className="bottom-tab-label">{t.label}</span>
