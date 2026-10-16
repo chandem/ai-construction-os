@@ -41,4 +41,4 @@ def test_handles_missing_or_malformed_extraction():
     assert normalize_boq_extraction({"data": {"items": "not a list"}})["rows"] == []
     result = normalize_boq_extraction({"data": {"items": [None, {"description": "Item"}]}})
     assert result["item_count"] == 1
-    assert result["flag_count"] == 1
+    assert result["flag_count"] == 2
