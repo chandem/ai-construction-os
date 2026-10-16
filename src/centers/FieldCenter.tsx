@@ -26,6 +26,15 @@ type ProgressRow = {
   status?: string;
 };
 
+type ScheduleActivity = {
+  id: string;
+  code?: string;
+  name?: string;
+  work_section?: string;
+  percent_complete?: number;
+  status?: string;
+};
+
 const WEATHER = ["clear", "cloudy", "rain", "storm", "hot", "cold", "windy", "other"];
 
 function todayIso() {
@@ -36,6 +45,7 @@ export function FieldCenter({ projectId, token }: Props) {
   const [summary, setSummary] = React.useState<any>(null);
   const [diary, setDiary] = React.useState<DiaryRow[]>([]);
   const [progress, setProgress] = React.useState<ProgressRow[]>([]);
+  const [activities, setActivities] = React.useState<ScheduleActivity[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -49,6 +59,9 @@ export function FieldCenter({ projectId, token }: Props) {
   const [equipment, setEquipment] = React.useState("");
   const [issues, setIssues] = React.useState("");
   const [safety, setSafety] = React.useState("");
+  const [activityId, setActivityId] = React.useState("");
+  const [progressPercent, setProgressPercent] = React.useState("0");
+  const [progressNote, setProgressNote] = React.useState("");
 
   async function load() {
     if (!projectId || !token) return;
@@ -63,6 +76,8 @@ export function FieldCenter({ projectId, token }: Props) {
       setSummary(sum.data || sum);
       setDiary(d.data || []);
       setProgress(p.data || []);
+      setActivities(sum.activities || sum.data?.activities || []);
+      setActivityId((current) => current || (sum.activities || sum.data?.activities || [])[0]?.id || "");
       if (d.warning || p.warning) {
         setNotice(
           [d.warning, p.warning].filter(Boolean).join(" ") ||
@@ -115,6 +130,43 @@ export function FieldCenter({ projectId, token }: Props) {
       await load();
     } catch (err: any) {
       setError(err.message || "Could not save diary entry.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitProgress(e: React.FormEvent) {
+    e.preventDefault();
+    if (!projectId || !token || busy) return;
+    if (!activityId) {
+      setError("Select a scheduled activity before recording progress.");
+      return;
+    }
+    const percent = Number(progressPercent);
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      setError("Progress must be between 0 and 100 percent.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await apiPost("/api/v1/projects/" + projectId + "/field/progress", token, {
+        activity_id: activityId,
+        percent_complete: percent,
+        note: progressNote.trim() || null,
+      });
+      if (result.warning) {
+        setNotice(result.warning);
+      } else {
+        setNotice(result.persisted === false
+          ? "Progress was calculated, but could not be saved to the database."
+          : "Progress update recorded.");
+      }
+      setProgressNote("");
+      await load();
+    } catch (err: any) {
+      setError(err.message || "Could not save progress update.");
     } finally {
       setBusy(false);
     }
@@ -280,6 +332,66 @@ export function FieldCenter({ projectId, token }: Props) {
               </table>
             </div>
           )}
+
+          <section className="field-form progress-entry-form">
+            <h3>Record activity progress</h3>
+            <p className="muted small">Update actual completion against a scheduled activity. This also attempts to update the activity's current completion in Planning.</p>
+            {activities.length === 0 ? (
+              <div className="hint">
+                <b>No scheduled activities found.</b>
+                <p className="muted small">Create a schedule in Planning first, then return here to record progress.</p>
+                <button type="button" className="button compact" onClick={load} disabled={loading || busy}>Refresh activities</button>
+              </div>
+            ) : (
+              <form onSubmit={submitProgress}>
+                <label>
+                  Scheduled activity
+                  <select value={activityId} onChange={(e) => setActivityId(e.target.value)} required>
+                    {activities.map((activity) => (
+                      <option key={activity.id} value={activity.id}>
+                        {(activity.code ? activity.code + " · " : "") + (activity.name || "Unnamed activity")}
+                        {activity.work_section ? " — " + activity.work_section : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="field-grid">
+                  <label>
+                    Actual completion (%)
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      value={progressPercent}
+                      onChange={(e) => setProgressPercent(e.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Current planned status
+                    <input
+                      type="text"
+                      value={activities.find((activity) => activity.id === activityId)?.status || "Not specified"}
+                      readOnly
+                    />
+                  </label>
+                </div>
+                <label>
+                  Progress note
+                  <textarea
+                    rows={2}
+                    value={progressNote}
+                    onChange={(e) => setProgressNote(e.target.value)}
+                    placeholder="Describe completed quantities, constraints, or evidence…"
+                  />
+                </label>
+                <button type="submit" className="button primary compact" disabled={busy || loading}>
+                  {busy ? "Saving…" : "Record progress"}
+                </button>
+              </form>
+            )}
+          </section>
 
           <h3 style={{ marginTop: 24 }}>Progress updates</h3>
           {progress.length === 0 ? (
