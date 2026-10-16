@@ -76,8 +76,11 @@ export function FieldCenter({ projectId, token }: Props) {
       setSummary(sum.data || sum);
       setDiary(d.data || []);
       setProgress(p.data || []);
-      setActivities(sum.activities || sum.data?.activities || []);
-      setActivityId((current) => current || (sum.activities || sum.data?.activities || [])[0]?.id || "");
+      const schedule = sum.activities || sum.data?.activities || [];
+      setActivities(schedule);
+      setActivityId((current) => schedule.some((activity: ScheduleActivity) => activity.id === current)
+        ? current
+        : schedule[0]?.id || "");
       if (d.warning || p.warning) {
         setNotice(
           [d.warning, p.warning].filter(Boolean).join(" ") ||
