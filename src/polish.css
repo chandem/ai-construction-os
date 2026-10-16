@@ -135,3 +135,51 @@
   .dashboard-start { grid-template-columns: 1fr; }
   .dashboard-start-actions { min-width: 0; flex-direction: row; flex-wrap: wrap; }
 }
+
+/* Bottom tabs — original mobile polish */
+.bottom-tabs {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  height: calc(56px + env(safe-area-inset-bottom, 0px));
+  padding: 0 6px env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid #e2e7eb;
+  background: #ffffff;
+  box-shadow: 0 -6px 24px rgba(21, 32, 43, 0.06);
+}
+.bottom-tabs button {
+  flex: 1;
+  min-height: 48px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #5f6b76;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.bottom-tabs button.active {
+  color: #15202b;
+  box-shadow: inset 0 -2px 0 #15202b;
+}
+@media (max-width: 750px) {
+  .bottom-tabs {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+  }
+  .app {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+  .main-panel {
+    padding-bottom: 24px;
+  }
+}
+@media (min-width: 751px) {
+  .bottom-tabs { display: none !important; }
+}
