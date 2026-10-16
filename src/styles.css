@@ -282,3 +282,11 @@ select:focus, input:focus, textarea:focus { border-color: #6b7c8a; box-shadow: 0
   .dashboard-panel-heading { align-items:flex-start; }
   .dashboard-action-row { align-items:flex-start; }
 }
+
+
+.diary-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; }
+.diary-list-heading h3 { margin: 0; }
+.diary-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; margin: 12px 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.diary-filters label { display: block; margin: 0; font-size: 12px; font-weight: 700; color: var(--muted); }
+.diary-filters input { margin-top: 6px; width: 100%; }
+@media (max-width: 600px) { .diary-list-heading { align-items: flex-start; flex-direction: column; } .diary-filters { grid-template-columns: 1fr; } }

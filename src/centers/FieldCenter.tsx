@@ -44,6 +44,8 @@ function todayIso() {
 export function FieldCenter({ projectId, token }: Props) {
   const [summary, setSummary] = React.useState<any>(null);
   const [diary, setDiary] = React.useState<DiaryRow[]>([]);
+  const [diarySectionFilter, setDiarySectionFilter] = React.useState("");
+  const [diaryDateFilter, setDiaryDateFilter] = React.useState("");
   const [progress, setProgress] = React.useState<ProgressRow[]>([]);
   const [activities, setActivities] = React.useState<ScheduleActivity[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -176,6 +178,46 @@ export function FieldCenter({ projectId, token }: Props) {
   }
 
   const overall = summary?.overall_percent_complete;
+  const filteredDiary = diary.filter((row) => {
+    const sectionMatches = !diarySectionFilter.trim()
+      || (row.work_section || "").toLowerCase().includes(diarySectionFilter.trim().toLowerCase());
+    const dateMatches = !diaryDateFilter || row.entry_date === diaryDateFilter;
+    return sectionMatches && dateMatches;
+  });
+
+  function exportDiaryCsv() {
+    const columns = [
+      ["Date", "entry_date"],
+      ["Weather", "weather"],
+      ["Work section", "work_section"],
+      ["Work summary", "work_summary"],
+      ["Workforce", "workforce_on_site"],
+      ["Equipment", "equipment_on_site"],
+      ["Issues / delays", "issues"],
+      ["Safety notes", "safety_notes"],
+      ["Status", "status"],
+    ] as const;
+    const escapeCsv = (value: unknown) => {
+      let text = value == null ? "" : String(value);
+      if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
+      return '"' + text.replace(/"/g, '""') + '"';
+    };
+    const rows = [
+      columns.map(([label]) => escapeCsv(label)).join(","),
+      ...filteredDiary.map((row) =>
+        columns.map(([, key]) => escapeCsv(row[key as keyof DiaryRow])).join(",")
+      ),
+    ];
+    const blob = new Blob(["\uFEFF" + rows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "site-diary-" + (diaryDateFilter || "all-dates") + ".csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <section className="panel field-center">
@@ -297,13 +339,54 @@ export function FieldCenter({ projectId, token }: Props) {
         </form>
 
         <div className="field-lists">
-          <h3>Recent diary</h3>
+          <div className="diary-list-heading">
+            <div>
+              <h3>Site diary records</h3>
+              <p className="muted small">{filteredDiary.length} of {diary.length} entries shown</p>
+            </div>
+            <button type="button" className="button compact" onClick={exportDiaryCsv} disabled={filteredDiary.length === 0}>
+              Export CSV
+            </button>
+          </div>
+          <div className="diary-filters">
+            <label>
+              Filter by work section
+              <input
+                type="search"
+                value={diarySectionFilter}
+                onChange={(e) => setDiarySectionFilter(e.target.value)}
+                placeholder="Search section…"
+              />
+            </label>
+            <label>
+              Filter by date
+              <input
+                type="date"
+                value={diaryDateFilter}
+                onChange={(e) => setDiaryDateFilter(e.target.value)}
+              />
+            </label>
+            {(diarySectionFilter || diaryDateFilter) && (
+              <button
+                type="button"
+                className="button compact"
+                onClick={() => { setDiarySectionFilter(""); setDiaryDateFilter(""); }}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
           {loading ? (
             <p className="muted">Loading…</p>
           ) : diary.length === 0 ? (
             <div className="empty empty-card">
               <h3>No diary entries yet</h3>
               <p>Submit the form to record the first site day for this project.</p>
+            </div>
+          ) : filteredDiary.length === 0 ? (
+            <div className="empty empty-card">
+              <h3>No matching entries</h3>
+              <p>Try another date or work-section filter.</p>
             </div>
           ) : (
             <div className="table-wrap">
@@ -318,7 +401,7 @@ export function FieldCenter({ projectId, token }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {diary.slice(0, 20).map((row) => (
+                  {filteredDiary.map((row) => (
                     <tr key={row.id}>
                       <td>{row.entry_date || "—"}</td>
                       <td>{row.weather || "—"}</td>
