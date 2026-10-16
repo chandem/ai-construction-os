@@ -28,12 +28,11 @@ const GROUPS: { title: string; items: { id: WorkspaceView; label: string }[] }[]
   { title: "Intelligence", items: [{ id: "prediction", label: "Prediction" }, { id: "brain", label: "Brain" }, { id: "gis", label: "GIS" }] },
   { title: "System", items: [{ id: "integrations", label: "Integrations" }, { id: "ops", label: "Ops" }] },
 ];
-const TABS: { id: WorkspaceView | "more"; label: string; icon: string }[] = [
-  { id: "os-home", label: "Home", icon: "⌂" },
-  { id: "design-center", label: "Design", icon: "◇" },
-  { id: "field", label: "Field", icon: "▦" },
-  { id: "assistant", label: "AI", icon: "✦" },
-  { id: "more", label: "More", icon: "⋯" },
+const TABS: { id: WorkspaceView; label: string }[] = [
+  { id: "os-home", label: "Home" },
+  { id: "design-center", label: "Design" },
+  { id: "field", label: "Field" },
+  { id: "assistant", label: "Assistant" },
 ];
 export function App() {
   const [session, setSession] = React.useState<any>(null);
@@ -435,94 +434,14 @@ export function App() {
         <section className="main-panel">
           {error && <div className="error">{error}</div>}
           {notice && <div className="success">{notice}</div>}
-          {resultsDocument && (
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="document-results-title"
-              style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-            >
-              <div style={{ background: "var(--panel, #fff)", color: "var(--text, #17202a)", width: "min(900px, 100%)", maxHeight: "90vh", overflow: "auto", borderRadius: 14, padding: 20, boxShadow: "0 20px 70px rgba(0,0,0,.35)" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
-                  <div>
-                    <h2 id="document-results-title" style={{ margin: "0 0 6px" }}>Document Results</h2>
-                    <div style={{ overflowWrap: "anywhere", opacity: .75 }}>{resultsDocument.name}</div>
-                  </div>
-                  <button type="button" className="document-retry" onClick={() => { setResultsDocument(null); setDocumentResults(null); setResultsError(""); }}>Close</button>
-                </div>
-                {resultsLoading && <p>Loading extracted results…</p>}
-                {resultsError && <div className="error">{resultsError}</div>}
-                {!resultsLoading && !resultsError && documentResults && (
-                  <>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                      <span className="hint">Processing: {documentResults.knowledge?.status || "No extracted text record"}</span>
-                      {documentResults.knowledge?.page_count != null && <span className="hint">Pages: {documentResults.knowledge.page_count}</span>}
-                      {documentResults.extraction?.extraction_type && <span className="hint">Type: {documentResults.extraction.extraction_type}</span>}
-                    </div>
-                    <section style={{ marginBottom: 20 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-                        <h3 style={{ margin: 0 }}>Structured AI data</h3>
-                      </div>
-                      {documentResults.extraction?.data ? (
-                        <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 340, overflow: "auto", padding: 14, borderRadius: 8, background: "var(--surface, #f3f5f7)", fontSize: 13 }}>{JSON.stringify(documentResults.extraction.data, null, 2)}</pre>
-                      ) : (
-                        <p>No structured AI extraction is available yet. If processing completed with partial AI enrichment, the text below may still be available.</p>
-                      )}
-                    </section>
-                    {documentResults.boq_analysis && (
-                      <section style={{ marginBottom: 22 }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
-                          <h3 style={{ margin: 0 }}>BOQ analysis</h3>
-                          <button type="button" className="document-retry" onClick={downloadBoqExcel} disabled={!documentResults.boq_analysis.item_count}>Export Excel</button>
-                        </div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-                          <span className="hint">Items: {documentResults.boq_analysis.item_count}</span>
-                          <span className="hint">Stated total: {documentResults.boq_analysis.stated_total == null ? "—" : Number(documentResults.boq_analysis.stated_total).toLocaleString()}</span>
-                          <span className="hint">Calculated total: {documentResults.boq_analysis.calculated_total == null ? "—" : Number(documentResults.boq_analysis.calculated_total).toLocaleString()}</span>
-                          <span className="hint">Review flags: {documentResults.boq_analysis.flag_count}</span>
-                        </div>
-                        <div style={{ overflowX: "auto", border: "1px solid var(--border, #d9dee5)", borderRadius: 8 }}>
-                          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 850, fontSize: 13 }}>
-                            <thead><tr>{["Item", "Description", "Unit", "Qty", "Rate", "Stated amount", "Calculated", "Difference", "Review"].map((label) => (
-                              <th key={label} style={{ textAlign: "left", padding: 9, borderBottom: "1px solid var(--border, #d9dee5)", background: "var(--surface, #f3f5f7)" }}>{label}</th>
-                            ))}</tr></thead>
-                            <tbody>{documentResults.boq_analysis.rows.map((row: any) => (
-                              <tr key={row.row_number}>
-                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.code || "—"}</td>
-                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)", minWidth: 220 }}>{row.description || "—"}</td>
-                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.unit || "—"}</td>
-                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.quantity ?? "—"}</td>
-                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.rate == null ? "—" : Number(row.rate).toLocaleString()}</td>
-                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.stated_amount == null ? "—" : Number(row.stated_amount).toLocaleString()}</td>
-                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.calculated_amount == null ? "—" : Number(row.calculated_amount).toLocaleString()}</td>
-                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.difference == null ? "—" : Number(row.difference).toLocaleString()}</td>
-                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5dee5)" }}>{row.issues?.length ? row.issues.join(", ") : "OK"}</td>
-                              </tr>
-                            ))}</tbody>
-                          </table>
-                        </div>
-                        <p style={{ fontSize: 12, opacity: .72 }}>{documentResults.boq_analysis.note}</p>
-                      </section>
-                    )}
-                    <section>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 8 }}>
-                        <h3 style={{ margin: 0 }}>Extracted text</h3>
-                        <button type="button" className="document-retry" onClick={downloadExtractedText} disabled={!documentResults.knowledge?.extracted_text}>Download text</button>
-                      </div>
-                      {documentResults.knowledge?.extracted_text ? (
-                        <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 360, overflow: "auto", padding: 14, borderRadius: 8, background: "var(--surface, #f3f5f7)", fontSize: 13 }}>{documentResults.knowledge.extracted_text}</pre>
-                      ) : (
-                        <p>No extracted text is stored for this document. Try reprocessing it, then reopen results.</p>
-                      )}
-                    </section>
-                    <p style={{ fontSize: 12, opacity: .7 }}>AI-extracted quantities and prices must be checked against the original tender PDF before being used for a bid.</p>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
           {view === "os-home" && (
-            <OsHome projectId={projectId} token={token} documentCount={documents.length} onNavigate={(v) => openView(v as WorkspaceView)} onUploadRequest={() => window.document.getElementById("project-document-upload")?.click()} />
+            <OsHome
+              projectId={projectId}
+              token={token}
+              documentCount={documents.length}
+              onNavigate={(v) => openView(v as WorkspaceView)}
+              onUploadRequest={() => window.document.getElementById("project-document-upload")?.click()}
+            />
           )}
           {view === "assistant" && (
             <div className="panel">
@@ -569,27 +488,17 @@ export function App() {
           {projectId && view === "ops" && <OpsCenter {...centerProps} />}
         </section>
       </main>
-      <nav className="bottom-tabs" aria-label="Primary navigation">
-        {TABS.map((t) => {
-          const active = t.id === "more" ? sidebarOpen : view === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              className={`bottom-tab${active ? " active" : ""}`}
-              onClick={() => {
-                if (t.id === "more") setSidebarOpen(true);
-                else openView(t.id);
-              }}
-              aria-current={t.id !== "more" && active ? "page" : undefined}
-              aria-expanded={t.id === "more" ? sidebarOpen : undefined}
-              aria-label={t.label === "AI" ? "AI Assistant" : t.id === "more" ? "More modules, open menu" : t.label}
-            >
-              <span className="bottom-tab-icon" aria-hidden="true">{t.icon}</span>
-              <span className="bottom-tab-label">{t.label}</span>
-            </button>
-          );
-        })}
+      <nav className="bottom-tabs" aria-label="Primary">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={view === t.id ? "active" : ""}
+            onClick={() => openView(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
       </nav>
     </div>
   );
