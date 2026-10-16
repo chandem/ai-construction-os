@@ -51,6 +51,11 @@ def normalize_boq_extraction(extraction: dict[str, Any] | None) -> dict[str, Any
     extraction = extraction if isinstance(extraction, dict) else {}
     data = extraction.get("data")
     data = data if isinstance(data, dict) else {}
+    # The pipeline stores the complete extraction object inside ai_extractions.data.
+    # Accept both that nested form and a direct {items: [...]} payload.
+    if isinstance(data.get("data"), dict) and not isinstance(data.get("items"), list) and not isinstance(data.get("boq_items"), list):
+        nested = data["data"]
+        data = nested
     raw_items = data.get("items")
     if not isinstance(raw_items, list):
         raw_items = data.get("boq_items")
