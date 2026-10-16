@@ -408,6 +408,7 @@ export function App() {
                 {uploading ? "Uploading..." : "Upload document"}
                 <input
                   type="file"
+                  id="project-document-upload"
                   disabled={!projectId || uploading || aiBusy}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
@@ -521,7 +522,7 @@ export function App() {
             </div>
           )}
           {view === "os-home" && (
-            <OsHome projectId={projectId} token={token} documentCount={documents.length} onNavigate={(v) => openView(v as WorkspaceView)} />
+            <OsHome projectId={projectId} token={token} documentCount={documents.length} onNavigate={(v) => openView(v as WorkspaceView)} onUploadRequest={() => window.document.getElementById("project-document-upload")?.click()} />
           )}
           {view === "assistant" && (
             <div className="panel">
