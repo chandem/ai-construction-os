@@ -13,8 +13,37 @@ from .construction_os import (
 
 router = APIRouter()
 
+# table -> supabase/*.sql hint for operators
+TABLE_SQL_HINTS = {
+    "engineering_elements": "supabase/engineering_elements.sql",
+    "boq_items": "supabase/boq_items.sql",
+    "estimate_items": "supabase/estimate_items.sql",
+    "tender_packages": "supabase/tender_packages.sql",
+    "contract_packages": "supabase/contract_packages.sql",
+    "wbs_nodes": "supabase/planning.sql",
+    "material_requirements": "supabase/procurement.sql",
+    "site_diary_entries": "supabase/field.sql",
+    "inspections": "supabase/quality.sql",
+    "infrastructure_assets": "supabase/gis.sql",
+    "project_risks": "supabase/prediction.sql",
+    "integration_connections": "supabase/integrations.sql",
+    "ops_queue_jobs": "supabase/hardening.sql",
+}
 
-def _safe_get(client, table: str, project_id: str, limit: int = 5) -> tuple[object, str | None]:
+
+def _looks_like_missing_table(message: str) -> bool:
+    text = (message or "").lower()
+    markers = (
+        "does not exist",
+        "could not find the table",
+        "schema cache",
+        "undefined table",
+        "relation",
+    )
+    return any(marker in text for marker in markers)
+
+
+def _safe_get(client, table: str, project_id: str, limit: int = 5) -> dict:
     try:
         result = (
             client.table(table)
@@ -23,9 +52,18 @@ def _safe_get(client, table: str, project_id: str, limit: int = 5) -> tuple[obje
             .limit(limit)
             .execute()
         )
-        return {"data": result.data or []}, None
+        return {"data": result.data or [], "table": table}
     except Exception as e:
-        return {"data": [], "warning": str(e)[:200]}, str(e)[:200]
+        err = str(e)[:300]
+        payload: dict = {"data": [], "warning": err, "table": table}
+        if _looks_like_missing_table(err):
+            sql_hint = TABLE_SQL_HINTS.get(table)
+            payload["missing_table"] = table
+            payload["warning"] = (
+                f"Table '{table}' is not available."
+                + (f" Apply {sql_hint} in Supabase SQL editor." if sql_hint else " Apply the matching supabase/*.sql script.")
+            )
+        return payload
 
 
 @router.get("/projects/{project_id}/os/snapshot")
@@ -43,6 +81,7 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
     except Exception:
         name = None
 
+    # Primary probe tables per product module (plus BOQ for design readiness).
     probes = [
         ("design", "engineering_elements"),
         ("commercial", "tender_packages"),
@@ -55,10 +94,45 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
         ("integrations", "integration_connections"),
         ("ops", "ops_queue_jobs"),
     ]
+
     modules = []
+    missing_tables: list[dict] = []
     for mid, table in probes:
-        payload, _err = _safe_get(client, table, project_id)
+        payload = _safe_get(client, table, project_id)
         modules.append(module_status(module_id=mid, payload=payload, error=None))
+        if payload.get("missing_table"):
+            missing_tables.append(
+                {
+                    "module": mid,
+                    "table": payload["missing_table"],
+                    "sql": TABLE_SQL_HINTS.get(payload["missing_table"]),
+                    "message": payload.get("warning"),
+                }
+            )
+
+    # BOQ table is critical for document import + commercial chain; surface separately under design.
+    boq_payload = _safe_get(client, "boq_items", project_id)
+    if boq_payload.get("missing_table"):
+        missing_tables.append(
+            {
+                "module": "design",
+                "table": "boq_items",
+                "sql": TABLE_SQL_HINTS.get("boq_items"),
+                "message": boq_payload.get("warning"),
+            }
+        )
+        # If design looked empty only because elements table is fine but BOQ schema is missing,
+        # still recommend schema apply via ops action (missing_tables drives the note).
+    elif boq_payload.get("data") and not any(m["id"] == "design" and m["status"] == "active" for m in modules):
+        # Promote design signal when BOQ rows exist even if engineering_elements is empty.
+        for i, m in enumerate(modules):
+            if m["id"] == "design" and m["status"] == "empty":
+                modules[i] = module_status(
+                    module_id="design",
+                    payload={"data": boq_payload.get("data") or [1]},
+                    error=None,
+                )
+                break
 
     design = next((m for m in modules if m["id"] == "design"), None)
     modules.append(
@@ -70,7 +144,9 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
 
     ops_health = {"status": "unknown"}
     ops_mod = next((m for m in modules if m["id"] == "ops"), None)
-    if ops_mod and ops_mod["status"] == "active":
+    if missing_tables:
+        ops_health = {"status": "degraded", "missing_tables": missing_tables}
+    elif ops_mod and ops_mod["status"] == "active":
         ops_health = {"status": "healthy"}
     elif ops_mod and ops_mod["status"] == "needs_setup":
         ops_health = {"status": "degraded"}
@@ -84,7 +160,32 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
         modules=modules,
         ops_health=ops_health,
     )
-    return {"data": snapshot, "summary": os_summary(snapshot), "registry": MODULE_REGISTRY}
+    if missing_tables:
+        names = ", ".join(sorted({t["table"] for t in missing_tables}))
+        snapshot["notes"] = (
+            (snapshot.get("notes") or "")
+            + f" Missing Supabase table(s): {names}. Apply the matching supabase/*.sql scripts in the Supabase SQL editor, then refresh."
+        ).strip()
+        # Ensure ops recommended action is present even if module statuses were only "empty".
+        actions = list(snapshot.get("recommended_actions") or [])
+        if not any("Supabase" in str(a.get("title") or "") for a in actions):
+            actions.insert(
+                0,
+                {
+                    "priority": 1,
+                    "module": "ops",
+                    "title": "Apply Supabase schemas",
+                    "detail": f"Missing tables: {names}. Run the SQL files listed under supabase/ for those tables.",
+                },
+            )
+            snapshot["recommended_actions"] = actions
+
+    return {
+        "data": snapshot,
+        "summary": os_summary(snapshot),
+        "registry": MODULE_REGISTRY,
+        "setup": {"missing_tables": missing_tables},
+    }
 
 
 @router.get("/os/modules")
