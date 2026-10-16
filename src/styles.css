@@ -290,3 +290,17 @@ select:focus, input:focus, textarea:focus { border-color: #6b7c8a; box-shadow: 0
 .diary-filters label { display: block; margin: 0; font-size: 12px; font-weight: 700; color: var(--muted); }
 .diary-filters input { margin-top: 6px; width: 100%; }
 @media (max-width: 600px) { .diary-list-heading { align-items: flex-start; flex-direction: column; } .diary-filters { grid-template-columns: 1fr; } }
+
+
+.photo-evidence-form { margin-top: 20px; }
+.photo-evidence-form input[type="file"] { width: 100%; padding: 10px; border: 1px dashed var(--line-strong); border-radius: 10px; background: #f8fafb; }
+.photo-evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.photo-evidence-card { overflow: hidden; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.photo-evidence-card img { display: block; width: 100%; height: 170px; object-fit: cover; background: #edf1f4; }
+.photo-preview-unavailable { display: grid; place-items: center; height: 170px; color: var(--muted); background: #edf1f4; font-size: 12px; }
+.photo-evidence-copy { padding: 11px; }
+.photo-evidence-copy b { display: block; font-size: 12px; overflow-wrap: anywhere; }
+.photo-evidence-copy p { margin: 6px 0; color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.photo-evidence-copy small { display: block; color: var(--muted); font-size: 10px; }
+.photo-evidence-copy .button { margin-top: 10px; }
+@media (max-width: 560px) { .photo-evidence-grid { grid-template-columns: 1fr; } .photo-evidence-card img, .photo-preview-unavailable { height: 210px; } }
