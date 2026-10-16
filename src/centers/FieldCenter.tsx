@@ -164,6 +164,10 @@ export function FieldCenter({ projectId, token }: Props) {
         .from("field-photo-evidence")
         .upload(uploadedPath, photoFile, { contentType: photoFile.type, upsert: false });
       if (uploadError) throw uploadError;
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) {
+        throw new Error("Your Supabase session is not available. Sign out and sign in again, then retry the upload.");
+      }
       const { error: insertError } = await supabase.from("field_photo_evidence").insert({
         project_id: projectId,
         diary_entry_id: photoDiaryId || null,
@@ -171,6 +175,7 @@ export function FieldCenter({ projectId, token }: Props) {
         caption: photoCaption.trim() || null,
         work_section: photoSection.trim() || null,
         captured_at: new Date().toISOString(),
+        created_by: authData.user.id,
       });
       if (insertError) {
         await supabase.storage.from("field-photo-evidence").remove([uploadedPath]);
