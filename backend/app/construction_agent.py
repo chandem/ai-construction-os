@@ -157,6 +157,8 @@ def _generate_with_model(
     project_boq_intelligence_tool,
     project_document_intelligence_tool,
     project_executive_dashboard_tool,
+    project_contract_intelligence_tool,
+    project_risk_prediction_tool,
     document_search_tool,
 ):
     context = _document_context(document_search_tool, message)
@@ -183,6 +185,8 @@ def _generate_with_model(
                 project_boq_intelligence_tool,
                 project_document_intelligence_tool,
                 project_executive_dashboard_tool,
+                project_contract_intelligence_tool,
+                project_risk_prediction_tool,
                 document_search_tool,
             ],
         ),
@@ -221,6 +225,8 @@ def run_construction_agent(
     project_boq_intelligence_tool = make_project_boq_intelligence_tool(db, project_id)
     project_document_intelligence_tool = make_project_document_intelligence_tool(db, project_id)
     project_executive_dashboard_tool = make_project_executive_dashboard_tool(db, project_id)
+    project_contract_intelligence_tool = make_project_contract_intelligence_tool(db, project_id)
+    project_risk_prediction_tool = make_project_risk_prediction_tool(db, project_id)
     document_search_tool = make_document_search_tool(db, project_id)
 
     last_error: Exception | None = None
@@ -247,6 +253,9 @@ def run_construction_agent(
                 project_resource_optimization_tool,
                 project_boq_intelligence_tool,
                 project_document_intelligence_tool,
+                project_executive_dashboard_tool,
+                project_contract_intelligence_tool,
+                project_risk_prediction_tool,
                 document_search_tool,
             )
             return (response.text or "").strip()
