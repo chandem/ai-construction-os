@@ -17,6 +17,7 @@ from .document_processing import chunk_text_with_metadata, extract_pages
 from .embeddings import embed_texts
 from .document_intelligence import extract_construction_data, analyze_drawing_page
 from .engineering_elements import normalize_engineering_elements, persist_engineering_elements
+from .boq_document_analysis import normalize_boq_extraction
 
 router = APIRouter(prefix="/api/v1")
 BUCKET = "construction-documents"
@@ -482,9 +483,21 @@ def document_results(document_id: str, token: str = Depends(get_access_token)):
         ),
         "loading extracted document text",
     )
+    extraction = extraction_result.data[0] if extraction_result.data else None
+    extraction_data = extraction.get("data") if isinstance(extraction, dict) else None
+    is_boq = (
+        isinstance(extraction, dict)
+        and (
+            extraction.get("extraction_type") == "boq"
+            or (isinstance(extraction_data, dict) and isinstance(extraction_data.get("items"), list))
+        )
+    )
     return {
-        "extraction": extraction_result.data[0] if extraction_result.data else None,
+        "extraction": extraction,
         "knowledge": knowledge_result.data[0] if knowledge_result.data else None,
+        "boq_analysis": normalize_boq_extraction(extraction.get("data") | {"document_type": extraction.get("extraction_type")})
+        if is_boq and isinstance(extraction.get("data"), dict)
+        else (normalize_boq_extraction({"data": extraction.get("data"), "document_type": extraction.get("extraction_type")}) if is_boq else None),
     }
 
 
