@@ -3,7 +3,7 @@ import { supabase } from "./supabaseClient";
 import { apiGet, apiPost, apiUpload } from "./api";
 import { AuthScreen } from "./AuthScreen";
 import { MenuButton } from "./MenuButton";
-import { openDocumentFile } from "./documentFile";
+import { DocumentList } from "./DocumentList";
 import type { Project, Document, Message, Conversation, DesignAsset, WorkspaceView } from "./types";
 import { OsHome } from "./centers/OsHome";
 import { DesignCenter } from "./centers/DesignCenter";
@@ -428,45 +428,15 @@ export function App() {
                   }}
                 />
               </label>
-              <div className="doc-list">
-                {documents.map((d) => {
-                  const job = documentJobs[d.id];
-                  const busy = !!reprocessingDocuments[d.id];
-                  const jobStatus = job?.status;
-                  const partial = jobStatus === "completed" && !!job?.error_message;
-                  const displayStatus = busy ? "processing" : partial ? "partial" : (d.status || jobStatus || "uploaded");
-                  return (
-                    <div key={d.id} className="document-row">
-                      <button
-                        type="button"
-                        className="side-action"
-                        onClick={() =>
-                          openDocumentFile(d.id, token, d.name).catch((err) =>
-                            setError(err.message || "Could not open file")
-                          )
-                        }
-                      >
-                        Open {d.name} ({displayStatus})
-                      </button>
-                      <button
-                        type="button"
-                        className="document-retry"
-                        onClick={() => viewDocumentResults(d)}
-                      >
-                        View results
-                      </button>
-                      <button
-                        type="button"
-                        className="document-retry"
-                        onClick={() => reprocessDocument(d.id, d.name)}
-                        disabled={busy}
-                      >
-                        {busy ? "Processing..." : "Reprocess"}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+              <DocumentList
+                documents={documents}
+                documentJobs={documentJobs}
+                reprocessingDocuments={reprocessingDocuments}
+                token={token}
+                onOpenError={(message) => setError(message)}
+                onViewResults={viewDocumentResults}
+                onReprocess={reprocessDocument}
+              />
             </div>
           </div>
           <div className="sidebar-footer">
@@ -478,57 +448,6 @@ export function App() {
         <section className="main-panel">
           {error && <div className="error">{error}</div>}
           {notice && <div className="success">{notice}</div>}
-          {resultsDocument && (
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="document-results-title"
-              style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-            >
-              <div style={{ background: "var(--panel, #fff)", color: "var(--text, #17202a)", width: "min(900px, 100%)", maxHeight: "90vh", overflow: "auto", borderRadius: 14, padding: 20, boxShadow: "0 20px 70px rgba(0,0,0,.35)" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
-                  <div>
-                    <h2 id="document-results-title" style={{ margin: "0 0 6px" }}>Document Results</h2>
-                    <div style={{ overflowWrap: "anywhere", opacity: .75 }}>{resultsDocument.name}</div>
-                  </div>
-                  <button type="button" className="document-retry" onClick={() => { setResultsDocument(null); setDocumentResults(null); setResultsError(""); }}>Close</button>
-                </div>
-                {resultsLoading && <p>Loading extracted results…</p>}
-                {resultsError && <div className="error">{resultsError}</div>}
-                {!resultsLoading && !resultsError && documentResults && (
-                  <>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                      <span className="hint">Processing: {documentResults.knowledge?.status || "No extracted text record"}</span>
-                      {documentResults.knowledge?.page_count != null && <span className="hint">Pages: {documentResults.knowledge.page_count}</span>}
-                      {documentResults.extraction?.extraction_type && <span className="hint">Type: {documentResults.extraction.extraction_type}</span>}
-                    </div>
-                    <section style={{ marginBottom: 20 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-                        <h3 style={{ margin: 0 }}>Structured AI data</h3>
-                      </div>
-                      {documentResults.extraction?.data ? (
-                        <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 340, overflow: "auto", padding: 14, borderRadius: 8, background: "var(--surface, #f3f5f7)", fontSize: 13 }}>{JSON.stringify(documentResults.extraction.data, null, 2)}</pre>
-                      ) : (
-                        <p>No structured AI extraction is available yet. If processing completed with partial AI enrichment, the text below may still be available.</p>
-                      )}
-                    </section>
-                    <section>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 8 }}>
-                        <h3 style={{ margin: 0 }}>Extracted text</h3>
-                        <button type="button" className="document-retry" onClick={downloadExtractedText} disabled={!documentResults.knowledge?.extracted_text}>Download text</button>
-                      </div>
-                      {documentResults.knowledge?.extracted_text ? (
-                        <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 360, overflow: "auto", padding: 14, borderRadius: 8, background: "var(--surface, #f3f5f7)", fontSize: 13 }}>{documentResults.knowledge.extracted_text}</pre>
-                      ) : (
-                        <p>No extracted text is stored for this document. Try reprocessing it, then reopen results.</p>
-                      )}
-                    </section>
-                    <p style={{ fontSize: 12, opacity: .7 }}>AI-extracted quantities and prices must be checked against the original tender PDF before being used for a bid.</p>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
           {view === "os-home" && (
             <OsHome
               projectId={projectId}
@@ -547,8 +466,8 @@ export function App() {
                   <div className="empty empty-card">
                     <h3>Ask about this project</h3>
                     <p>
-                      Ask about uploaded drawings, specs, reports, or BOQs. You can also ask about project
-                      status, materials, costs, risks, or construction calculations.
+                      Ask about uploaded drawings, specs, reports, or BOQs. You can also ask about
+                      project status, materials, costs, risks, or construction calculations.
                     </p>
                   </div>
                 )}
