@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from io import BytesIO
 import hashlib
 import time
 
@@ -7,6 +8,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
 from pydantic import BaseModel, Field
 
 from .auth import get_access_token, get_current_user
@@ -17,6 +20,7 @@ from .document_processing import chunk_text_with_metadata, extract_pages
 from .embeddings import embed_texts
 from .document_intelligence import extract_construction_data, analyze_drawing_page
 from .engineering_elements import normalize_engineering_elements, persist_engineering_elements
+from .boq_document_analysis import normalize_boq_extraction
 
 router = APIRouter(prefix="/api/v1")
 BUCKET = "construction-documents"
@@ -482,10 +486,83 @@ def document_results(document_id: str, token: str = Depends(get_access_token)):
         ),
         "loading extracted document text",
     )
+    extraction = extraction_result.data[0] if extraction_result.data else None
+    extraction_data = extraction.get("data") if isinstance(extraction, dict) else None
+    is_boq = (
+        isinstance(extraction, dict)
+        and (
+            extraction.get("extraction_type") == "boq"
+            or (isinstance(extraction_data, dict) and isinstance(extraction_data.get("items"), list))
+        )
+    )
     return {
-        "extraction": extraction_result.data[0] if extraction_result.data else None,
+        "extraction": extraction,
         "knowledge": knowledge_result.data[0] if knowledge_result.data else None,
+        "boq_analysis": normalize_boq_extraction({
+            "data": extraction.get("data"),
+            "document_type": extraction.get("extraction_type"),
+        }) if is_boq else None,
     }
+
+
+@router.get("/documents/{document_id}/boq.xlsx")
+def export_document_boq_excel(document_id: str, token: str = Depends(get_access_token)):
+    """Export extracted BOQ rows to an Excel workbook after checking document access."""
+    user = get_current_user(token)
+    client = _authenticated_client(token)
+    _document_for_member(document_id, user["id"], client)
+    result = _execute_with_retry(
+        lambda: (
+            client.table("ai_extractions")
+            .select("extraction_type,data")
+            .eq("document_id", document_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ),
+        "loading BOQ extraction for Excel export",
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="No extraction is available for this document")
+    extraction = result.data[0]
+    data = extraction.get("data") if isinstance(extraction.get("data"), dict) else {}
+    if extraction.get("extraction_type") != "boq" and not isinstance(data.get("items"), list):
+        raise HTTPException(status_code=422, detail="This document does not contain a recognized BOQ extraction")
+    analysis = normalize_boq_extraction({
+        "document_type": extraction.get("extraction_type"),
+        "data": data,
+    })
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "BOQ Analysis"
+    sheet.append(["Item No.", "Description", "Unit", "Quantity", "Rate", "Stated Amount", "Calculated Amount", "Difference", "Review Flags"])
+    for row in analysis["rows"]:
+        sheet.append([
+            row["code"], row["description"], row["unit"], row["quantity"], row["rate"],
+            row["stated_amount"], row["calculated_amount"], row["difference"],
+            ", ".join(row["issues"]),
+        ])
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = sheet.dimensions
+    for column, width in {"A": 14, "B": 52, "C": 12, "D": 16, "E": 16, "F": 20, "G": 20, "H": 16, "I": 34}.items():
+        sheet.column_dimensions[column].width = width
+    summary = workbook.create_sheet("Summary")
+    summary.append(["Metric", "Value"])
+    summary.append(["Extracted item count", analysis["item_count"]])
+    summary.append(["Stated amount total", analysis["stated_total"]])
+    summary.append(["Calculated amount total", analysis["calculated_total"]])
+    summary.append(["Rows with review flags", analysis["flag_count"]])
+    summary.append(["Review note", analysis["note"]])
+    summary.column_dimensions["A"].width = 28
+    summary.column_dimensions["B"].width = 100
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="boq-analysis-{document_id[:8]}.xlsx"'},
+    )
 
 
 @router.get("/documents/{document_id}/status")

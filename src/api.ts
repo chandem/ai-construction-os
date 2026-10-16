@@ -101,3 +101,18 @@ export async function apiUpload(path: string, token: string, body: FormData): Pr
   if (!r.ok) throw new Error(await readError(r, "Upload failed."));
   return r.json();
 }
+
+
+export async function apiDownload(path: string, token: string, filename: string): Promise<void> {
+  const response = await requestWithAuth(path, token);
+  if (!response.ok) throw new Error(await readError(response, "Download failed"));
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

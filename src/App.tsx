@@ -1,6 +1,6 @@
 import React from "react";
 import { supabase } from "./supabaseClient";
-import { apiGet, apiPost, apiUpload } from "./api";
+import { apiGet, apiPost, apiUpload, apiDownload } from "./api";
 import { AuthScreen } from "./AuthScreen";
 import { MenuButton } from "./MenuButton";
 import { DocumentList } from "./DocumentList";
@@ -230,6 +230,19 @@ export function App() {
     }
   }
 
+  async function downloadBoqExcel() {
+    if (!token || !resultsDocument) return;
+    try {
+      await apiDownload(
+        "/api/v1/documents/" + resultsDocument.id + "/boq.xlsx",
+        token,
+        resultsDocument.name.replace(/\.[^.]+$/, "") + "-boq-analysis.xlsx",
+      );
+    } catch (err: any) {
+      setResultsError(err.message || "Could not export BOQ to Excel.");
+    }
+  }
+
   function downloadExtractedText() {
     const text = documentResults?.knowledge?.extracted_text;
     if (!text || !resultsDocument) return;
@@ -451,6 +464,41 @@ export function App() {
                         <p>No structured AI extraction is available yet. If processing completed with partial AI enrichment, the text below may still be available.</p>
                       )}
                     </section>
+                    {documentResults.boq_analysis && (
+                      <section style={{ marginBottom: 22 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+                          <h3 style={{ margin: 0 }}>BOQ analysis</h3>
+                          <button type="button" className="document-retry" onClick={downloadBoqExcel} disabled={!documentResults.boq_analysis.item_count}>Export Excel</button>
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                          <span className="hint">Items: {documentResults.boq_analysis.item_count}</span>
+                          <span className="hint">Stated total: {documentResults.boq_analysis.stated_total == null ? "—" : Number(documentResults.boq_analysis.stated_total).toLocaleString()}</span>
+                          <span className="hint">Calculated total: {documentResults.boq_analysis.calculated_total == null ? "—" : Number(documentResults.boq_analysis.calculated_total).toLocaleString()}</span>
+                          <span className="hint">Review flags: {documentResults.boq_analysis.flag_count}</span>
+                        </div>
+                        <div style={{ overflowX: "auto", border: "1px solid var(--border, #d9dee5)", borderRadius: 8 }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 850, fontSize: 13 }}>
+                            <thead><tr>{["Item", "Description", "Unit", "Qty", "Rate", "Stated amount", "Calculated", "Difference", "Review"].map((label) => (
+                              <th key={label} style={{ textAlign: "left", padding: 9, borderBottom: "1px solid var(--border, #d9dee5)", background: "var(--surface, #f3f5f7)" }}>{label}</th>
+                            ))}</tr></thead>
+                            <tbody>{documentResults.boq_analysis.rows.map((row: any) => (
+                              <tr key={row.row_number}>
+                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.code || "—"}</td>
+                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)", minWidth: 220 }}>{row.description || "—"}</td>
+                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.unit || "—"}</td>
+                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.quantity ?? "—"}</td>
+                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.rate == null ? "—" : Number(row.rate).toLocaleString()}</td>
+                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.stated_amount == null ? "—" : Number(row.stated_amount).toLocaleString()}</td>
+                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.calculated_amount == null ? "—" : Number(row.calculated_amount).toLocaleString()}</td>
+                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5e7eb)" }}>{row.difference == null ? "—" : Number(row.difference).toLocaleString()}</td>
+                                <td style={{ padding: 9, borderBottom: "1px solid var(--border, #e5dee5)" }}>{row.issues?.length ? row.issues.join(", ") : "OK"}</td>
+                              </tr>
+                            ))}</tbody>
+                          </table>
+                        </div>
+                        <p style={{ fontSize: 12, opacity: .72 }}>{documentResults.boq_analysis.note}</p>
+                      </section>
+                    )}
                     <section>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 8 }}>
                         <h3 style={{ margin: 0 }}>Extracted text</h3>
