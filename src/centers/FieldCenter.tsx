@@ -199,7 +199,7 @@ export function FieldCenter({ projectId, token }: Props) {
     ] as const;
     const escapeCsv = (value: unknown) => {
       let text = value == null ? "" : String(value);
-      if (/^[=+@\\-\\t\\r]/.test(text)) text = "'" + text;
+      if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
       return '"' + text.replace(/"/g, '""') + '"';
     };
     const rows = [
@@ -208,7 +208,7 @@ export function FieldCenter({ projectId, token }: Props) {
         columns.map(([, key]) => escapeCsv(row[key as keyof DiaryRow])).join(",")
       ),
     ];
-    const blob = new Blob(["\\uFEFF" + rows.join("\\r\\n")], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\uFEFF" + rows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
