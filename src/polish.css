@@ -113,3 +113,76 @@
 .doc-badge-processing { background: #eef2f7; color: #4a5d6e; }
 .doc-badge-failed { background: #fdecea; color: #b42318; }
 .doc-badge-uploaded { background: #eef1f4; color: #596671; }
+
+
+/* Refined mobile bottom navigation */
+.bottom-tabs { display: none; }
+@media (max-width: 750px) {
+  .bottom-tabs {
+    position: fixed;
+    z-index: 30;
+    right: 12px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    left: 12px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding: 7px;
+    border: 1px solid rgba(220, 228, 234, 0.9);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 10px 34px rgba(21, 32, 43, 0.18);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+  }
+  .bottom-tab {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    min-height: 56px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 3px;
+    border: 0;
+    border-radius: 13px;
+    background: transparent;
+    color: #697783;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.1;
+    transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bottom-tab:active { transform: scale(0.96); }
+  .bottom-tab:focus-visible {
+    outline: 3px solid rgba(36, 99, 235, 0.35);
+    outline-offset: 2px;
+  }
+  .bottom-tab-icon {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 25px;
+    border-radius: 9px;
+    font-size: 22px;
+    line-height: 1;
+  }
+  .bottom-tab-label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bottom-tab.active {
+    background: #edf4ff;
+    color: #174ea6;
+    font-weight: 800;
+  }
+  .bottom-tab.active .bottom-tab-icon { background: #dce9ff; }
+  .main-panel { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bottom-tab { transition: none; }
+}

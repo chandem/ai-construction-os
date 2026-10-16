@@ -28,8 +28,11 @@ const GROUPS: { title: string; items: { id: WorkspaceView; label: string }[] }[]
   { title: "Intelligence", items: [{ id: "prediction", label: "Prediction" }, { id: "brain", label: "Brain" }, { id: "gis", label: "GIS" }] },
   { title: "System", items: [{ id: "integrations", label: "Integrations" }, { id: "ops", label: "Ops" }] },
 ];
-const TABS: { id: WorkspaceView; label: string }[] = [
-  { id: "os-home", label: "Home" }, { id: "design-center", label: "Design" }, { id: "field", label: "Field" }, { id: "assistant", label: "Assistant" },
+const TABS: { id: WorkspaceView; label: string; icon: string }[] = [
+  { id: "os-home", label: "Home", icon: "⌂" },
+  { id: "design-center", label: "Design", icon: "◇" },
+  { id: "field", label: "Field", icon: "▦" },
+  { id: "assistant", label: "AI", icon: "✦" },
 ];
 export function App() {
   const [session, setSession] = React.useState<any>(null);
@@ -564,10 +567,23 @@ export function App() {
           {projectId && view === "ops" && <OpsCenter {...centerProps} />}
         </section>
       </main>
-      <nav className="bottom-tabs" aria-label="Primary">
-        {TABS.map((t) => (
-          <button key={t.id} type="button" className={view === t.id ? "active" : ""} onClick={() => openView(t.id)}>{t.label}</button>
-        ))}
+      <nav className="bottom-tabs" aria-label="Primary navigation">
+        {TABS.map((t) => {
+          const active = view === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              className={`bottom-tab${active ? " active" : ""}`}
+              onClick={() => openView(t.id)}
+              aria-current={active ? "page" : undefined}
+              aria-label={t.label === "AI" ? "AI Assistant" : t.label}
+            >
+              <span className="bottom-tab-icon" aria-hidden="true">{t.icon}</span>
+              <span className="bottom-tab-label">{t.label}</span>
+            </button>
+          );
+        })}
       </nav>
     </div>
   );
