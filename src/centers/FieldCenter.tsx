@@ -1,5 +1,6 @@
 import React from "react";
 import { apiGet, apiPost } from "../api";
+import { supabase } from "../supabaseClient";
 
 type Props = { projectId: string; token: string };
 
@@ -14,6 +15,18 @@ type DiaryRow = {
   safety_notes?: string;
   work_section?: string;
   status?: string;
+};
+
+type PhotoEvidence = {
+  id: string;
+  project_id: string;
+  diary_entry_id?: string | null;
+  storage_path: string;
+  caption?: string | null;
+  work_section?: string | null;
+  captured_at?: string | null;
+  created_at?: string;
+  preview_url?: string;
 };
 
 type ProgressRow = {
@@ -47,6 +60,12 @@ export function FieldCenter({ projectId, token }: Props) {
   const [diarySectionFilter, setDiarySectionFilter] = React.useState("");
   const [diaryDateFilter, setDiaryDateFilter] = React.useState("");
   const [progress, setProgress] = React.useState<ProgressRow[]>([]);
+  const [photos, setPhotos] = React.useState<PhotoEvidence[]>([]);
+  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
+  const [photoCaption, setPhotoCaption] = React.useState("");
+  const [photoSection, setPhotoSection] = React.useState("");
+  const [photoDiaryId, setPhotoDiaryId] = React.useState("");
+  const [photoBusy, setPhotoBusy] = React.useState(false);
   const [activities, setActivities] = React.useState<ScheduleActivity[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
@@ -99,6 +118,96 @@ export function FieldCenter({ projectId, token }: Props) {
   React.useEffect(() => {
     load();
   }, [projectId, token]);
+
+  async function loadPhotoEvidence() {
+    if (!projectId || !token) return;
+    const { data, error: queryError } = await supabase
+      .from("field_photo_evidence")
+      .select("id, project_id, diary_entry_id, storage_path, caption, work_section, captured_at, created_at")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(60);
+    if (queryError) {
+      setNotice((current) => current || "Photo evidence is not configured yet. Apply supabase/field_photo_evidence.sql.");
+      return;
+    }
+    const records = (data || []) as PhotoEvidence[];
+    const withUrls = await Promise.all(records.map(async (record) => {
+      const { data: signed } = await supabase.storage
+        .from("field-photo-evidence")
+        .createSignedUrl(record.storage_path, 900);
+      return { ...record, preview_url: signed?.signedUrl };
+    }));
+    setPhotos(withUrls);
+  }
+
+  async function submitPhoto(e: React.FormEvent) {
+    e.preventDefault();
+    if (!projectId || !token || !photoFile || photoBusy) return;
+    if (!photoFile.type.startsWith("image/")) {
+      setError("Choose an image file (JPEG, PNG, or WebP).");
+      return;
+    }
+    if (photoFile.size > 10 * 1024 * 1024) {
+      setError("Each photo must be 10 MB or smaller.");
+      return;
+    }
+    setPhotoBusy(true);
+    setError("");
+    setNotice("");
+    let uploadedPath = "";
+    try {
+      const safeName = photoFile.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-100) || "site-photo";
+      uploadedPath = projectId + "/" + crypto.randomUUID() + "-" + safeName;
+      const { error: uploadError } = await supabase.storage
+        .from("field-photo-evidence")
+        .upload(uploadedPath, photoFile, { contentType: photoFile.type, upsert: false });
+      if (uploadError) throw uploadError;
+      const { error: insertError } = await supabase.from("field_photo_evidence").insert({
+        project_id: projectId,
+        diary_entry_id: photoDiaryId || null,
+        storage_path: uploadedPath,
+        caption: photoCaption.trim() || null,
+        work_section: photoSection.trim() || null,
+        captured_at: new Date(photoFile.lastModified || Date.now()).toISOString(),
+      });
+      if (insertError) {
+        await supabase.storage.from("field-photo-evidence").remove([uploadedPath]);
+        uploadedPath = "";
+        throw insertError;
+      }
+      setPhotoFile(null);
+      setPhotoCaption("");
+      setPhotoSection("");
+      setPhotoDiaryId("");
+      const input = document.getElementById("field-photo-file") as HTMLInputElement | null;
+      if (input) input.value = "";
+      setNotice("Site photo uploaded and linked to the project.");
+      await loadPhotoEvidence();
+    } catch (err: any) {
+      setError(err.message || "Could not upload site photo. Check that photo evidence SQL has been applied and you are a project member.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function deletePhoto(record: PhotoEvidence) {
+    if (!window.confirm("Delete this site photo evidence? This cannot be undone.")) return;
+    setError("");
+    setNotice("");
+    const { error: deleteError } = await supabase.from("field_photo_evidence").delete().eq("id", record.id);
+    if (deleteError) {
+      setError(deleteError.message || "Could not delete photo record.");
+      return;
+    }
+    const { error: storageError } = await supabase.storage.from("field-photo-evidence").remove([record.storage_path]);
+    if (storageError) {
+      setNotice("Photo record deleted, but the stored image could not be removed. Ask an administrator to clean up storage.");
+    } else {
+      setNotice("Photo evidence deleted.");
+    }
+    await loadPhotoEvidence();
+  }
 
   async function submitDiary(e: React.FormEvent) {
     e.preventDefault();
@@ -418,6 +527,56 @@ export function FieldCenter({ projectId, token }: Props) {
               </table>
             </div>
           )}
+
+          <section className="field-form photo-evidence-form">
+            <h3>Site photo evidence</h3>
+            <p className="muted small">Upload progress photos from the field and link them to a diary entry. Private project storage; images are shown with short-lived signed links.</p>
+            <form onSubmit={submitPhoto}>
+              <label>
+                Photo (JPEG, PNG, or WebP; max 10 MB)
+                <input id="field-photo-file" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(e) => setPhotoFile(e.target.files?.[0] || null)} required />
+              </label>
+              <div className="field-grid">
+                <label>
+                  Work section
+                  <input value={photoSection} onChange={(e) => setPhotoSection(e.target.value)} placeholder="e.g. Column C3, chainage 2+000" />
+                </label>
+                <label>
+                  Link to diary entry (optional)
+                  <select value={photoDiaryId} onChange={(e) => setPhotoDiaryId(e.target.value)}>
+                    <option value="">No diary link</option>
+                    {diary.filter((row) => row.id).map((row) => (
+                      <option key={row.id} value={row.id}>{row.entry_date || "Undated"} · {(row.work_summary || "").slice(0, 65)}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label>
+                Caption / observation
+                <textarea rows={2} value={photoCaption} onChange={(e) => setPhotoCaption(e.target.value)} placeholder="Describe visible work, location, or quality observation…" />
+              </label>
+              <button type="submit" className="button primary compact" disabled={photoBusy || busy || !photoFile}>
+                {photoBusy ? "Uploading photo…" : "Upload photo evidence"}
+              </button>
+            </form>
+            {photos.length === 0 ? (
+              <p className="muted small">{loading ? "Loading photo evidence…" : "No photo evidence uploaded for this project yet."}</p>
+            ) : (
+              <div className="photo-evidence-grid">
+                {photos.map((photo) => (
+                  <article className="photo-evidence-card" key={photo.id}>
+                    {photo.preview_url ? <a href={photo.preview_url} target="_blank" rel="noreferrer"><img src={photo.preview_url} alt={photo.caption || photo.work_section || "Construction site evidence"} loading="lazy" /></a> : <div className="photo-preview-unavailable">Preview unavailable</div>}
+                    <div className="photo-evidence-copy">
+                      <b>{photo.work_section || "Unspecified work section"}</b>
+                      <p>{photo.caption || "No caption provided."}</p>
+                      <small>{photo.created_at ? new Date(photo.created_at).toLocaleString() : "Date unavailable"}</small>
+                      <button type="button" className="button compact" onClick={() => deletePhoto(photo)}>Delete</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
 
           <section className="field-form progress-entry-form">
             <h3>Record activity progress</h3>
