@@ -42,3 +42,19 @@ def test_handles_missing_or_malformed_extraction():
     result = normalize_boq_extraction({"data": {"items": [None, {"description": "Item"}]}})
     assert result["item_count"] == 1
     assert result["flag_count"] == 2
+
+
+def test_supports_full_extraction_object_stored_in_database():
+    result = normalize_boq_extraction({
+        "document_type": "boq",
+        "data": {
+            "document_type": "boq",
+            "summary": "Stored extraction",
+            "data": {"items": [
+                {"code": "1", "description": "Road excavation", "unit": "m3",
+                 "quantity": 2, "rate": 25, "amount": 50}
+            ]},
+        },
+    })
+    assert result["item_count"] == 1
+    assert result["rows"][0]["calculated_amount"] == 50
