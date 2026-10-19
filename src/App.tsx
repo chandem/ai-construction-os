@@ -28,6 +28,16 @@ const GROUPS: { title: string; items: { id: WorkspaceView; label: string }[] }[]
   { title: "Intelligence", items: [{ id: "prediction", label: "Prediction" }, { id: "brain", label: "Brain" }, { id: "gis", label: "GIS" }] },
   { title: "System", items: [{ id: "integrations", label: "Integrations" }, { id: "ops", label: "Ops" }] },
 ];
+const AI_QUICK_ACTIONS = [
+  { icon: "⌂", title: "Design & Engineering", prompt: "Review the engineering and design information available for this project. Identify applicable requirements, missing inputs, assumptions, and items that need qualified engineer verification." },
+  { icon: "▦", title: "Quantity Surveying", prompt: "Act as a construction quantity surveyor. Review available project BOQs and documents, summarize measurable items, explain any quantity calculations with formulas and units, and flag missing dimensions or assumptions. Cite project evidence where available." },
+  { icon: "↗", title: "Cost Estimation", prompt: "Analyze the available project BOQ, rates, budget, and cost documents. Summarize known costs, identify missing rate or quantity inputs, and flag possible cost risks. Separate documented values from assumptions." },
+  { icon: "◷", title: "Project Planning", prompt: "Review the available project schedule, progress records, and reports. Identify milestones, possible delays, dependencies, and practical corrective actions. Clearly state which schedule data is missing." },
+  { icon: "⚒", title: "Site Supervision", prompt: "Help me supervise this construction project. Review available site reports and progress records, summarize current issues, identify missing evidence, and propose practical follow-up actions." },
+  { icon: "✓", title: "Quality & Safety", prompt: "Review available inspection, quality, and safety records. Identify documented nonconformities and potential risks, suggest corrective actions, and flag matters requiring competent professional review." },
+  { icon: "▤", title: "Document Analysis", prompt: "Analyze the uploaded documents relevant to this project. Summarize key requirements, quantities, dates, obligations, and unresolved questions. Cite the source documents and pages when available; do not invent information." },
+] as const;
+
 const TABS: { id: WorkspaceView | "more"; label: string; icon: string }[] = [
   { id: "os-home", label: "Home", icon: "⌂" },
   { id: "design-center", label: "Design", icon: "◇" },
@@ -446,7 +456,31 @@ export function App() {
           )}
           {view === "assistant" && (
             <div className="panel">
-              <div className="panel-head"><h2>AI Assistant</h2></div>
+              <div className="panel-head"><h2>AI Construction Engineer</h2><span className="status">Project-aware AI</span></div>
+              <p className="ai-assistant-intro">Choose a construction task to prepare a focused prompt. Review or edit it before sending; answers depend on available project records and documents.</p>
+              <div className="ai-quick-actions" aria-label="Construction AI quick actions">
+                {AI_QUICK_ACTIONS.map((action) => (
+                  <button
+                    key={action.title}
+                    type="button"
+                    className="ai-quick-action"
+                    onClick={() => {
+                      setInput(action.prompt);
+                      setError("");
+                      setNotice("");
+                    }}
+                    disabled={!projectId || aiBusy}
+                    aria-label={"Prepare prompt for " + action.title}
+                  >
+                    <span className="ai-quick-action-icon" aria-hidden="true">{action.icon}</span>
+                    <span className="ai-quick-action-copy">
+                      <b>{action.title}</b>
+                      <small>Prepare prompt</small>
+                    </span>
+                    <span className="ai-quick-action-arrow" aria-hidden="true">↗</span>
+                  </button>
+                ))}
+              </div>
               <div className="messages">
                 {messages.length === 0 && (
                   <div className="empty empty-card">
