@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import logging
+import time
 from typing import Any
 
 from .document_intelligence import analyze_drawing_page, extract_construction_data
@@ -63,11 +64,7 @@ def run_document_pipeline(
     Reprocessing replaces the document's prior vector chunks instead of
     accumulating duplicate/stale chunks.
     """
-    stage = "initializing"
-    logger.info(
-        "Document pipeline started: document_id=%s job_id=%s filename=%r bytes=%s",
-        document_id, job_id, safe_name, len(data),
-    )
+    stage = "start"
     _set_job(client, job_id, status="processing", progress=10, error_message=None)
     _set_document(client, document_id, status="processing")
 
@@ -137,14 +134,10 @@ def run_document_pipeline(
                         f"Imported {boq_count} proposed BOQ line(s) from document extraction for review."
                     )
             except Exception as exc:
-                logger.exception(
-                    "Document pipeline stage failed: stage=boq_import document_id=%s job_id=%s",
-                    document_id, job_id,
-                )
                 processing_warnings.append(f"BOQ import from document skipped: {str(exc)[:300]}")
 
         if extraction and extraction.get("document_type") == "drawing_specification":
-            stage = "drawing_asset_persistence"
+            stage = "design_asset_persist"
             engineering = extraction.get("data", {}).get("engineering", {})
             design_asset_result = client.table("design_assets").insert(
                 {
@@ -204,8 +197,51 @@ def run_document_pipeline(
                 if embeddings and i < len(embeddings):
                     row["embedding"] = embeddings[i]
                 chunk_rows.append(row)
-            for start in range(0, len(chunk_rows), 50):
-                client.table("ai_knowledge_chunks").insert(chunk_rows[start : start + 50]).execute()
+
+            # Small batches + retries: Render free tier can hit Errno 11 (EAGAIN)
+            # under memory/connection pressure when inserting embeddings.
+            batch_size = 15
+            failed_batches = 0
+            for start in range(0, len(chunk_rows), batch_size):
+                batch = chunk_rows[start : start + batch_size]
+                last_exc: Exception | None = None
+                for attempt in range(4):
+                    try:
+                        client.table("ai_knowledge_chunks").insert(batch).execute()
+                        last_exc = None
+                        break
+                    except Exception as exc:
+                        last_exc = exc
+                        msg = str(exc).lower()
+                        transient = (
+                            "resource temporarily unavailable" in msg
+                            or "errno 11" in msg
+                            or "eagain" in msg
+                            or "timeout" in msg
+                            or "connection" in msg
+                        )
+                        if not transient or attempt == 3:
+                            break
+                        time.sleep(0.4 * (attempt + 1))
+                if last_exc is not None:
+                    # Retry batch without embeddings (lighter payload)
+                    light = [{k: v for k, v in row.items() if k != "embedding"} for row in batch]
+                    try:
+                        client.table("ai_knowledge_chunks").insert(light).execute()
+                        processing_warnings.append(
+                            f"Search chunks stored without embeddings for batch {start // batch_size + 1} "
+                            f"(resource pressure: {str(last_exc)[:200]})"
+                        )
+                    except Exception as exc2:
+                        failed_batches += 1
+                        processing_warnings.append(
+                            f"Search chunk batch {start // batch_size + 1} skipped: {str(exc2)[:200]}"
+                        )
+            if failed_batches:
+                processing_warnings.append(
+                    f"{failed_batches} chunk batch(es) could not be saved; "
+                    "document text is still available — use Reprocess later if search is incomplete."
+                )
 
         final_status = "processed"
         error_message = None
@@ -251,7 +287,6 @@ def run_document_pipeline(
         return {"status": "failed", "document_id": document_id, "error": msg}
 
 
-
 def run_document_pipeline_safe(client, **kwargs: Any) -> dict[str, Any]:
     """Run the document pipeline while containing unexpected background-job errors.
 
@@ -262,10 +297,6 @@ def run_document_pipeline_safe(client, **kwargs: Any) -> dict[str, Any]:
     try:
         return run_document_pipeline(client, **kwargs)
     except Exception as exc:
-        logger.exception(
-            "Unexpected document pipeline wrapper failure: document_id=%s job_id=%s",
-            kwargs.get("document_id"), kwargs.get("job_id"),
-        )
         msg = str(exc)[:1000]
         job_id = str(kwargs.get("job_id") or "")
         document_id = str(kwargs.get("document_id") or "")
