@@ -7,6 +7,7 @@ so upload returns immediately with a processing job id.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 from typing import Any
 
 from .document_intelligence import analyze_drawing_page, extract_construction_data
@@ -14,6 +15,8 @@ from .document_processing import chunk_text_with_metadata, extract_pages
 from .embeddings import embed_texts
 from .engineering_elements import normalize_engineering_elements, persist_engineering_elements
 from .boq_from_document import persist_boq_from_document
+
+logger = logging.getLogger(__name__)
 
 
 def _now() -> str:
@@ -60,10 +63,16 @@ def run_document_pipeline(
     Reprocessing replaces the document's prior vector chunks instead of
     accumulating duplicate/stale chunks.
     """
+    stage = "initializing"
+    logger.info(
+        "Document pipeline started: document_id=%s job_id=%s filename=%r bytes=%s",
+        document_id, job_id, safe_name, len(data),
+    )
     _set_job(client, job_id, status="processing", progress=10, error_message=None)
     _set_document(client, document_id, status="processing")
 
     try:
+        stage = "pdf_text_extraction"
         pages = extract_pages(safe_name, content_type or "", data)
         text_content = "\n\n".join(text for text, _ in pages)
         page_count = len(pages) if any(page_number is not None for _, page_number in pages) else None
@@ -71,6 +80,7 @@ def run_document_pipeline(
 
         _set_job(client, job_id, progress=40)
 
+        stage = "save_extracted_text"
         client.table("ai_knowledge_documents").update(
             {"extracted_text": text_content, "page_count": page_count, "status": "processing"}
         ).eq("id", knowledge_id).execute()
@@ -82,12 +92,18 @@ def run_document_pipeline(
             "knowledge_document_id", knowledge_id
         ).execute()
 
+        stage = "generate_embeddings"
         try:
             embeddings = embed_texts([chunk["content"] for chunk in chunks]) if chunks else []
         except Exception as exc:
+            logger.exception(
+                "Document pipeline stage failed: stage=generate_embeddings document_id=%s job_id=%s",
+                document_id, job_id,
+            )
             processing_warnings.append(f"Semantic embeddings unavailable: {str(exc)[:500]}")
         _set_job(client, job_id, progress=60)
 
+        stage = "gemini_structured_extraction"
         extraction = None
         try:
             extraction = extract_construction_data(safe_name, text_content)
@@ -99,10 +115,15 @@ def run_document_pipeline(
                 }
             ).execute()
         except Exception as exc:
+            logger.exception(
+                "Document pipeline stage failed: stage=gemini_structured_extraction document_id=%s job_id=%s",
+                document_id, job_id,
+            )
             processing_warnings.append(f"AI structured extraction unavailable: {str(exc)[:500]}")
         _set_job(client, job_id, progress=75)
 
         if extraction:
+            stage = "boq_import"
             try:
                 boq_count = persist_boq_from_document(
                     client,
@@ -116,9 +137,14 @@ def run_document_pipeline(
                         f"Imported {boq_count} proposed BOQ line(s) from document extraction for review."
                     )
             except Exception as exc:
+                logger.exception(
+                    "Document pipeline stage failed: stage=boq_import document_id=%s job_id=%s",
+                    document_id, job_id,
+                )
                 processing_warnings.append(f"BOQ import from document skipped: {str(exc)[:300]}")
 
         if extraction and extraction.get("document_type") == "drawing_specification":
+            stage = "drawing_asset_persistence"
             engineering = extraction.get("data", {}).get("engineering", {})
             design_asset_result = client.table("design_assets").insert(
                 {
@@ -162,6 +188,7 @@ def run_document_pipeline(
                     }
                 ).execute()
 
+        stage = "persist_search_chunks"
         if chunks:
             chunk_rows = []
             for i, chunk in enumerate(chunks):
@@ -208,7 +235,11 @@ def run_document_pipeline(
             "chunk_count": len(chunks),
         }
     except Exception as exc:
-        msg = str(exc)[:1000]
+        logger.exception(
+            "Document pipeline failed: stage=%s document_id=%s job_id=%s filename=%r",
+            stage, document_id, job_id, safe_name,
+        )
+        msg = f"{stage}: {str(exc)}"[:1000]
         _set_job(client, job_id, status="failed", progress=100, error_message=msg)
         _set_document(client, document_id, status="failed")
         try:
@@ -231,6 +262,10 @@ def run_document_pipeline_safe(client, **kwargs: Any) -> dict[str, Any]:
     try:
         return run_document_pipeline(client, **kwargs)
     except Exception as exc:
+        logger.exception(
+            "Unexpected document pipeline wrapper failure: document_id=%s job_id=%s",
+            kwargs.get("document_id"), kwargs.get("job_id"),
+        )
         msg = str(exc)[:1000]
         job_id = str(kwargs.get("job_id") or "")
         document_id = str(kwargs.get("document_id") or "")
