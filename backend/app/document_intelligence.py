@@ -118,7 +118,9 @@ Extraction rules:
 Document text:
 {content}
 """
-    result = generate_json(prompt, system=SYSTEM_PROMPT)
+    # generate_json deliberately uses keyword-only arguments; keep the prompt
+    # in the user field and the system instructions separate.
+    result = generate_json(system=SYSTEM_PROMPT, user=prompt)
     if not isinstance(result, dict):
         result = {}
     result["document_type"] = (
@@ -146,6 +148,10 @@ def analyze_drawing_page(image_bytes: bytes, discipline: str = "general") -> dic
         + discipline
     )
     try:
-        return generate_vision_json(prompt, image_bytes, system=SYSTEM_PROMPT)
+        return generate_vision_json(
+            system=SYSTEM_PROMPT,
+            prompt=prompt,
+            image_bytes=image_bytes,
+        )
     except Exception as exc:
         return {"summary": "Visual analysis unavailable", "error": str(exc)[:300], "confidence": 0.0}
