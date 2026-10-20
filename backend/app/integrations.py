@@ -1,6 +1,6 @@
 """Integrations foundation: connector catalog, connections, sync jobs.
 
-Supports P6, BIM, Google Drive / SharePoint, and ERP-style connectors.
+Supports AI Document Processing, P6, BIM, Google Drive / SharePoint, and ERP-style connectors.
 Foundation stores config + sync status — live OAuth and API clients are later.
 """
 
@@ -12,7 +12,7 @@ from uuid import uuid4
 
 INTEGRATION_SOURCE = "integrations_ops"
 
-CONNECTOR_TYPES = ("p6", "bim", "drive", "sharepoint", "erp", "other")
+CONNECTOR_TYPES = ("ai_documents", "p6", "bim", "drive", "sharepoint", "erp", "other")
 CONNECTION_STATUSES = ("draft", "connected", "error", "disabled", "archived")
 SYNC_DIRECTIONS = ("import", "export", "bidirectional")
 SYNC_STATUSES = ("idle", "queued", "running", "succeeded", "failed", "cancelled")
@@ -29,6 +29,14 @@ SYNC_TARGETS = (
 
 # Catalog of supported connectors (metadata only — no live credentials)
 CONNECTOR_CATALOG: list[dict[str, Any]] = [
+    {
+        "type": "ai_documents",
+        "name": "AI Document Processing",
+        "description": "Prepare tender documents, contracts, BOQs, drawings, and maintenance plans for construction workflows.",
+        "default_targets": ["documents"],
+        "auth_mode": "service_token",
+        "docs_hint": "Connector catalog entry only; secure service-to-service authentication and document transfer are not enabled yet.",
+    },
     {
         "type": "p6",
         "name": "Oracle Primavera P6",
