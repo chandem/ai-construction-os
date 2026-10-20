@@ -69,4 +69,3 @@ def get_project_integrations_summary(
             status_code=503,
             detail="Could not load integration summary. Verify integration tables exist and backend database access.",
         ) from exc
-}
