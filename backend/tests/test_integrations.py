@@ -22,6 +22,7 @@ def test_catalog():
     cat = ns["list_connector_catalog"]()
     assert len(cat) >= 4
     types = {c["type"] for c in cat}
+    assert "ai_documents" in types
     assert "p6" in types and "bim" in types and "drive" in types and "erp" in types
 
 
