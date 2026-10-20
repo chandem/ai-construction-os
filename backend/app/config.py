@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     openai_api_key: str = ""
 
+    # Server-to-server AI Document Processing connector; never expose to the frontend.
+    ai_document_processing_base_url: str = ""
+    ai_document_processing_token: str = ""
+
     gemini_chat_model: str = _DEFAULT_GEMINI_CHAT
     # Comma-separated fallback models used only for transient Gemini availability errors.
     gemini_chat_fallback_models: str = "gemini-3.6-flash,gemini-3.5-flash-lite"
@@ -101,6 +105,3 @@ class Settings(BaseSettings):
         return [x.strip() for x in self.cors_origins.split(",") if x.strip()]
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
-
-
-settings = Settings()
