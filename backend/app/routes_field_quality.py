@@ -144,11 +144,17 @@ def list_site_diary(project_id: str, token: str = Depends(get_access_token)):
             .execute()
         )
         return {"data": result.data or []}
-    except Exception:
-        return {
-            "data": [],
-            "warning": "site_diary_entries table is not available yet — apply supabase/field.sql",
-        }
+    except Exception as exc:
+        msg = str(exc)[:300]
+        hint = "site_diary_entries table is not available yet — apply supabase/field.sql"
+        low = msg.lower()
+        if "schema cache" in low or "could not find" in low or "pgrst" in low:
+            hint = (
+                "site_diary_entries exists in DB but is not visible to the API yet (schema cache). "
+                "In Supabase SQL run: notify pgrst, 'reload schema'; "
+                "Grant access, then restart the Render backend service."
+            )
+        return {"data": [], "warning": hint, "detail": msg}
 
 
 @router.post("/projects/{project_id}/field/diary")
@@ -207,11 +213,17 @@ def list_progress_updates(project_id: str, token: str = Depends(get_access_token
             .execute()
         )
         return {"data": result.data or []}
-    except Exception:
-        return {
-            "data": [],
-            "warning": "progress_updates table is not available yet — apply supabase/field.sql",
-        }
+    except Exception as exc:
+        msg = str(exc)[:300]
+        hint = "progress_updates table is not available yet — apply supabase/field.sql"
+        low = msg.lower()
+        if "schema cache" in low or "could not find" in low or "pgrst" in low:
+            hint = (
+                "progress_updates exists in DB but is not visible to the API yet (schema cache). "
+                "In Supabase SQL run: notify pgrst, 'reload schema'; "
+                "Grant access, then restart the Render backend service."
+            )
+        return {"data": [], "warning": hint, "detail": msg}
 
 
 @router.post("/projects/{project_id}/field/progress")
@@ -351,11 +363,17 @@ def list_inspections(project_id: str, token: str = Depends(get_access_token)):
             .execute()
         )
         return {"data": result.data or []}
-    except Exception:
-        return {
-            "data": [],
-            "warning": "inspections table is not available yet — apply supabase/quality.sql",
-        }
+    except Exception as exc:
+        msg = str(exc)[:300]
+        hint = "inspections table is not available yet — apply supabase/quality.sql"
+        low = msg.lower()
+        if "schema cache" in low or "could not find" in low or "pgrst" in low:
+            hint = (
+                "inspections exists in DB but is not visible to the API yet (schema cache). "
+                "In Supabase SQL run: notify pgrst, 'reload schema'; "
+                "Grant access, then restart the Render backend service."
+            )
+        return {"data": [], "warning": hint, "detail": msg}
 
 
 @router.post("/projects/{project_id}/quality/inspections")
@@ -404,8 +422,16 @@ def list_ncrs(project_id: str, token: str = Depends(get_access_token)):
             .execute()
         )
         return {"data": result.data or []}
-    except Exception:
-        return {"data": [], "warning": "ncrs table is not available yet — apply supabase/quality.sql"}
+    except Exception as exc:
+        msg = str(exc)[:300]
+        hint = "ncrs table is not available yet — apply supabase/quality.sql"
+        low = msg.lower()
+        if "schema cache" in low or "could not find" in low or "pgrst" in low:
+            hint = (
+                "ncrs exists in DB but is not visible to the API yet (schema cache). "
+                "Run: notify pgrst, 'reload schema'; then restart Render."
+            )
+        return {"data": [], "warning": hint, "detail": msg}
 
 
 @router.post("/projects/{project_id}/quality/ncrs")
@@ -451,11 +477,17 @@ def list_incidents(project_id: str, token: str = Depends(get_access_token)):
             .execute()
         )
         return {"data": result.data or []}
-    except Exception:
-        return {
-            "data": [],
-            "warning": "incidents table is not available yet — apply supabase/quality.sql",
-        }
+    except Exception as exc:
+        msg = str(exc)[:300]
+        hint = "incidents table is not available yet — apply supabase/quality.sql"
+        low = msg.lower()
+        if "schema cache" in low or "could not find" in low or "pgrst" in low:
+            hint = (
+                "incidents exists in DB but is not visible to the API yet (schema cache). "
+                "In Supabase SQL run: notify pgrst, 'reload schema'; "
+                "Grant access, then restart the Render backend service."
+            )
+        return {"data": [], "warning": hint, "detail": msg}
 
 
 @router.post("/projects/{project_id}/quality/incidents")
