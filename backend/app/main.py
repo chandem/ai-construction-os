@@ -8,6 +8,7 @@ from .conversation_aliases import router as conversation_alias_router
 from .db import supabase
 from .document_files import router as document_file_router
 from .engineering_routes import router as engineering_router
+from .gis_routes import router as gis_router
 from .procurement_routes import router as procurement_router
 from .cost_control_routes import router as cost_control_router
 from .routes import router
@@ -33,6 +34,7 @@ app.include_router(agent_router)
 app.include_router(conversation_alias_router)
 app.include_router(document_file_router)
 app.include_router(engineering_router)
+app.include_router(gis_router)
 app.include_router(procurement_router)
 app.include_router(cost_control_router)
 
