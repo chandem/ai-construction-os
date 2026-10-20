@@ -105,3 +105,7 @@ class Settings(BaseSettings):
         return [x.strip() for x in self.cors_origins.split(",") if x.strip()]
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
+
+
+# Instantiate settings once so all backend modules can import the configured object.
+settings = Settings()
