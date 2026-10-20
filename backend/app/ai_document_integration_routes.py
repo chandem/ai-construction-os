@@ -3,7 +3,7 @@
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
-from .auth import get_access_token
+from .auth import get_access_token, get_current_user
 from .config import settings
 from .routes import _authenticated_client, _project_for_member
 
@@ -16,12 +16,9 @@ def check_ai_document_processing_health(
     token: str = Depends(get_access_token),
 ):
     """Check the remote connector without exposing its shared token to the browser."""
+    user = get_current_user(token)
     user_client = _authenticated_client(token)
-    user = user_client.auth.get_user(token)
-    user_id = getattr(getattr(user, "user", None), "id", None)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid session.")
-    _project_for_member(project_id, user_id, user_client)
+    _project_for_member(project_id, user["id"], user_client)
 
     base_url = (settings.ai_document_processing_base_url or "").strip().rstrip("/")
     shared_token = (settings.ai_document_processing_token or "").strip()
