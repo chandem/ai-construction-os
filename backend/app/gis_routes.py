@@ -3,7 +3,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from .auth import get_access_token, get_current_user
-from .db import supabase_admin
 from .gis import gis_summary
 from .routes import _project_for_member, _authenticated_client
 
