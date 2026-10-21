@@ -1,6 +1,6 @@
 import React from "react";
 import { supabase } from "./supabaseClient";
-import { apiGet, apiPost, apiUpload, apiDownload } from "./api";
+import { apiGet, apiPost, apiUpload, apiDownload, apiDelete } from "./api";
 import { AuthScreen } from "./AuthScreen";
 import { MenuButton } from "./MenuButton";
 import { DocumentList } from "./DocumentList";
@@ -62,6 +62,7 @@ export function App() {
   const [input, setInput] = React.useState("");
   const [uploading, setUploading] = React.useState(false);
   const [reprocessingDocuments, setReprocessingDocuments] = React.useState<Record<string, boolean>>({});
+  const [deletingDocuments, setDeletingDocuments] = React.useState<Record<string, boolean>>({});
   const [documentJobs, setDocumentJobs] = React.useState<Record<string, any>>({});
   const [resultsDocument, setResultsDocument] = React.useState<Document | null>(null);
   const [documentResults, setDocumentResults] = React.useState<any>(null);
@@ -221,6 +222,40 @@ export function App() {
       setError(err.message || "Could not reprocess document.");
     } finally {
       setReprocessingDocuments((current) => {
+        const next = { ...current };
+        delete next[documentId];
+        return next;
+      });
+    }
+  }
+
+  async function deleteDocument(documentId: string, documentName: string) {
+    if (!token || deletingDocuments[documentId] || reprocessingDocuments[documentId]) return;
+    const confirmed = window.confirm(
+      'Delete "' + documentName + '" permanently? This removes the uploaded document and its stored AI processing data for this project.'
+    );
+    if (!confirmed) return;
+
+    setDeletingDocuments((current) => ({ ...current, [documentId]: true }));
+    setError("");
+    setNotice("");
+    try {
+      await apiDelete("/api/v1/documents/" + documentId, token);
+      setDocuments((current) => current.filter((document) => document.id !== documentId));
+      setDocumentJobs((current) => {
+        const next = { ...current };
+        delete next[documentId];
+        return next;
+      });
+      if (resultsDocument?.id === documentId) {
+        setResultsDocument(null);
+        setDocumentResults(null);
+      }
+      setNotice('Deleted "' + documentName + '".');
+    } catch (err: any) {
+      setError(err.message || "Could not delete document.");
+    } finally {
+      setDeletingDocuments((current) => {
         const next = { ...current };
         delete next[documentId];
         return next;
@@ -431,10 +466,12 @@ export function App() {
                 documents={documents}
                 documentJobs={documentJobs}
                 reprocessingDocuments={reprocessingDocuments}
+                deletingDocuments={deletingDocuments}
                 token={token}
                 onOpenError={(message) => setError(message)}
                 onViewResults={viewDocumentResults}
                 onReprocess={reprocessDocument}
+                onDelete={deleteDocument}
               />
             </div>
           </div>
