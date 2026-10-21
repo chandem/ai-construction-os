@@ -35,6 +35,7 @@ type BoqRow = {
   status?: string;
   id?: string;
   source?: string | null;
+  confidence?: number | null;
   properties?: Record<string, unknown> | null;
   notes?: string | null;
 };
@@ -85,6 +86,10 @@ export function DesignCenter({ projectId, token }: Props) {
   const [editCurrency, setEditCurrency] = React.useState("USD");
   const [boqSearch, setBoqSearch] = React.useState("");
   const [boqStatusFilter, setBoqStatusFilter] = React.useState("all");
+  const [boqSourceFilter, setBoqSourceFilter] = React.useState("all");
+  const [hideLowConfidence, setHideLowConfidence] = React.useState(false);
+  const [selectedBoqIds, setSelectedBoqIds] = React.useState<string[]>([]);
+  const [bulkAccepting, setBulkAccepting] = React.useState(false);
 
   async function load() {
     if (!projectId || !token) return;
@@ -248,18 +253,53 @@ export function DesignCenter({ projectId, token }: Props) {
   const quantityTotal = quantities.reduce((sum, row) => sum + Number(row.total_quantity || 0), 0);
   const reviewCount = elements.filter((row) => Number(row.confidence ?? 0) < 0.7).length;
 
+  const sourceLabel = (source?: string | null) => {
+    const value = String(source || "").toLowerCase();
+    if (value.includes("document") || value.includes("import")) return "document";
+    if (value.includes("quantity") || value.includes("takeoff") || value.includes("qto")) return "takeoff";
+    if (value.includes("manual")) return "manual";
+    if (value.includes("drawing")) return "drawing";
+    return value || "other";
+  };
+
+  const confidenceValue = (row: BoqRow): number | null => {
+    const raw = row.confidence ?? row.properties?.confidence;
+    if (raw === null || raw === undefined || raw === "") return null;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return null;
+    return parsed > 1 ? Math.max(0, Math.min(1, parsed / 100)) : Math.max(0, Math.min(1, parsed));
+  };
+
+  const sourceOptions = React.useMemo(() => {
+    const options = new Map<string, string>();
+    boq.forEach((row) => {
+      const key = sourceLabel(row.source);
+      const label = key === "document" ? "Imported BOQ / document"
+        : key === "takeoff" ? "Quantity takeoff"
+        : key === "drawing" ? "Drawing takeoff"
+        : key === "manual" ? "Manually entered"
+        : key === "other" ? "Unspecified source"
+        : String(row.source || key);
+      options.set(key, label);
+    });
+    return Array.from(options.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [boq]);
+
   const filteredBoq = React.useMemo(() => {
     const q = boqSearch.trim().toLowerCase();
     return boq.filter((row) => {
       const status = (row.status || "proposed").toLowerCase();
       if (boqStatusFilter !== "all" && status !== boqStatusFilter) return false;
+      if (boqSourceFilter !== "all" && sourceLabel(row.source) !== boqSourceFilter) return false;
+      const confidence = confidenceValue(row);
+      if (hideLowConfidence && confidence !== null && confidence < 0.5) return false;
       if (!q) return true;
       const hay = [row.item_code, row.description, row.work_section, row.unit, row.status, row.source]
         .map((x) => String(x || "").toLowerCase())
         .join(" ");
       return hay.includes(q);
     });
-  }, [boq, boqSearch, boqStatusFilter]);
+  }, [boq, boqSearch, boqStatusFilter, boqSourceFilter, hideLowConfidence]);
 
   const boqStatusCounts = React.useMemo(() => {
     const counts: Record<string, number> = { proposed: 0, approved: 0, rejected: 0 };
@@ -274,6 +314,60 @@ export function DesignCenter({ projectId, token }: Props) {
     () => boq.filter((row) => String(row.source || "").includes("document")).length,
     [boq],
   );
+
+  React.useEffect(() => {
+    const visibleIds = new Set(filteredBoq.map((row) => row.id).filter(Boolean) as string[]);
+    setSelectedBoqIds((current) => current.filter((id) => visibleIds.has(id)));
+  }, [boqSearch, boqStatusFilter, boqSourceFilter, hideLowConfidence, boq]);
+
+  function toggleBoqSelection(id: string, checked: boolean) {
+    setSelectedBoqIds((current) => checked
+      ? (current.includes(id) ? current : [...current, id])
+      : current.filter((item) => item !== id));
+  }
+
+  async function bulkAcceptSelected() {
+    const eligible = filteredBoq.filter((row) =>
+      row.id && selectedBoqIds.includes(row.id) && (row.status || "proposed").toLowerCase() === "proposed"
+    );
+    if (!eligible.length || bulkAccepting) return;
+    if (!window.confirm("Accept " + eligible.length + " selected proposed BOQ line(s)? This will save each line as approved.")) return;
+    setBulkAccepting(true);
+    setBusy(true);
+    setError("");
+    setNotice("");
+    let accepted = 0;
+    const failures: string[] = [];
+    try {
+      for (const row of eligible) {
+        try {
+          await apiPost(
+            "/api/v1/projects/" + projectId + "/engineering/boq/items/" + row.id + "/review",
+            token,
+            {
+              description: row.description || null,
+              quantity: row.quantity ?? null,
+              unit: row.unit || null,
+              status: "approved",
+            }
+          );
+          accepted += 1;
+        } catch (e: any) {
+          failures.push((row.item_code || row.description || row.id) + ": " + (e.message || "failed"));
+        }
+      }
+      setSelectedBoqIds([]);
+      if (failures.length) {
+        setError("Accepted " + accepted + " line(s); " + failures.length + " failed. " + failures.slice(0, 3).join(" | "));
+      } else {
+        setNotice("Accepted " + accepted + " BOQ line(s).");
+      }
+      await load();
+    } finally {
+      setBulkAccepting(false);
+      setBusy(false);
+    }
+  }
 
   function statusBadge(status?: string) {
     const s = (status || "proposed").toLowerCase();
@@ -468,13 +562,44 @@ export function DesignCenter({ projectId, token }: Props) {
                 </div>
               </div>
               <div className="boq-toolbar row gap">
-                <input type="search" aria-label="Search BOQ" placeholder="Search code, description, section…" value={boqSearch} onChange={(e) => setBoqSearch(e.target.value)} style={{ minWidth: 220, flex: 1 }} />
+                <input type="search" aria-label="Search BOQ" placeholder="Search code, description, section…" value={boqSearch} onChange={(e) => setBoqSearch(e.target.value)} style={{ minWidth: 180, flex: 1 }} />
+                <select aria-label="Filter BOQ source" value={boqSourceFilter} onChange={(e) => setBoqSourceFilter(e.target.value)} style={{ minWidth: 155 }}>
+                  <option value="all">All sources</option>
+                  {sourceOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
                 <select aria-label="Filter BOQ status" value={boqStatusFilter} onChange={(e) => setBoqStatusFilter(e.target.value)} style={{ width: 140 }}>
                   <option value="all">All statuses</option>
                   <option value="proposed">Proposed</option>
                   <option value="approved">Approved</option>
                   <option value="rejected">Rejected</option>
                 </select>
+                <label className="row gap small" style={{ alignItems: "center" }}>
+                  <input type="checkbox" checked={hideLowConfidence} onChange={(e) => setHideLowConfidence(e.target.checked)} />
+                  Hide low confidence (&lt;50%)
+                </label>
+              </div>
+              <div className="row gap" style={{ justifyContent: "space-between", alignItems: "center", margin: "10px 0" }}>
+                <label className="row gap small" style={{ alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    aria-label="Select all visible proposed BOQ lines"
+                    checked={filteredBoq.filter((row) => row.id && (row.status || "proposed").toLowerCase() === "proposed").length > 0 &&
+                      filteredBoq.filter((row) => row.id && (row.status || "proposed").toLowerCase() === "proposed").every((row) => selectedBoqIds.includes(row.id!))}
+                    onChange={(e) => {
+                      const ids = filteredBoq.filter((row) => row.id && (row.status || "proposed").toLowerCase() === "proposed").map((row) => row.id!);
+                      setSelectedBoqIds((current) => e.target.checked
+                        ? Array.from(new Set([...current, ...ids]))
+                        : current.filter((id) => !ids.includes(id)));
+                    }}
+                  />
+                  Select visible proposed lines
+                </label>
+                <div className="row gap" style={{ alignItems: "center" }}>
+                  <span className="muted small">{selectedBoqIds.length} selected</span>
+                  <button type="button" className="button primary compact" disabled={busy || bulkAccepting || !filteredBoq.some((row) => row.id && selectedBoqIds.includes(row.id) && (row.status || "proposed").toLowerCase() === "proposed")} onClick={bulkAcceptSelected}>
+                    {bulkAccepting ? "Accepting…" : "Accept selected"}
+                  </button>
+                </div>
               </div>
               {filteredBoq.length === 0 ? (
                 <div className="empty empty-card">
@@ -486,10 +611,12 @@ export function DesignCenter({ projectId, token }: Props) {
                   <table>
                     <thead>
                       <tr>
+                        <th>Select</th>
                         <th>Code</th>
                         <th>Description</th>
                         <th>Section</th>
                         <th>Source</th>
+                        <th>Confidence</th>
                         <th>Qty</th>
                         <th>Unit</th>
                         <th>Status</th>
@@ -499,6 +626,15 @@ export function DesignCenter({ projectId, token }: Props) {
                     <tbody>
                       {filteredBoq.map((row, index) => (
                         <tr key={row.id || row.item_code || index}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              aria-label={"Select BOQ line " + (row.item_code || row.description || index + 1)}
+                              disabled={!row.id || (row.status || "proposed").toLowerCase() !== "proposed"}
+                              checked={Boolean(row.id && selectedBoqIds.includes(row.id))}
+                              onChange={(e) => row.id && toggleBoqSelection(row.id, e.target.checked)}
+                            />
+                          </td>
                           <td><code className="boq-code">{row.item_code || "—"}</code></td>
                           <td>{row.description || "—"}</td>
                           <td>{row.work_section || "—"}</td>
@@ -510,6 +646,12 @@ export function DesignCenter({ projectId, token }: Props) {
                                   ? "Takeoff"
                                   : row.source || "BOQ"}
                             </span>
+                          </td>
+                          <td>
+                            {confidenceValue(row) === null ? <span className="muted" title="No confidence score was provided">Not available</span>
+                              : <span className={"status " + (confidenceValue(row)! >= 0.8 ? "status-approved" : confidenceValue(row)! >= 0.5 ? "status-proposed" : "status-rejected")}>
+                                {Math.round(confidenceValue(row)! * 100)}%
+                              </span>}
                           </td>
                           <td>{row.quantity == null ? "—" : Number(row.quantity).toLocaleString()}</td>
                           <td>{row.unit || "—"}</td>
