@@ -116,3 +116,12 @@ export async function apiDownload(path: string, token: string, filename: string)
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+
+export async function apiDelete(path: string, token: string): Promise<any> {
+  const r = await requestWithAuth(path, token, { method: "DELETE" });
+  if (!r.ok) throw new Error(await readError(r, "Delete failed"));
+  if (r.status === 204) return null;
+  const text = await r.text();
+  return text ? JSON.parse(text) : null;
+}
