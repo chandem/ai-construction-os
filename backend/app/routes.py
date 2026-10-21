@@ -42,6 +42,12 @@ class CreateProjectRequest(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
 
 
+class UpdateProjectRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    code: str | None = Field(default=None, max_length=50)
+    description: str | None = Field(default=None, max_length=2000)
+
+
 @router.get("/auth/me")
 def me(token: str = Depends(get_access_token)):
     return get_current_user(token)
@@ -305,6 +311,54 @@ def create_project(payload: CreateProjectRequest, token: str = Depends(get_acces
         raise HTTPException(status_code=500, detail="Project was not created")
 
     return {"data": result.data[0]}
+
+
+@router.patch("/projects/{project_id}")
+def update_project(project_id: str, payload: UpdateProjectRequest, token: str = Depends(get_access_token)):
+    user = get_current_user(token)
+    client = _authenticated_client(token)
+    project = _project_for_member(project_id, user["id"], client)
+
+    updates = {}
+    fields = payload.model_fields_set
+    if "name" in fields:
+        name = (payload.name or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Project name is required")
+        updates["name"] = name
+    if "code" in fields:
+        updates["code"] = (payload.code or "").strip() or None
+    if "description" in fields:
+        updates["description"] = (payload.description or "").strip() or None
+    if not updates:
+        raise HTTPException(status_code=400, detail="Provide at least one project field to update")
+
+    result = client.table("projects").update(updates).eq("id", project_id).eq("organization_id", project["organization_id"]).select("*").execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Project not found or no changes were saved")
+    return {"data": result.data[0]}
+
+
+@router.delete("/projects/{project_id}")
+def delete_project(project_id: str, token: str = Depends(get_access_token)):
+    """Delete an empty project only; preserve all linked construction records."""
+    user = get_current_user(token)
+    client = _authenticated_client(token)
+    project = _project_for_member(project_id, user["id"], client)
+
+    documents = client.table("documents").select("id").eq("project_id", project_id).limit(1).execute()
+    if documents.data:
+        raise HTTPException(status_code=409, detail="This project still has uploaded documents. Delete its documents first, then try again.")
+
+    # Other project modules may have linked records. Let foreign-key constraints
+    # protect those records instead of cascading destructive deletes.
+    try:
+        result = client.table("projects").delete().eq("id", project_id).eq("organization_id", project["organization_id"]).select("id").execute()
+    except Exception as exc:
+        raise HTTPException(status_code=409, detail="This project has linked construction records. Remove or reassign those records before deleting the project.") from exc
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Project not found or could not be deleted")
+    return {"success": True, "project_id": project_id, "message": "Project deleted"}
 
 
 @router.get("/projects/{project_id}/documents")

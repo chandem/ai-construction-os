@@ -1,6 +1,6 @@
 import React from "react";
 import { supabase } from "./supabaseClient";
-import { apiGet, apiPost, apiUpload, apiDownload, apiDelete } from "./api";
+import { apiGet, apiPost, apiPatch, apiUpload, apiDownload, apiDelete } from "./api";
 import { AuthScreen } from "./AuthScreen";
 import { MenuButton } from "./MenuButton";
 import { DocumentList } from "./DocumentList";
@@ -52,6 +52,11 @@ export function App() {
   const [projectId, setProjectId] = React.useState("");
   const [projectsLoading, setProjectsLoading] = React.useState(false);
   const [showCreateProject, setShowCreateProject] = React.useState(false);
+  const [editingProject, setEditingProject] = React.useState(false);
+  const [editProjectName, setEditProjectName] = React.useState("");
+  const [editProjectCode, setEditProjectCode] = React.useState("");
+  const [updatingProject, setUpdatingProject] = React.useState(false);
+  const [deletingProject, setDeletingProject] = React.useState(false);
   const [newProjectName, setNewProjectName] = React.useState("");
   const [newProjectCode, setNewProjectCode] = React.useState("");
   const [creatingProject, setCreatingProject] = React.useState(false);
@@ -170,6 +175,69 @@ export function App() {
       setError(err.message || "Could not create project.");
     } finally {
       setCreatingProject(false);
+    }
+  }
+
+  function beginEditProject() {
+    const project = projects.find((item) => item.id === projectId);
+    if (!project) return;
+    setEditProjectName(project.name || "");
+    setEditProjectCode(project.code || "");
+    setEditingProject(true);
+    setError("");
+    setNotice("");
+  }
+
+  async function updateProject(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token || !projectId || !editProjectName.trim() || updatingProject) return;
+    setUpdatingProject(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await apiPatch("/api/v1/projects/" + projectId, token, {
+        name: editProjectName.trim(),
+        code: editProjectCode.trim() || null,
+      });
+      const updated = response.data || response;
+      setProjects((current) => current.map((item) => item.id === projectId ? { ...item, ...updated } : item));
+      setEditingProject(false);
+      setNotice("Project details updated.");
+    } catch (err: any) {
+      setError(err.message || "Could not update project.");
+    } finally {
+      setUpdatingProject(false);
+    }
+  }
+
+  async function deleteProject() {
+    const project = projects.find((item) => item.id === projectId);
+    if (!token || !project || deletingProject) return;
+    const confirmed = window.confirm(
+      'Delete project "' + project.name + '"? This cannot be undone. Projects with uploaded documents or linked records cannot be deleted until those records are removed.'
+    );
+    if (!confirmed) return;
+    setDeletingProject(true);
+    setError("");
+    setNotice("");
+    try {
+      await apiDelete("/api/v1/projects/" + projectId, token);
+      setProjects((current) => current.filter((item) => item.id !== projectId));
+      setProjectId("");
+      setDocuments([]);
+      setDocumentJobs({});
+      setConversations([]);
+      setConversationId("");
+      setMessages([]);
+      setResultsDocument(null);
+      setDocumentResults(null);
+      setEditingProject(false);
+      setView("os-home");
+      setNotice('Project "' + project.name + '" deleted.');
+    } catch (err: any) {
+      setError(err.message || "Could not delete project.");
+    } finally {
+      setDeletingProject(false);
     }
   }
 
@@ -397,6 +465,23 @@ export function App() {
                 </option>
               ))}
             </select>
+            <div className="project-actions">
+              <button className="project-action-edit" type="button" onClick={beginEditProject} disabled={!projectId || updatingProject || deletingProject}>Edit selected</button>
+              <button className="project-action-delete" type="button" onClick={deleteProject} disabled={!projectId || updatingProject || deletingProject}>{deletingProject ? "Deleting..." : "Delete selected"}</button>
+            </div>
+            {editingProject && (
+              <form className="create-project" onSubmit={updateProject}>
+                <strong>Edit project</strong>
+                <label>Project name</label>
+                <input type="text" value={editProjectName} onChange={(e) => setEditProjectName(e.target.value)} maxLength={200} disabled={updatingProject} />
+                <label>Project code (optional)</label>
+                <input type="text" value={editProjectCode} onChange={(e) => setEditProjectCode(e.target.value)} maxLength={50} disabled={updatingProject} />
+                <div className="project-edit-actions">
+                  <button className="button primary compact" type="submit" disabled={updatingProject || !editProjectName.trim()}>{updatingProject ? "Saving..." : "Save changes"}</button>
+                  <button className="project-action-cancel" type="button" onClick={() => setEditingProject(false)} disabled={updatingProject}>Cancel</button>
+                </div>
+              </form>
+            )}
             <button className="side-action" type="button" onClick={() => setShowCreateProject((v) => !v)}>
               {showCreateProject ? "Hide new project" : "+ New project"}
             </button>

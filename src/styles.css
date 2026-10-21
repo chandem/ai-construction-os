@@ -336,3 +336,13 @@ select:focus, input:focus, textarea:focus { border-color: #6b7c8a; box-shadow: 0
 .document-action:hover:not(:disabled) { background: #edf2f5; }
 .document-action-danger { border-color: #f0c2bf; background: #fff1f0; color: #b42318; }
 .document-action-danger:hover:not(:disabled) { background: #ffe3e1; }
+
+
+/* Project-level edit and delete actions */
+.project-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.project-actions button, .project-action-cancel { min-width: 0; padding: 9px 8px; border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; color: var(--ink); font-size: 11px; font-weight: 750; }
+.project-actions .project-action-edit { background: #eef2f5; }
+.project-actions .project-action-delete { border-color: #f1c4c1; background: #fff1f0; color: #b42318; }
+.project-edit-actions { display: flex; gap: 8px; align-items: center; }
+.project-edit-actions .button.compact { flex: 1; width: auto; margin-top: 12px; }
+.project-edit-actions .project-action-cancel { margin-top: 12px; }
