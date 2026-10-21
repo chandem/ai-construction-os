@@ -71,7 +71,9 @@ def run_document_pipeline(
     try:
         stage = "pdf_text_extraction"
         pages = extract_pages(safe_name, content_type or "", data)
-        text_content = "\n\n".join(text for text, _ in pages)
+        text_content = "
+
+".join(text for text, _ in pages)
         page_count = len(pages) if any(page_number is not None for _, page_number in pages) else None
         chunks = chunk_text_with_metadata(pages)
 
@@ -207,7 +209,9 @@ def run_document_pipeline(
                 last_exc: Exception | None = None
                 for attempt in range(4):
                     try:
-                        client.table("ai_knowledge_chunks").upsert(\n                            batch, on_conflict="knowledge_document_id,chunk_index"\n                        ).execute()
+                        client.table("ai_knowledge_chunks").upsert(
+                            batch, on_conflict="knowledge_document_id,chunk_index"
+                        ).execute()
                         last_exc = None
                         break
                     except Exception as exc:
@@ -227,7 +231,9 @@ def run_document_pipeline(
                     # Retry batch without embeddings (lighter payload)
                     light = [{k: v for k, v in row.items() if k != "embedding"} for row in batch]
                     try:
-                        client.table("ai_knowledge_chunks").upsert(\n                            light, on_conflict="knowledge_document_id,chunk_index"\n                        ).execute()
+                        client.table("ai_knowledge_chunks").upsert(
+                            light, on_conflict="knowledge_document_id,chunk_index"
+                        ).execute()
                         processing_warnings.append(
                             f"Search chunks stored without embeddings for batch {start // batch_size + 1} "
                             f"(resource pressure: {str(last_exc)[:200]})"
@@ -252,7 +258,9 @@ def run_document_pipeline(
                                 for row in light
                             ]
                             try:
-                                client.table("ai_knowledge_chunks").upsert(\n                                    compatible, on_conflict="knowledge_document_id,chunk_index"\n                                ).execute()
+                                client.table("ai_knowledge_chunks").upsert(
+                                    compatible, on_conflict="knowledge_document_id,chunk_index"
+                                ).execute()
                                 processing_warnings.append(
                                     "Search chunks stored without embeddings or project_id; "
                                     "the database schema needs migration for full project-scoped indexing."
