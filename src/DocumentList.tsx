@@ -91,7 +91,8 @@ export function DocumentList({
                 type="button"
                 className="document-action document-action-danger"
                 onClick={() => onDelete(d.id, d.name)}
-                disabled={busy || deleting}
+                disabled={busy || deleting || readiness === "processing"}
+                title={readiness === "processing" ? "Wait for processing to finish before deleting" : "Permanently delete this document"}
                 aria-label={"Delete document " + d.name}
               >
                 {deleting ? "Deleting…" : "Delete"}
