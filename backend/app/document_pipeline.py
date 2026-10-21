@@ -233,6 +233,33 @@ def run_document_pipeline(
                             f"(resource pressure: {str(last_exc)[:200]})"
                         )
                     except Exception as exc2:
+                        # Older production schemas may not yet expose project_id
+                        # on ai_knowledge_chunks. The knowledge_document_id and
+                        # document_id still preserve the relationship, so retry
+                        # without this optional denormalized column only when
+                        # PostgREST explicitly reports that column as missing.
+                        missing_project_id = (
+                            "project_id" in str(exc2).lower()
+                            and (
+                                "schema cache" in str(exc2).lower()
+                                or "does not exist" in str(exc2).lower()
+                                or "could not find" in str(exc2).lower()
+                            )
+                        )
+                        if missing_project_id:
+                            compatible = [
+                                {key: value for key, value in row.items() if key != "project_id"}
+                                for row in light
+                            ]
+                            try:
+                                client.table("ai_knowledge_chunks").insert(compatible).execute()
+                                processing_warnings.append(
+                                    "Search chunks stored without embeddings or project_id; "
+                                    "the database schema needs migration for full project-scoped indexing."
+                                )
+                                continue
+                            except Exception as exc3:
+                                exc2 = exc3
                         failed_batches += 1
                         processing_warnings.append(
                             f"Search chunk batch {start // batch_size + 1} skipped: {str(exc2)[:200]}"
