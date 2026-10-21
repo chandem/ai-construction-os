@@ -129,10 +129,8 @@ def run_document_pipeline(
                     extraction=extraction,
                     source_name=safe_name,
                 )
-                if boq_count:
-                    processing_warnings.append(
-                        f"Imported {boq_count} proposed BOQ line(s) from document extraction for review."
-                    )
+                # A successful BOQ import is informational, not an enrichment warning.
+                # Only actual failures should mark the document as partially enriched.
             except Exception as exc:
                 processing_warnings.append(f"BOQ import from document skipped: {str(exc)[:300]}")
 
