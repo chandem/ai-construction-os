@@ -109,60 +109,75 @@ def persist_boq_from_document(
     extraction: dict[str, Any],
     source_name: str | None = None,
 ) -> int:
-    """Persist proposed BOQ lines from a document extraction. Returns inserted count."""
+    """Import BOQ lines safely, preserving reviewed rows on reprocessing.
+
+    New rows are inserted before stale proposed rows are removed. Reviewed or
+    accepted rows are never deleted. If the existing rows cannot be inspected,
+    fail closed rather than risk an uncontrolled duplicate import.
+    """
     rows = build_boq_rows_from_extraction(
         project_id=project_id,
         document_id=document_id,
         extraction=extraction,
         source_name=source_name,
     )
+    # Do not remove existing rows when extraction produces no usable BOQ items.
     if not rows:
         return 0
 
-    # Avoid stacking duplicate imports for the same document on reprocess.
-    try:
-        existing = (
-            client.table("boq_items")
-            .select("id,properties")
-            .eq("project_id", project_id)
-            .eq("source", "document_extraction")
-            .limit(5000)
-            .execute()
-        ).data or []
-        stale_ids = []
-        for row in existing:
-            props = row.get("properties") or {}
-            if props.get("source_document_id") == document_id:
-                stale_ids.append(row["id"])
-        for item_id in stale_ids:
-            client.table("boq_items").delete().eq("id", item_id).execute()
-    except Exception:
-        # Table missing or RLS — try insert anyway and let persist handle failure.
-        pass
+    # Inspect existing imports first. Do not silently continue if this fails:
+    # without this list we cannot safely determine what is eligible for cleanup.
+    existing = (
+        client.table("boq_items")
+        .select("id,status,properties")
+        .eq("project_id", project_id)
+        .eq("source", "document_extraction")
+        .limit(5000)
+        .execute()
+    ).data or []
 
-    payload = []
-    for r in rows:
-        payload.append(
-            {
-                "project_id": r["project_id"],
-                "item_code": r.get("item_code"),
-                "work_section": r.get("work_section"),
-                "description": r.get("description"),
-                "element_type": r.get("element_type"),
-                "quantity": r.get("quantity"),
-                "unit": r.get("unit"),
-                "item_count": r.get("item_count") or 1,
-                "source_element_ids": r.get("source_element_ids") or [],
-                "source_identifiers": r.get("source_identifiers") or [],
-                "source": "document_extraction",
-                "status": "proposed",
-                "notes": r.get("notes"),
-                "properties": r.get("properties") or {},
-            }
-        )
+    same_document = []
+    for row in existing:
+        props = row.get("properties") or {}
+        if props.get("source_document_id") == document_id:
+            same_document.append(row)
 
-    try:
-        result = client.table("boq_items").insert(payload).execute()
-        return len(result.data or payload)
-    except Exception:
-        return 0
+    # Only replace machine-generated rows that remain proposed. Preserve
+    # accepted/reviewed rows and any rows whose status is missing or unknown.
+    stale_proposed_ids = [
+        row["id"]
+        for row in same_document
+        if str(row.get("status") or "").lower() == "proposed" and row.get("id")
+    ]
+
+    payload = [
+        {
+            "project_id": r["project_id"],
+            "item_code": r.get("item_code"),
+            "work_section": r.get("work_section"),
+            "description": r.get("description"),
+            "element_type": r.get("element_type"),
+            "quantity": r.get("quantity"),
+            "unit": r.get("unit"),
+            "item_count": r.get("item_count") or 1,
+            "source_element_ids": r.get("source_element_ids") or [],
+            "source_identifiers": r.get("source_identifiers") or [],
+            "source": "document_extraction",
+            "status": "proposed",
+            "notes": r.get("notes"),
+            "properties": r.get("properties") or {},
+        }
+        for r in rows
+    ]
+
+    # Insert first so an insertion failure does not destroy the prior proposed
+    # rows. If insertion fails, propagate it to the pipeline warning handler.
+    result = client.table("boq_items").insert(payload).execute()
+    inserted_count = len(result.data or payload)
+
+    # Clean up only after successful insertion. Failures are surfaced to the
+    # caller; they must not be silently reported as a successful replacement.
+    for item_id in stale_proposed_ids:
+        client.table("boq_items").delete().eq("id", item_id).execute()
+
+    return inserted_count
