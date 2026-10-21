@@ -6,10 +6,12 @@ type Props = {
   documents: Document[];
   documentJobs: Record<string, any>;
   reprocessingDocuments: Record<string, boolean>;
+  deletingDocuments: Record<string, boolean>;
   token: string;
   onOpenError: (message: string) => void;
   onViewResults: (document: Document) => void;
   onReprocess: (documentId: string, documentName: string) => void;
+  onDelete: (documentId: string, documentName: string) => void;
 };
 
 function readinessFor(document: Document, job: any, busy: boolean): string {
@@ -34,10 +36,12 @@ export function DocumentList({
   documents,
   documentJobs,
   reprocessingDocuments,
+  deletingDocuments,
   token,
   onOpenError,
   onViewResults,
   onReprocess,
+  onDelete,
 }: Props) {
   if (!documents.length) {
     return <p className="doc-empty">No documents uploaded yet.</p>;
@@ -48,6 +52,7 @@ export function DocumentList({
       {documents.map((d) => {
         const job = documentJobs[d.id];
         const busy = !!reprocessingDocuments[d.id];
+        const deleting = !!deletingDocuments[d.id];
         const readiness = readinessFor(d, job, busy);
         return (
           <div key={d.id} className="document-row">
@@ -78,9 +83,18 @@ export function DocumentList({
                 type="button"
                 className="document-action"
                 onClick={() => onReprocess(d.id, d.name)}
-                disabled={busy}
+                disabled={busy || deleting}
               >
                 {busy ? "…" : "Reprocess"}
+              </button>
+              <button
+                type="button"
+                className="document-action document-action-danger"
+                onClick={() => onDelete(d.id, d.name)}
+                disabled={busy || deleting}
+                aria-label={"Delete document " + d.name}
+              >
+                {deleting ? "Deleting…" : "Delete"}
               </button>
             </div>
           </div>
