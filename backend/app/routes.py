@@ -437,6 +437,57 @@ async def upload_document(project_id: str, background_tasks: BackgroundTasks, fi
         raise HTTPException(status_code=500, detail=f"Document upload failed: {exc}") from exc
 
 
+@router.delete("/documents/{document_id}")
+def delete_document(document_id: str, token: str = Depends(get_access_token)):
+    """Permanently delete an authorized project document and its related AI data."""
+    user = get_current_user(token)
+    client = _authenticated_client(token)
+    document_result = (
+        client.table("documents")
+        .select("id,project_id,storage_path,name")
+        .eq("id", document_id)
+        .maybe_single()
+        .execute()
+    )
+    document = document_result.data
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    _project_for_member(document["project_id"], user["id"], client)
+
+    # Remove the original file first; do not delete the database record if storage fails.
+    storage_path = document.get("storage_path")
+    if storage_path:
+        try:
+            client.storage.from_(BUCKET).remove([storage_path])
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail="Could not remove the stored document file. No document records were deleted.") from exc
+
+    # Delete dependent records before the parent document to avoid orphaned AI data.
+    try:
+        assets = (
+            client.table("design_assets")
+            .select("id")
+            .eq("document_id", document_id)
+            .execute()
+        )
+        asset_ids = [row["id"] for row in (assets.data or []) if row.get("id")]
+        if asset_ids:
+            client.table("design_reviews").delete().in_("design_asset_id", asset_ids).execute()
+            client.table("design_assets").delete().in_("id", asset_ids).execute()
+
+        for table in ("ai_knowledge_chunks", "ai_extractions", "ai_knowledge_documents", "document_processing_jobs"):
+            client.table(table).delete().eq("document_id", document_id).execute()
+
+        client.table("documents").delete().eq("id", document_id).execute()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="The file was removed, but related document records could not all be deleted. Please contact the administrator before retrying.",
+        ) from exc
+
+    return {"success": True, "document_id": document_id, "message": "Document deleted"}
+    
+
 @router.get("/documents/{document_id}/extraction")
 def document_extraction(document_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
