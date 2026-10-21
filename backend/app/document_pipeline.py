@@ -71,9 +71,7 @@ def run_document_pipeline(
     try:
         stage = "pdf_text_extraction"
         pages = extract_pages(safe_name, content_type or "", data)
-        text_content = "
-
-".join(text for text, _ in pages)
+        text_content = "\n\n".join(text for text, _ in pages)
         page_count = len(pages) if any(page_number is not None for _, page_number in pages) else None
         chunks = chunk_text_with_metadata(pages)
 
