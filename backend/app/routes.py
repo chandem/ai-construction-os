@@ -333,7 +333,7 @@ def update_project(project_id: str, payload: UpdateProjectRequest, token: str = 
     if not updates:
         raise HTTPException(status_code=400, detail="Provide at least one project field to update")
 
-    result = client.table("projects").update(updates).eq("id", project_id).eq("organization_id", project["organization_id"]).execute()
+    result = client.table("projects").update(updates).eq("id", project_id).eq("organization_id", project["organization_id"]).select("*").execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Project not found or no changes were saved")
     return {"data": result.data[0]}
@@ -353,7 +353,7 @@ def delete_project(project_id: str, token: str = Depends(get_access_token)):
     # Other project modules may have linked records. Let foreign-key constraints
     # protect those records instead of cascading destructive deletes.
     try:
-        result = client.table("projects").delete().eq("id", project_id).eq("organization_id", project["organization_id"]).execute()
+        result = client.table("projects").delete().eq("id", project_id).eq("organization_id", project["organization_id"]).select("id").execute()
     except Exception as exc:
         raise HTTPException(status_code=409, detail="This project has linked construction records. Remove or reassign those records before deleting the project.") from exc
     if not result.data:
