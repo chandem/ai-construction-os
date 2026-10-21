@@ -466,8 +466,8 @@ export function App() {
               ))}
             </select>
             <div className="project-actions">
-              <button className="project-action-edit" type="button" onClick={beginEditProject} disabled={!projectId || updatingProject || deletingProject}>Edit selected</button>
-              <button className="project-action-delete" type="button" onClick={deleteProject} disabled={!projectId || updatingProject || deletingProject}>{deletingProject ? "Deleting..." : "Delete selected"}</button>
+              <button className="project-action-edit" type="button" onClick={beginEditProject} disabled={!projectId || updatingProject || deletingProject}>Edit</button>
+              <button className="project-action-delete" type="button" onClick={deleteProject} disabled={!projectId || updatingProject || deletingProject}>{deletingProject ? "Deleting..." : "Delete"}</button>
             </div>
             {editingProject && (
               <form className="create-project" onSubmit={updateProject}>
