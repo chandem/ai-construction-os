@@ -130,9 +130,9 @@ def generate_text(
 
 
 def generate_json(
+    user: str,
     *,
     system: str,
-    user: str,
     temperature: float = 0.0,
     model: str | None = None,
 ) -> dict[str, Any]:
