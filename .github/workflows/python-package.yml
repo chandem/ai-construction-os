@@ -39,4 +39,4 @@ jobs:
 
       - name: Test AI Construction OS core tools
         run: |
-          pytest -q tests/test_construction_tools.py tests/test_project_data.py tests/test_boq_document_analysis.py
+          pytest -q tests/test_construction_tools.py tests/test_project_data.py tests/test_boq_document_analysis.py tests/test_citations.py
