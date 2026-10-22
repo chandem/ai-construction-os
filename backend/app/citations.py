@@ -1,7 +1,7 @@
 import re
 
 
-_SOURCE_CITATION_PATTERN = re.compile(r"\\[Source\\s+(-?\\d+)\\]")
+_SOURCE_CITATION_PATTERN = re.compile(r"\[Source\s+(-?\d+)\]")
 
 
 def validate_source_citations(answer: str, source_count: int) -> str:
