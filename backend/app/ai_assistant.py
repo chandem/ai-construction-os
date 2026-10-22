@@ -8,6 +8,7 @@ from supabase import Client
 
 from .auth import get_access_token, get_current_user
 from .config import settings
+from .citations import validate_source_citations
 from .db import supabase_admin
 from .embeddings import embed_texts
 from .gemini_client import generate_text
@@ -343,6 +344,7 @@ def chat(project_id: str, request: ChatRequest, token: str = Depends(get_access_
 
     if not answer:
         answer = "I could not generate an answer."
+    answer = validate_source_citations(answer, len(sources))
 
     _db_execute(
         lambda: db.table("ai_messages")
