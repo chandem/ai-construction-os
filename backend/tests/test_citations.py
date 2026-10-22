@@ -22,5 +22,5 @@ def test_marks_source_citations_when_no_sources_were_retrieved():
 def test_marks_zero_and_negative_source_numbers():
     answer = "Bad refs [Source 0] and [Source  -1]."
     assert validate_source_citations(answer, 2) == (
-        "Bad refs [Unverified citation: Source 0] and [Source  -1]."
+        "Bad refs [Unverified citation: Source 0] and [Unverified citation: Source -1]."
     )
