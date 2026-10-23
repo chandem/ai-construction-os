@@ -185,8 +185,9 @@ export function OsHome({ projectId, token, documentCount = 0, documents = [], do
   const documentReadiness = documents.map((document) => {
     const job = documentJobs[document.id];
     const status = String(job?.status || document.status || "uploaded").toLowerCase();
-    if (status === "queued" || status === "processing") return "processing";
-    if (status === "failed") return "failed";
+    if (["queued", "pending", "processing"].includes(status)) return "processing";
+    if (["failed", "error"].includes(status)) return "failed";
+    if (["partial", "partially_processed", "partial_enrichment"].includes(status)) return "partial";
     if (status === "completed" && job?.error_message) return "partial";
     if (["completed", "processed", "ready"].includes(status)) return "ready";
     return "uploaded";
