@@ -1,4 +1,5 @@
 import React from "react";
+import "./nav-icons.css";
 import { supabase } from "./supabaseClient";
 import { apiGet, apiPost, apiPatch, apiUpload, apiDownload, apiDelete } from "./api";
 import { AuthScreen } from "./AuthScreen";
@@ -38,13 +39,41 @@ const AI_QUICK_ACTIONS = [
   { icon: "▤", title: "Document Analysis", prompt: "Analyze the uploaded documents relevant to this project. Summarize key requirements, quantities, dates, obligations, and unresolved questions. Cite the source documents and pages when available; do not invent information." },
 ] as const;
 
-const TABS: { id: WorkspaceView | "more"; label: string; icon: string }[] = [
-  { id: "os-home", label: "Home", icon: "⌂" },
-  { id: "design-center", label: "Design", icon: "◇" },
-  { id: "field", label: "Field", icon: "▦" },
-  { id: "assistant", label: "AI", icon: "✦" },
-  { id: "more", label: "More", icon: "⋯" },
+const TABS: { id: WorkspaceView | "more"; label: string }[] = [
+  { id: "os-home", label: "Home" },
+  { id: "design-center", label: "Design" },
+  { id: "field", label: "Field" },
+  { id: "assistant", label: "AI" },
+  { id: "more", label: "More" },
 ];
+
+const NAV_ICON_PATHS: Record<string, string> = {
+  "os-home": "M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z",
+  assistant: "M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-2-5.8L4 11l6-2.2z M19 3v4 M17 5h4",
+  "design-center": "M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10z M13.5 7.5l3 3",
+  commercial: "M3 8h18v13H3z M7 8V5h10v3 M3 12h18 M10 12v2h4v-2",
+  planning: "M5 4v4 M19 4v4 M3 7h18v14H3z M7 11h3 M7 15h3 M14 11h3",
+  procurement: "M3 4h2l2.2 11h11.6L21 8H6 M9 19a1 1 0 1 0 0 .1 M18 19a1 1 0 1 0 0 .1",
+  inventory: "M3 7l9-4 9 4-9 4z M3 7v10l9 4 9-4V7 M12 11v10",
+  "cost-control": "M4 20V12 M10 20V5 M16 20v-8 M22 20H2",
+  field: "M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z M12 9a2 2 0 1 0 0 .1",
+  quality: "M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11z M8 12l2.5 2.5L16 9",
+  prediction: "M3 20V4 M3 20h18 M6 15l4-5 4 2 5-7",
+  brain: "M9 4a3 3 0 0 0-5 2 3.5 3.5 0 0 0-1 6 3.5 3.5 0 0 0 2 6 3 3 0 0 0 4 2z M15 4a3 3 0 0 1 5 2 3.5 3.5 0 0 1 1 6 3.5 3.5 0 0 1-2 6 3 3 0 0 1-4 2z M12 4v16",
+  gis: "M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z M9 3v15 M15 6v15",
+  integrations: "M8 7V3 M16 7V3 M8 7h8v5a4 4 0 0 1-8 0z M12 16v5 M9 21h6",
+  ops: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M19 13.5l2 1.5-2 3-2.3-1a8 8 0 0 1-2 1.1L14 21h-4l-.7-2.9a8 8 0 0 1-2-1.1L5 18l-2-3 2-1.5a8 8 0 0 1 0-2L3 10l2-3 2.3 1a8 8 0 0 1 2-1.1L10 4h4l.7 2.9a8 8 0 0 1 2 1.1L19 7l2 3-2 1.5a8 8 0 0 1 0 2z",
+  more: "M5 12h.01 M12 12h.01 M19 12h.01",
+  "sign-out": "M10 17l5-5-5-5 M15 12H3 M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7",
+};
+
+function NavIcon({ name }: { name: string }) {
+  return (
+    <svg className="nav-icon-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d={NAV_ICON_PATHS[name] || NAV_ICON_PATHS.more} />
+    </svg>
+  );
+}
 export function App() {
   const [session, setSession] = React.useState<any>(null);
   const [token, setToken] = React.useState("");
@@ -507,7 +536,8 @@ export function App() {
                     onClick={() => openView(n.id)}
                     disabled={!projectId && n.id !== "assistant" && n.id !== "os-home"}
                   >
-                    {n.label}
+                    <span className="side-action-icon"><NavIcon name={n.id} /></span>
+                    <span className="side-action-label">{n.label}</span>
                   </button>
                 ))}
               </div>
@@ -561,7 +591,10 @@ export function App() {
             </div>
           </div>
           <div className="sidebar-footer">
-            <button type="button" className="sign-out" onClick={signOut}>Sign out</button>
+            <button type="button" className="sign-out" onClick={signOut}>
+              <NavIcon name="sign-out" />
+              <span>Sign out</span>
+            </button>
           </div>
         </aside>
         <section className="main-panel">
@@ -661,7 +694,7 @@ export function App() {
               aria-expanded={t.id === "more" ? sidebarOpen : undefined}
               aria-label={t.label === "AI" ? "AI Assistant" : t.id === "more" ? "More modules, open menu" : t.label}
             >
-              <span className="bottom-tab-icon" aria-hidden="true">{t.icon}</span>
+              <span className="bottom-tab-icon"><NavIcon name={t.id} /></span>
               <span className="bottom-tab-label">{t.label}</span>
             </button>
           );
