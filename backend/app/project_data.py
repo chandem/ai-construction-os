@@ -18,12 +18,20 @@ def build_project_summary(
     costs: list[dict[str, Any]],
     risks: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    planned = [float(row.get("planned_percent") or 0) for row in activities]
-    actual = [float(row.get("actual_percent") or 0) for row in activities]
+    comparable_progress = [
+        (float(row["planned_percent"]), float(row["actual_percent"]))
+        for row in activities
+        if row.get("planned_percent") is not None and row.get("actual_percent") is not None
+    ]
+    planned = [pair[0] for pair in comparable_progress]
+    actual = [pair[1] for pair in comparable_progress]
     material_shortages = []
     for row in materials:
-        stock = float(row.get("stock_quantity") or 0)
-        reorder = float(row.get("reorder_level") or 0)
+        # A missing stock or reorder value is unknown, not zero.
+        if row.get("stock_quantity") is None or row.get("reorder_level") is None:
+            continue
+        stock = float(row["stock_quantity"])
+        reorder = float(row["reorder_level"])
         if stock <= reorder:
             material_shortages.append(
                 {
@@ -52,8 +60,9 @@ def build_project_summary(
         },
         "activities": {
             "count": len(activities),
-            "average_planned_percent": round(sum(planned) / len(planned), 2) if planned else 0,
-            "average_actual_percent": round(sum(actual) / len(actual), 2) if actual else 0,
+            "comparable_progress_count": len(comparable_progress),
+            "average_planned_percent": round(sum(planned) / len(planned), 2) if planned else None,
+            "average_actual_percent": round(sum(actual) / len(actual), 2) if actual else None,
         },
         "materials": {
             "count": len(materials),
@@ -98,7 +107,14 @@ def build_project_priorities(summary: dict[str, Any]) -> dict[str, Any]:
             "action": "Create the project's activities and start recording planned and actual progress.",
             "reason": "No activities are currently tracked, so schedule performance cannot be measured.",
         })
-    elif activities.get("average_actual_percent", 0) < activities.get("average_planned_percent", 0):
+    elif not activities.get("comparable_progress_count", 0):
+        priorities.append({
+            "priority": "medium",
+            "area": "Progress data quality",
+            "action": "Record both planned and actual progress for the same activities.",
+            "reason": "Activities exist, but no comparable planned-versus-actual progress values are available.",
+        })
+    elif activities.get("average_actual_percent") < activities.get("average_planned_percent"):
         priorities.append({
             "priority": "high",
             "area": "Schedule",
@@ -527,9 +543,15 @@ def build_project_monitoring(summary: dict[str, Any]) -> dict[str, Any]:
     costs = summary.get("costs", {})
     risks = summary.get("risks", {})
 
-    planned = float(activities.get("average_planned_percent", 0) or 0)
-    actual = float(activities.get("average_actual_percent", 0) or 0)
-    schedule_variance = round(actual - planned, 2) if activities.get("count", 0) else None
+    planned_value = activities.get("average_planned_percent")
+    actual_value = activities.get("average_actual_percent")
+    planned = float(planned_value) if planned_value is not None else None
+    actual = float(actual_value) if actual_value is not None else None
+    schedule_variance = (
+        round(actual - planned, 2)
+        if activities.get("comparable_progress_count", 0) and planned is not None and actual is not None
+        else None
+    )
 
     critical: list[dict[str, Any]] = []
     attention: list[dict[str, Any]] = []
@@ -607,7 +629,7 @@ def build_project_monitoring(summary: dict[str, Any]) -> dict[str, Any]:
             "planned_percent": planned,
             "actual_percent": actual,
             "variance_percentage_points": schedule_variance,
-            "trend": "not_available" if activities.get("count", 0) == 0 else "below_plan" if schedule_variance < 0 else "at_or_above_plan",
+            "trend": "not_available" if schedule_variance is None else "below_plan" if schedule_variance < 0 else "at_or_above_plan",
         },
         "critical": critical,
         "attention": attention,
@@ -805,9 +827,17 @@ def build_project_early_warnings(summary: dict[str, Any]) -> dict[str, Any]:
             "early_warning": "Schedule slippage could go undetected because there is no baseline progress signal.",
             "recommended_action": "Establish the approved activity register and begin regular planned-versus-actual updates.",
         })
+    elif not activities.get("comparable_progress_count", 0):
+        warnings.append({
+            "severity": "medium",
+            "area": "Progress data quality",
+            "signal": "Activities exist but comparable planned and actual progress values are missing.",
+            "early_warning": "Schedule variance cannot be assessed reliably until both values are recorded for the same activities.",
+            "recommended_action": "Record planned and actual progress for the same activities.",
+        })
     else:
-        planned = float(activities.get("average_planned_percent", 0) or 0)
-        actual = float(activities.get("average_actual_percent", 0) or 0)
+        planned = float(activities["average_planned_percent"])
+        actual = float(activities["average_actual_percent"])
         variance = round(actual - planned, 2)
         if variance < 0:
             warnings.append({
@@ -901,14 +931,14 @@ def build_project_performance_score(summary: dict[str, Any]) -> dict[str, Any]:
     components: list[dict[str, Any]] = []
     data_gaps: list[str] = []
 
-    if activities.get("count", 0):
-        planned = float(activities.get("average_planned_percent", 0) or 0)
-        actual = float(activities.get("average_actual_percent", 0) or 0)
+    if activities.get("comparable_progress_count", 0):
+        planned = float(activities["average_planned_percent"])
+        actual = float(activities["average_actual_percent"])
         schedule_score = max(0.0, min(100.0, 100.0 + (actual - planned)))
         components.append({"area": "Schedule", "score": round(schedule_score, 1), "weight": 25, "basis": f"Average actual progress is {actual:.2f}% versus {planned:.2f}% planned."})
     else:
-        data_gaps.append("No activity or planned/actual progress records are available.")
-        components.append({"area": "Schedule", "score": None, "weight": 25, "basis": "Insufficient schedule data."})
+        data_gaps.append("No comparable planned and actual progress values are available for the same activities.")
+        components.append({"area": "Schedule", "score": None, "weight": 25, "basis": "Insufficient comparable schedule data."})
 
     if costs.get("entry_count", 0):
         components.append({"area": "Cost", "score": 100.0, "weight": 15, "basis": "Cost entries are recorded, but no approved cost baseline is available for variance scoring."})
