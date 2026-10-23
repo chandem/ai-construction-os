@@ -578,7 +578,13 @@ def build_project_monitoring(summary: dict[str, Any]) -> dict[str, Any]:
             "finding": "No activities are tracked, so schedule performance cannot be measured.",
             "decision": "Establish the approved activity register and begin planned/actual progress reporting.",
         })
-    elif schedule_variance is not None and schedule_variance < 0:
+    elif schedule_variance is None:
+        attention.append({
+            "area": "Progress data quality",
+            "finding": "Activities exist, but comparable planned and actual progress values are missing.",
+            "decision": "Record both planned and actual progress for the same activities before assessing schedule variance.",
+        })
+    elif schedule_variance < 0:
         attention.append({
             "area": "Schedule",
             "finding": f"Average actual progress is {abs(schedule_variance):.2f} percentage points below plan.",
