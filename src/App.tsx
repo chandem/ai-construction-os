@@ -605,6 +605,8 @@ export function App() {
               projectId={projectId}
               token={token}
               documentCount={documents.length}
+              documents={documents}
+              documentJobs={documentJobs}
               onNavigate={(v) => openView(v as WorkspaceView)}
               onUploadRequest={() => window.document.getElementById("project-document-upload")?.click()}
             />

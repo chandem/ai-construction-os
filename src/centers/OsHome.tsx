@@ -1,10 +1,13 @@
 import React from "react";
 import { apiGet } from "../api";
+import type { Document } from "../types";
 
 type Props = {
   projectId: string;
   token: string;
   documentCount?: number;
+  documents?: Document[];
+  documentJobs?: Record<string, any>;
   onNavigate?: (view: string) => void;
   onUploadRequest?: () => void;
 };
@@ -142,7 +145,7 @@ function moduleViewId(moduleId: string): string | null {
     : null;
 }
 
-export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUploadRequest }: Props) {
+export function OsHome({ projectId, token, documentCount = 0, documents = [], documentJobs = {}, onNavigate, onUploadRequest }: Props) {
   const [data, setData] = React.useState<any>(null);
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -165,6 +168,20 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
   }, [projectId, token]);
 
   const snap = data?.data;
+  const docTotal = documents.length || documentCount;
+  const documentReadiness = documents.map((document) => {
+    const job = documentJobs[document.id];
+    const status = String(job?.status || document.status || "uploaded").toLowerCase();
+    if (status === "queued" || status === "processing") return "processing";
+    if (status === "failed") return "failed";
+    if (status === "completed" && job?.error_message) return "partial";
+    if (["completed", "processed", "ready"].includes(status)) return "ready";
+    return "uploaded";
+  });
+  const readyDocuments = documentReadiness.filter((status) => status === "ready").length;
+  const pendingDocuments = documentReadiness.filter((status) => status === "uploaded" || status === "processing").length;
+  const problemDocuments = documentReadiness.filter((status) => status === "partial" || status === "failed").length;
+  const allDocumentsReady = docTotal > 0 && readyDocuments === docTotal;
   const summary = data?.summary;
   const mods = snap?.modules || [];
   const active =
@@ -188,14 +205,14 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
     {
       id: "docs",
       label: "Upload BOQ, drawings, or reports",
-      done: documentCount > 0,
+      done: docTotal > 0,
       actionLabel: "Upload",
       onAction: () => onUploadRequest?.(),
     },
     {
       id: "review",
-      label: "Review document processing results",
-      done: documentCount > 0 && active > 0,
+      label: "Confirm all documents processed successfully",
+      done: allDocumentsReady,
       actionLabel: "Design",
       onAction: () => onNavigate?.("design-center"),
     },
@@ -208,7 +225,7 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
     },
   ];
   const checklistDone = checklist.filter((s) => s.done).length;
-  const showChecklist = !!projectId && (documentCount === 0 || active === 0 || percent < 30);
+  const showChecklist = !!projectId && (docTotal === 0 || !allDocumentsReady || active === 0 || percent < 30);
 
   return (
     <section className="panel os-home">
@@ -252,9 +269,9 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
           <div className="kpi-label">
             <span className="kpi-icon">▤</span> Project documents
           </div>
-          <div className="kpi-value">{documentCount}</div>
+          <div className="kpi-value">{docTotal}</div>
           <div className="kpi-foot">
-            {documentCount ? "Documents uploaded to this project" : "Upload BOQ, drawings, or reports"}
+            {docTotal ? `${readyDocuments} ready · ${pendingDocuments} pending · ${problemDocuments} need review` : "Upload BOQ, drawings, or reports"}
           </div>
         </article>
         <article className="dashboard-kpi">
@@ -282,6 +299,13 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
         </article>
       </div>
 
+      {problemDocuments > 0 && (
+        <div className="error" role="status">
+          {problemDocuments} document(s) need review. Partial processing and failed documents are not counted as ready.
+          <button type="button" className="os-action" onClick={() => onNavigate?.("design-center")}>Review documents →</button>
+        </div>
+      )}
+
       {showChecklist && (
         <div className="dashboard-start">
           <div className="dashboard-start-icon">↗</div>
@@ -289,8 +313,7 @@ export function OsHome({ projectId, token, documentCount = 0, onNavigate, onUplo
             <span className="eyebrow">GET STARTED</span>
             <h3>First-run checklist</h3>
             <p>
-              {checklistDone} of {checklist.length} setup steps complete. Finish these to unlock modules beyond empty
-              states.
+              {checklistDone} of {checklist.length} setup steps complete. Complete these steps to establish a reliable project baseline.
             </p>
             <ol className="os-checklist">
               {checklist.map((step) => (
