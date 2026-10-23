@@ -15,12 +15,19 @@ type Props = {
 };
 
 function readinessFor(document: Document, job: any, busy: boolean): string {
-  const jobStatus = String(job?.status || document.status || "uploaded").toLowerCase();
-  const partial = jobStatus === "completed" && !!job?.error_message;
-  if (busy || jobStatus === "queued" || jobStatus === "processing") return "processing";
-  if (jobStatus === "failed") return "failed";
-  if (partial) return "partial";
-  if (jobStatus === "completed" || jobStatus === "processed" || jobStatus === "ready") return "ready";
+  if (busy) return "processing";
+  const statuses = [job?.status, document.status]
+    .filter(Boolean)
+    .map((value) => String(value).toLowerCase());
+
+  if (statuses.some((status) => ["failed", "error"].includes(status))) return "failed";
+  if (
+    (Boolean(job?.error_message) && statuses.includes("completed")) ||
+    statuses.some((status) => ["partial", "partially_processed", "partial_enrichment"].includes(status))
+  ) return "partial";
+  if (statuses.some((status) => ["queued", "pending", "processing"].includes(status)) ||
+      Boolean(job?.progress && job.progress < 100)) return "processing";
+  if (statuses.some((status) => ["completed", "processed", "ready"].includes(status))) return "ready";
   return "uploaded";
 }
 
@@ -31,6 +38,15 @@ const LABELS: Record<string, string> = {
   failed: "Failed",
   uploaded: "Uploaded",
 };
+
+function statusGuidance(readiness: string, job: any): string {
+  if (readiness !== "partial" && readiness !== "failed") return "";
+  const detail = typeof job?.error_message === "string" ? job.error_message.trim() : "";
+  if (detail) return detail;
+  return readiness === "partial"
+    ? "Some AI enrichment steps did not finish. Select Reprocess to retry."
+    : "Document processing failed. Select Reprocess to try again.";
+}
 
 export function DocumentList({
   documents,
@@ -54,16 +70,36 @@ export function DocumentList({
         const busy = !!reprocessingDocuments[d.id];
         const deleting = !!deletingDocuments[d.id];
         const readiness = readinessFor(d, job, busy);
+        const guidance = statusGuidance(readiness, job);
         return (
           <div key={d.id} className="document-row">
             <div className="document-row-main">
               <span className="document-name" title={d.name}>
                 {d.name}
               </span>
-              <span className={"doc-badge doc-badge-" + readiness}>
+              <span
+                className={"doc-badge doc-badge-" + readiness}
+                title={guidance || LABELS[readiness]}
+                aria-label={LABELS[readiness] + (guidance ? ": " + guidance : "")}
+              >
                 {LABELS[readiness] || readiness}
               </span>
             </div>
+            {guidance && (
+              <p
+                className="document-status-detail"
+                title={guidance}
+                style={{
+                  margin: "0 0 8px",
+                  color: readiness === "failed" ? "#b42318" : "#805b13",
+                  fontSize: "12px",
+                  lineHeight: 1.45,
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {guidance}
+              </p>
+            )}
             <div className="document-row-actions">
               <button
                 type="button"
