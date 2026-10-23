@@ -376,11 +376,13 @@ export function OsHome({ projectId, token, documentCount = 0, documents = [], do
           <div className="dashboard-kpis project-summary-kpis">
             <article className="dashboard-kpi">
               <div className="kpi-label">Work progress</div>
-              <div className="kpi-value">{projectSummary.activities?.count ? Number(projectSummary.activities.average_actual_percent || 0).toFixed(1) + "%" : "—"}</div>
+              <div className="kpi-value">{projectSummary.activities?.comparable_progress_count ? Number(projectSummary.activities.average_actual_percent).toFixed(1) + "%" : "—"}</div>
               <div className="kpi-foot">
-                {projectSummary.activities?.count
-                  ? "Actual average · " + Number(projectSummary.activities.average_planned_percent || 0).toFixed(1) + "% planned"
-                  : "No activity records"}
+                {projectSummary.activities?.comparable_progress_count
+                  ? "Actual average · " + Number(projectSummary.activities.average_planned_percent).toFixed(1) + "% planned"
+                  : projectSummary.activities?.count
+                    ? "Record planned and actual progress for the same activities"
+                    : "No activity records"}
               </div>
             </article>
             <article className={ "dashboard-kpi " + (Number(projectSummary.materials?.at_or_below_reorder_level || 0) ? "kpi-warning" : "") }>
