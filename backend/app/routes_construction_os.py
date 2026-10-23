@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from .auth import get_access_token, get_current_user
 from .db import supabase
 from .routes import _project_for_member
+from .project_data import build_project_summary, build_project_priorities
 from .construction_os import (
     MODULE_REGISTRY,
     build_os_snapshot,
@@ -186,6 +187,52 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
         "registry": MODULE_REGISTRY,
         "setup": {"missing_tables": missing_tables},
     }
+
+
+@router.get("/projects/{project_id}/executive-summary")
+def project_executive_summary(project_id: str, token: str = Depends(get_access_token)):
+    """Read-only consolidated summary of project progress, materials, equipment, costs, and risks."""
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+
+    project_result = (
+        client.table("projects")
+        .select("id,name,code,status")
+        .eq("id", project_id)
+        .single()
+        .execute()
+    )
+    if not project_result.data:
+        return {"data": None, "warnings": [{"message": "Project record is unavailable."}]}
+
+    warnings: list[dict] = []
+
+    def rows(table: str, columns: str) -> list[dict]:
+        try:
+            result = (
+                client.table(table)
+                .select(columns)
+                .eq("project_id", project_id)
+                .limit(1000)
+                .execute()
+            )
+            return result.data or []
+        except Exception as exc:
+            warnings.append({"table": table, "message": str(exc)[:180]})
+            return []
+
+    summary = build_project_summary(
+        project_result.data,
+        rows("activities", "id,name,status,planned_percent,actual_percent"),
+        rows("materials", "id,code,name,unit,stock_quantity,reorder_level,supplier"),
+        rows("equipment", "id,code,name,equipment_type,status"),
+        rows("cost_entries", "id,category,amount,currency,entry_date"),
+        rows("project_risks", "id,risk_code,title,level,status"),
+    )
+    priorities = build_project_priorities(summary)
+    return {"data": summary, "priorities": priorities, "warnings": warnings}
 
 
 @router.get("/os/modules")
