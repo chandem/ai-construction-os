@@ -236,3 +236,47 @@ def test_build_project_management_recommendations_synthesizes_signals():
     assert any(item["area"] == "Progress tracking" for item in result["recommendations"])
     assert result["decision_basis"]["forecast_readiness"] == "insufficient_data"
     assert "read-only" in result["note"]
+
+
+def test_summary_does_not_invent_missing_progress_or_material_stock():
+    summary = build_project_summary(
+        {"id": "p2", "name": "Road Maintenance", "status": "active"},
+        [
+            {"planned_percent": 80, "actual_percent": None},
+            {"planned_percent": None, "actual_percent": 0},
+        ],
+        [
+            {"name": "Unconfigured material", "stock_quantity": 0, "reorder_level": None},
+            {"name": "Unknown stock", "stock_quantity": None, "reorder_level": 10},
+            {"name": "Configured shortage", "stock_quantity": 2, "reorder_level": 5},
+            {"name": "Configured zero reorder", "stock_quantity": 0, "reorder_level": 0},
+        ],
+        [], [], [],
+    )
+
+    assert summary["activities"]["count"] == 2
+    assert summary["activities"]["comparable_progress_count"] == 0
+    assert summary["activities"]["average_planned_percent"] is None
+    assert summary["activities"]["average_actual_percent"] is None
+    assert summary["materials"]["at_or_below_reorder_level"] == 2
+    assert {item["name"] for item in summary["materials"]["shortages"]} == {
+        "Configured shortage", "Configured zero reorder"
+    }
+
+
+def test_missing_comparable_progress_is_not_scored_as_zero():
+    summary = build_project_summary(
+        {"id": "p2", "name": "Road Maintenance", "status": "active"},
+        [{"planned_percent": 80, "actual_percent": None}],
+        [], [], [], [],
+    )
+
+    monitoring = build_project_monitoring(summary)
+    score = build_project_performance_score(summary)
+    priorities = build_project_priorities(summary)
+
+    assert monitoring["schedule"]["variance_percentage_points"] is None
+    assert monitoring["schedule"]["trend"] == "not_available"
+    assert any(item["area"] == "Progress data quality" for item in monitoring["attention"])
+    assert next(item for item in score["components"] if item["area"] == "Schedule")["score"] is None
+    assert any(item["area"] == "Progress data quality" for item in priorities["priorities"])
