@@ -184,12 +184,17 @@ export function OsHome({ projectId, token, documentCount = 0, documents = [], do
   const docTotal = documents.length || documentCount;
   const documentReadiness = documents.map((document) => {
     const job = documentJobs[document.id];
-    const status = String(job?.status || document.status || "uploaded").toLowerCase();
-    if (["queued", "pending", "processing"].includes(status)) return "processing";
-    if (["failed", "error"].includes(status)) return "failed";
-    if (["partial", "partially_processed", "partial_enrichment"].includes(status)) return "partial";
-    if (status === "completed" && job?.error_message) return "partial";
-    if (["completed", "processed", "ready"].includes(status)) return "ready";
+    const statuses = [job?.status, document.status]
+      .filter(Boolean)
+      .map((value) => String(value).toLowerCase());
+    // Any explicit failure or partial result must win over a generic completed status.
+    if (statuses.some((status) => ["failed", "error"].includes(status))) return "failed";
+    if (
+      (job?.error_message && statuses.includes("completed")) ||
+      statuses.some((status) => ["partial", "partially_processed", "partial_enrichment"].includes(status))
+    ) return "partial";
+    if (statuses.some((status) => ["queued", "pending", "processing"].includes(status))) return "processing";
+    if (statuses.some((status) => ["completed", "processed", "ready"].includes(status))) return "ready";
     return "uploaded";
   });
   const readyDocuments = documentReadiness.filter((status) => status === "ready").length;
