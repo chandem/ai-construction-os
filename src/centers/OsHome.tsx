@@ -147,6 +147,9 @@ function moduleViewId(moduleId: string): string | null {
 
 export function OsHome({ projectId, token, documentCount = 0, documents = [], documentJobs = {}, onNavigate, onUploadRequest }: Props) {
   const [data, setData] = React.useState<any>(null);
+  const [projectSummary, setProjectSummary] = React.useState<any>(null);
+  const [summaryError, setSummaryError] = React.useState("");
+  const [projectSummaryWarnings, setProjectSummaryWarnings] = React.useState<any[]>([]);
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
@@ -155,7 +158,17 @@ export function OsHome({ projectId, token, documentCount = 0, documents = [], do
     setBusy(true);
     setError("");
     try {
-      setData(await apiGet("/api/v1/projects/" + projectId + "/os/snapshot", token));
+      const [snapshot, executive] = await Promise.all([
+        apiGet("/api/v1/projects/" + projectId + "/os/snapshot", token),
+        apiGet("/api/v1/projects/" + projectId + "/executive-summary", token).catch((err: any) => ({
+          summary_error: err?.message || "Consolidated project data is temporarily unavailable.",
+        })),
+      ]);
+      setData(snapshot);
+      setProjectSummary(executive?.data || null);
+      setSummaryError(executive?.summary_error || "");
+      setProjectSummaryWarnings(executive?.warnings || []);
+      if (executive?.summary_error) setProjectSummary(null);
     } catch {
       setError("We couldn't load the project readiness summary. The API may be waking up — try Refresh.");
     } finally {
@@ -350,6 +363,105 @@ export function OsHome({ projectId, token, documentCount = 0, documents = [], do
 
       {snap && (
         <>
+
+      {projectSummary && (
+        <section className="dashboard-actions-panel project-summary-panel">
+          <div className="dashboard-panel-heading">
+            <div>
+              <h3>Consolidated project summary</h3>
+              <p>Current recorded signals across progress, materials, equipment, costs, and risks. Missing data is not treated as zero performance.</p>
+            </div>
+            <span className="dashboard-count">{projectSummary.project?.status || "Project records"}</span>
+          </div>
+          <div className="dashboard-kpis project-summary-kpis">
+            <article className="dashboard-kpi">
+              <div className="kpi-label">Work progress</div>
+              <div className="kpi-value">{projectSummary.activities?.count ? Number(projectSummary.activities.average_actual_percent || 0).toFixed(1) + "%" : "—"}</div>
+              <div className="kpi-foot">
+                {projectSummary.activities?.count
+                  ? "Actual average · " + Number(projectSummary.activities.average_planned_percent || 0).toFixed(1) + "% planned"
+                  : "No activity records"}
+              </div>
+            </article>
+            <article className={ "dashboard-kpi " + (Number(projectSummary.materials?.at_or_below_reorder_level || 0) ? "kpi-warning" : "") }>
+              <div className="kpi-label">Material alerts</div>
+              <div className="kpi-value">{projectSummary.materials?.count ? Number(projectSummary.materials.at_or_below_reorder_level || 0) : "—"}</div>
+              <div className="kpi-foot">{projectSummary.materials?.count ? "At or below reorder level" : "No material records"}</div>
+            </article>
+            <article className="dashboard-kpi">
+              <div className="kpi-label">Equipment</div>
+              <div className="kpi-value">{projectSummary.equipment?.count || "—"}</div>
+              <div className="kpi-foot">
+                {projectSummary.equipment?.count
+                  ? Object.entries(projectSummary.equipment.status_counts || {}).map(([status, count]) => status + ": " + count).join(" · ")
+                  : "No equipment records"}
+              </div>
+            </article>
+            <article className="dashboard-kpi">
+              <div className="kpi-label">Recorded costs</div>
+              <div className="kpi-value">{projectSummary.costs?.entry_count || "—"}</div>
+              <div className="kpi-foot">
+                {projectSummary.costs?.entry_count
+                  ? Object.entries(projectSummary.costs.totals_by_currency || {}).map(([currency, amount]) => currency + " " + Number(amount || 0).toLocaleString()).join(" · ")
+                  : "No cost entries"}
+              </div>
+            </article>
+            <article className={ "dashboard-kpi " + (Number(projectSummary.risks?.level_counts?.high || 0) ? "kpi-warning" : "") }>
+              <div className="kpi-label">Project risks</div>
+              <div className="kpi-value">{projectSummary.risks?.count || "—"}</div>
+              <div className="kpi-foot">
+                {projectSummary.risks?.count
+                  ? Object.entries(projectSummary.risks.level_counts || {}).map(([level, count]) => level + ": " + count).join(" · ")
+                  : "No risk records"}
+              </div>
+            </article>
+          </div>
+          {(projectSummary.materials?.shortages?.length > 0 || projectSummary.risks?.items?.length > 0) && (
+            <div className="dashboard-action-list">
+              {projectSummary.materials?.shortages?.slice(0, 5).map((item: any, index: number) => (
+                <article className="dashboard-action-card" key={"material-" + index}>
+                  <div>
+                    <b>Material alert: {item.name || item.code || "Unlabelled material"}</b>
+                    <span>Available stock {Number(item.stock_quantity || 0).toLocaleString()} {item.unit || ""}; reorder level {Number(item.reorder_level || 0).toLocaleString()} {item.unit || ""}. Verify stock and replenishment needs.</span>
+                  </div>
+                  <button type="button" className="os-action" onClick={() => onNavigate?.("inventory")}>Open inventory →</button>
+                </article>
+              ))}
+              {projectSummary.risks?.items?.slice(0, 5).map((item: any, index: number) => (
+                <article className="dashboard-action-card" key={"risk-" + index}>
+                  <div>
+                    <b>Risk: {item.title || item.risk_code || "Project risk"}</b>
+                    <span>Level: {item.level || "Not classified"} · Status: {item.status || "Not recorded"}</span>
+                  </div>
+                  <button type="button" className="os-action" onClick={() => onNavigate?.("prediction")}>Review risks →</button>
+                </article>
+              ))}
+            </div>
+          )}
+          {projectSummaryWarnings?.length > 0 && (
+            <p className="muted small">Some project registers could not be read. The summary may be incomplete.</p>
+          )}
+          {projectSummary.priorities?.priorities?.length > 0 && (
+            <div className="dashboard-action-list">
+              {projectSummary.priorities.priorities.slice(0, 3).map((item: any, index: number) => (
+                <article className="dashboard-action-card" key={"priority-" + index}>
+                  <div>
+                    <b>{item.priority?.toUpperCase() || "REVIEW"} · {item.area}</b>
+                    <span>{item.action} {item.reason}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+          <p className="muted small">Management aid only. Validate records before operational or financial decisions.</p>
+        </section>
+      )}
+      {!projectSummary && summaryError && (
+        <div className="error" role="status">
+          Consolidated project summary unavailable: {summaryError}
+        </div>
+      )}
+
           <div className="dashboard-section-heading">
             <div>
               <span className="eyebrow">OPERATIONS</span>
