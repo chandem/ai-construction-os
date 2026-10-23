@@ -1,0 +1,10 @@
+.nav-icon-svg { display:block; flex:0 0 auto; width:18px; height:18px; }
+.side-action { display:flex; align-items:center; gap:11px; text-align:left; }
+.side-action-icon { display:grid; place-items:center; flex:0 0 28px; width:28px; height:28px; border-radius:9px; color:#526779; background:#f0f4f7; transition:background .15s ease,color .15s ease; }
+.side-action-label { min-width:0; flex:1; }
+.side-action:hover:not(:disabled) .side-action-icon { background:#e5edf4; color:#24435c; }
+.side-action.active-nav .side-action-icon { background:#dce9ff; color:#174ea6; }
+.side-action.active-nav { font-weight:800; }
+.sign-out { display:flex; align-items:center; justify-content:center; gap:9px; }
+.bottom-tab-icon .nav-icon-svg { width:21px; height:21px; }
+@media (max-width:750px) { .side-action-icon { flex-basis:28px; } }
