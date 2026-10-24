@@ -65,7 +65,7 @@ def run_document_pipeline(
     accumulating duplicate/stale chunks.
     """
     stage = "start"
-    _set_job(client, job_id, status="processing", progress=10, error_message=None)
+    _set_job(client, job_id, status="processing", progress=10, error_message=None, started_at=_now())
     _set_document(client, document_id, status="processing")
 
     try:
