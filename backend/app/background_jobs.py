@@ -6,6 +6,7 @@ Job state lives in document_processing_jobs; callers poll status APIs.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from .db import supabase_admin
@@ -75,6 +76,26 @@ def schedule_document_job(background_tasks, **kwargs: Any) -> None:
     background_tasks.add_task(execute_document_job, **kwargs)
 
 
+STALLED_JOB_TIMEOUT_MINUTES = 45
+
+
+def _job_is_stalled(row: dict[str, Any]) -> bool:
+    """Flag old processing jobs for investigation; never mutate job state here."""
+    if str(row.get("status") or "").lower() != "processing":
+        return False
+    timestamp = row.get("started_at") or row.get("created_at")
+    if not timestamp:
+        return False
+    try:
+        parsed = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        age_seconds = (datetime.now(timezone.utc) - parsed.astimezone(timezone.utc)).total_seconds()
+        return age_seconds > STALLED_JOB_TIMEOUT_MINUTES * 60
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
 JOB_STATUS_FIELDS = (
     "id,document_id,status,processor,progress,error_message,"
     "started_at,completed_at,created_at"
@@ -95,4 +116,5 @@ def normalize_job_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
         "completed_at": row.get("completed_at"),
         "created_at": row.get("created_at"),
         "is_terminal": (row.get("status") or "") in {"completed", "failed"},
+        "is_stalled": _job_is_stalled(row),
     }

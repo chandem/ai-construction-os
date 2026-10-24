@@ -92,3 +92,40 @@ def test_run_pipeline_safe_on_failure():
     )
     assert result["status"] == "failed"
     assert result["job_id"] == "j"
+
+
+def test_normalize_job_row_flags_old_processing_job_as_stalled():
+    n = normalize_job_row({
+        "id": "j-stalled",
+        "document_id": "d1",
+        "status": "processing",
+        "started_at": "2020-01-01T00:00:00Z",
+        "created_at": "2020-01-01T00:00:00Z",
+    })
+    assert n["is_stalled"] is True
+    assert n["is_terminal"] is False
+
+
+def test_normalize_job_row_does_not_flag_recent_processing_job():
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc).isoformat()
+    n = normalize_job_row({
+        "id": "j-active",
+        "document_id": "d1",
+        "status": "processing",
+        "started_at": now,
+        "created_at": now,
+    })
+    assert n["is_stalled"] is False
+
+
+def test_normalize_job_row_does_not_flag_old_completed_job():
+    n = normalize_job_row({
+        "id": "j-complete",
+        "document_id": "d1",
+        "status": "completed",
+        "started_at": "2020-01-01T00:00:00Z",
+        "created_at": "2020-01-01T00:00:00Z",
+    })
+    assert n["is_stalled"] is False
