@@ -76,6 +76,15 @@ def schedule_document_job(background_tasks, **kwargs: Any) -> None:
     background_tasks.add_task(execute_document_job, **kwargs)
 
 
+def has_active_job(rows: list[dict[str, Any]] | None) -> bool:
+    """Return whether a document already has a queued or running processing job."""
+    return any(
+        str(row.get("status") or "").lower() in {"queued", "processing"}
+        for row in (rows or [])
+        if isinstance(row, dict)
+    )
+
+
 STALLED_JOB_TIMEOUT_MINUTES = 45
 
 

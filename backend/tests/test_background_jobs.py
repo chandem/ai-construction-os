@@ -1,4 +1,4 @@
-from app.background_jobs import build_pipeline_kwargs, normalize_job_row
+from app.background_jobs import build_pipeline_kwargs, has_active_job, normalize_job_row
 
 
 def test_normalize_job_row_terminal():
@@ -129,3 +129,16 @@ def test_normalize_job_row_does_not_flag_old_completed_job():
         "created_at": "2020-01-01T00:00:00Z",
     })
     assert n["is_stalled"] is False
+
+
+
+def test_has_active_job_when_queued_or_processing():
+    assert has_active_job([{"id": "j1", "status": "queued"}]) is True
+    assert has_active_job([{"id": "j2", "status": "processing"}]) is True
+
+
+def test_has_active_job_does_not_block_terminal_or_empty_jobs():
+    assert has_active_job([{"id": "j1", "status": "completed"}]) is False
+    assert has_active_job([{"id": "j2", "status": "failed"}]) is False
+    assert has_active_job([]) is False
+    assert has_active_job(None) is False
