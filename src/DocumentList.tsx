@@ -16,6 +16,7 @@ type Props = {
 
 function readinessFor(document: Document, job: any, busy: boolean): string {
   if (busy) return "processing";
+  if (job?.is_stalled) return "stalled";
   const statuses = [job?.status, document.status]
     .filter(Boolean)
     .map((value) => String(value).toLowerCase());
@@ -35,12 +36,14 @@ const LABELS: Record<string, string> = {
   ready: "Ready",
   partial: "Partial",
   processing: "Processing",
+  stalled: "Taking longer",
   failed: "Failed",
   uploaded: "Uploaded",
 };
 
 function statusGuidance(readiness: string, job: any): string {
-  if (readiness === "stalled") return "This job has been processing for over 45 minutes. It may be stalled; check service logs before retrying to avoid overlapping work.";\n  if (readiness !== "partial" && readiness !== "failed") return "";
+  if (readiness === "stalled") return "This job has been processing for over 45 minutes. It may be stalled; check service logs before retrying to avoid overlapping work.";\n  if (readiness === "stalled") return "This job has been processing for over 45 minutes. It may be stalled; check service logs before retrying to avoid overlapping work.";
+  if (readiness !== "partial" && readiness !== "failed") return "";
   const detail = typeof job?.error_message === "string" ? job.error_message.trim() : "";
   if (detail) return detail;
   return readiness === "partial"
@@ -127,7 +130,7 @@ export function DocumentList({
                 type="button"
                 className="document-action document-action-danger"
                 onClick={() => onDelete(d.id, d.name)}
-                disabled={busy || deleting || readiness === "processing"}
+                disabled={busy || deleting || readiness === "processing" || readiness === "stalled"}
                 title={readiness === "processing" || readiness === "stalled" ? "Wait for processing to finish or verify the job has stopped before deleting" : "Permanently delete this document"}
                 aria-label={"Delete document " + d.name}
               >
