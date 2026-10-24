@@ -739,6 +739,27 @@ async def reprocess_document(
     document = doc_row.data
     _project_for_member(document["project_id"], user["id"], client)
 
+    # Do not start a second worker for a document that already has an active job.
+    # This is especially important when the UI flags a long-running job as stalled:
+    # the warning is not proof that the original worker has stopped.
+    active_jobs = (
+        client.table("document_processing_jobs")
+        .select("id,status,created_at,started_at")
+        .eq("document_id", document_id)
+        .in_("status", ["queued", "processing"])
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if active_jobs.data:
+        active_job = active_jobs.data[0]
+        status = str(active_job.get("status") or "active")
+        detail = (
+            "This document already has a processing job. Check its status and service logs "
+            "before retrying; do not start a second job while the original may still be running."
+        )
+        raise HTTPException(status_code=409, detail=detail)
+
     storage_path = document.get("storage_path")
     if not storage_path:
         raise HTTPException(status_code=400, detail="Document has no storage path")
