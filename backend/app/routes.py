@@ -753,7 +753,6 @@ async def reprocess_document(
     )
     if active_jobs.data:
         active_job = active_jobs.data[0]
-        status = str(active_job.get("status") or "active")
         detail = (
             "This document already has a processing job. Check its status and service logs "
             "before retrying; do not start a second job while the original may still be running."
