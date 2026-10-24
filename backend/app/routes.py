@@ -13,7 +13,7 @@ from openpyxl import Workbook
 from pydantic import BaseModel, Field
 
 from .auth import get_access_token, get_current_user
-from .background_jobs import JOB_STATUS_FIELDS, normalize_job_row, schedule_document_job
+from .background_jobs import JOB_STATUS_FIELDS, has_active_job, normalize_job_row, schedule_document_job
 from .config import settings
 from .db import supabase_admin
 from .document_processing import chunk_text_with_metadata, extract_pages
@@ -738,6 +738,31 @@ async def reprocess_document(
         raise HTTPException(status_code=404, detail="Document not found")
     document = doc_row.data
     _project_for_member(document["project_id"], user["id"], client)
+
+    # Avoid creating another job when a previous attempt is still queued/running.
+    active_jobs = _execute_with_retry(
+        lambda: (
+            client.table("document_processing_jobs")
+            .select("id,status,created_at,started_at")
+            .eq("document_id", document_id)
+            .in_("status", ["queued", "processing"])
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ),
+        "checking for an active document processing job",
+    )
+    if has_active_job(active_jobs.data or []):
+        active = (active_jobs.data or [])[0]
+        status = str(active.get("status") or "active").lower()
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"This document already has a {status} processing job. "
+                "Wait for it to finish before requesting reprocessing. "
+                "If it is marked 'Taking longer', check service logs before retrying."
+            ),
+        )
 
     storage_path = document.get("storage_path")
     if not storage_path:
