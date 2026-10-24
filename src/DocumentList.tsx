@@ -42,7 +42,7 @@ const LABELS: Record<string, string> = {
 };
 
 function statusGuidance(readiness: string, job: any): string {
-  if (readiness === "stalled") return "This job has been processing for over 45 minutes. It may be stalled; check service logs before retrying to avoid overlapping work.";\n  if (readiness === "stalled") return "This job has been processing for over 45 minutes. It may be stalled; check service logs before retrying to avoid overlapping work.";
+  if (readiness === "stalled") return "This job has been processing for over 45 minutes. It may be stalled; check service logs before retrying to avoid overlapping work.";
   if (readiness !== "partial" && readiness !== "failed") return "";
   const detail = typeof job?.error_message === "string" ? job.error_message.trim() : "";
   if (detail) return detail;
