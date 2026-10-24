@@ -40,7 +40,7 @@ const LABELS: Record<string, string> = {
 };
 
 function statusGuidance(readiness: string, job: any): string {
-  if (readiness !== "partial" && readiness !== "failed") return "";
+  if (readiness === "stalled") return "This job has been processing for over 45 minutes. It may be stalled; check service logs before retrying to avoid overlapping work.";\n  if (readiness !== "partial" && readiness !== "failed") return "";
   const detail = typeof job?.error_message === "string" ? job.error_message.trim() : "";
   if (detail) return detail;
   return readiness === "partial"
@@ -128,7 +128,7 @@ export function DocumentList({
                 className="document-action document-action-danger"
                 onClick={() => onDelete(d.id, d.name)}
                 disabled={busy || deleting || readiness === "processing"}
-                title={readiness === "processing" ? "Wait for processing to finish before deleting" : "Permanently delete this document"}
+                title={readiness === "processing" || readiness === "stalled" ? "Wait for processing to finish or verify the job has stopped before deleting" : "Permanently delete this document"}
                 aria-label={"Delete document " + d.name}
               >
                 {deleting ? "Deleting…" : "Delete"}
