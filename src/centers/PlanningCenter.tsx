@@ -22,6 +22,7 @@ type Activity = {
   planned_finish?: string;
   duration_days?: number;
   percent_complete?: number | null;
+  predecessor_ids?: string[] | null;
 };
 
 export function PlanningCenter({ projectId, token }: Props) {
@@ -35,6 +36,8 @@ export function PlanningCenter({ projectId, token }: Props) {
   const [editId, setEditId] = React.useState<string | null>(null);
   const [editPct, setEditPct] = React.useState("");
   const [editNote, setEditNote] = React.useState("");
+  const [activitySearch, setActivitySearch] = React.useState("");
+  const [activityFilter, setActivityFilter] = React.useState("all");
 
   async function load() {
     if (!projectId || !token) return;
@@ -144,6 +147,24 @@ export function PlanningCenter({ projectId, token }: Props) {
         )
       : null;
 
+  const filteredActivities = activities.filter((activity) => {
+    const query = activitySearch.trim().toLowerCase();
+    const matchesQuery = !query || [activity.name, activity.code, activity.work_section, activity.status]
+      .some((value) => String(value || "").toLowerCase().includes(query));
+    const status = String(activity.status || "not_started").toLowerCase();
+    const matchesStatus = activityFilter === "all" ||
+      (activityFilter === "overdue" ? Boolean(activity.planned_finish && activity.planned_finish < new Date().toISOString().slice(0, 10) && Number(activity.percent_complete || 0) < 100) :
+       activityFilter === "in_progress" ? status === "in_progress" || (Number(activity.percent_complete || 0) > 0 && Number(activity.percent_complete || 0) < 100) :
+       activityFilter === "completed" ? status === "completed" || Number(activity.percent_complete || 0) >= 100 :
+       activityFilter === "not_started" ? status === "not_started" || Number(activity.percent_complete || 0) === 0 : true);
+    return matchesQuery && matchesStatus;
+  });
+  const datedActivities = filteredActivities.filter((a) => a.planned_start && a.planned_finish && !Number.isNaN(Date.parse(a.planned_start)) && !Number.isNaN(Date.parse(a.planned_finish)));
+  const timelineStart = datedActivities.length ? Math.min(...datedActivities.map((a) => Date.parse(a.planned_start!))) : 0;
+  const timelineEnd = datedActivities.length ? Math.max(...datedActivities.map((a) => Date.parse(a.planned_finish!))) : 0;
+  const timelineDays = datedActivities.length ? Math.max(1, Math.round((timelineEnd - timelineStart) / 86400000) + 1) : 0;
+  const dateLabel = (value?: string) => value && !Number.isNaN(Date.parse(value)) ? new Date(value + (value.length === 10 ? "T00:00:00" : "")).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—";
+
   return (
     <section className="panel field-center">
       <div className="panel-head">
@@ -243,8 +264,70 @@ export function PlanningCenter({ projectId, token }: Props) {
             </div>
           )}
 
+          <div className="planning-gantt-section">
+            <div className="panel-head planning-gantt-head">
+              <div>
+                <h3>Schedule timeline</h3>
+                <p className="muted small">Gantt view based on saved or generated planned dates. Activities without dates remain in the register below.</p>
+              </div>
+              <span className="muted small">{datedActivities.length} dated activities</span>
+            </div>
+            <div className="planning-filters">
+              <input type="search" value={activitySearch} onChange={(e) => setActivitySearch(e.target.value)} placeholder="Search activity, code, section…" aria-label="Search schedule activities" />
+              <select value={activityFilter} onChange={(e) => setActivityFilter(e.target.value)} aria-label="Filter schedule activities">
+                <option value="all">All activities</option>
+                <option value="not_started">Not started</option>
+                <option value="in_progress">In progress</option>
+                <option value="completed">Completed</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
+            {datedActivities.length === 0 ? (
+              <div className="empty empty-card planning-gantt-empty">
+                <h3>No dated activities match</h3>
+                <p>Generate a schedule from the estimate or adjust the filters. The timeline needs planned start and finish dates.</p>
+              </div>
+            ) : (
+              <div className="planning-gantt-scroll">
+                <div className="planning-gantt">
+                  <div className="planning-gantt-axis">
+                    <div className="planning-gantt-name">Activity</div>
+                    <div className="planning-gantt-track-axis">
+                      <span>{dateLabel(new Date(timelineStart).toISOString().slice(0,10))}</span>
+                      <span>{dateLabel(new Date(timelineStart + timelineDays * 86400000 / 2).toISOString().slice(0,10))}</span>
+                      <span>{dateLabel(new Date(timelineEnd).toISOString().slice(0,10))}</span>
+                    </div>
+                  </div>
+                  {datedActivities.map((activity, index) => {
+                    const startOffset = Math.max(0, (Date.parse(activity.planned_start!) - timelineStart) / 86400000);
+                    const duration = Math.max(1, (Date.parse(activity.planned_finish!) - Date.parse(activity.planned_start!)) / 86400000 + 1);
+                    const left = (startOffset / timelineDays) * 100;
+                    const width = Math.min(100 - left, (duration / timelineDays) * 100);
+                    const pct = Math.max(0, Math.min(100, Number(activity.percent_complete || 0)));
+                    const isOverdue = activity.planned_finish! < new Date().toISOString().slice(0,10) && pct < 100;
+                    return (
+                      <div className="planning-gantt-row" key={activity.id || activity.code || index}>
+                        <div className="planning-gantt-name">
+                          <strong>{activity.code || "—"}</strong>
+                          <span title={activity.name || "Unnamed activity"}>{activity.name || "Unnamed activity"}</span>
+                          <small>{dateLabel(activity.planned_start)} – {dateLabel(activity.planned_finish)}</small>
+                        </div>
+                        <div className="planning-gantt-track">
+                          <div className={"planning-gantt-bar" + (isOverdue ? " is-overdue" : "")} style={{ left: left + "%", width: Math.max(1, width) + "%" }} title={(activity.name || "Activity") + ": " + pct + "% complete"}>
+                            <span style={{ width: pct + "%" }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="planning-gantt-legend"><span><i /> Planned duration</span><span><i className="progress" /> Actual progress</span><span><i className="overdue" /> Overdue</span></div>
+          </div>
+
           <h3 style={{ marginTop: 24 }}>Schedule &amp; progress</h3>
-          {activities.length === 0 ? (
+          {filteredActivities.length === 0 ? (
             <div className="empty empty-card">
               <h3>No schedule activities</h3>
               <p>Generate schedule after WBS (or use Generate schedule to build both).</p>
@@ -265,7 +348,7 @@ export function PlanningCenter({ projectId, token }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {activities.map((row, i) => (
+                  {filteredActivities.map((row, i) => (
                     <tr key={row.id || row.code || i}>
                       <td>
                         <code className="boq-code">{row.code || "—"}</code>
