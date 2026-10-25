@@ -1,4 +1,11 @@
 -- Work-completion payments: measured work -> certification -> approval -> payment.
+create or replace function public.set_updated_at()
+returns trigger as $
+begin
+  new.updated_at = now();
+  return new;
+end;
+$ language plpgsql;
 -- Apply this SQL to the project's Supabase SQL Editor before using the Payments center.
 
 create table if not exists public.work_payment_certificates (
