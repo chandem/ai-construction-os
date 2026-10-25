@@ -44,6 +44,8 @@ export function GisCenter({ projectId, token }: Props) {
   const [selectedId, setSelectedId] = React.useState("");
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
+  const [typeFilter, setTypeFilter] = React.useState("all");
+  const [mappingFilter, setMappingFilter] = React.useState("all");
   const [busy, setBusy] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -85,7 +87,11 @@ export function GisCenter({ projectId, token }: Props) {
     const q = search.trim().toLowerCase();
     const matchesSearch = !q || [asset.name, asset.asset_code, asset.asset_type, asset.work_section, asset.description]
       .some((value) => String(value || "").toLowerCase().includes(q));
-    return matchesSearch && (statusFilter === "all" || asset.status === statusFilter);
+    const matchesStatus = statusFilter === "all" || asset.status === statusFilter;
+    const matchesType = typeFilter === "all" || (asset.asset_type || "other") === typeFilter;
+    const hasCoordinates = asset.latitude != null && asset.longitude != null;
+    const matchesMapping = mappingFilter === "all" || (mappingFilter === "mapped" ? hasCoordinates : !hasCoordinates);
+    return matchesSearch && matchesStatus && matchesType && matchesMapping;
   });
   const selected = assets.find((asset) => asset.id === selectedId) || null;
   const geocoded = assets.filter((asset) => asset.latitude != null && asset.longitude != null).length;
@@ -248,9 +254,12 @@ export function GisCenter({ projectId, token }: Props) {
 
         <div className="gis-register">
           <div className="panel-head"><h3>Asset register</h3><span className="muted small">{filteredAssets.length} shown</span></div>
-          <div className="row gap" style={{ marginBottom: 10 }}>
+          <div className="row gap gis-filters" style={{ marginBottom: 10 }}>
             <input aria-label="Search GIS assets" type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, type, section…" style={{ minWidth: 0, flex: 1 }} />
+            <select aria-label="Filter assets by type" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}><option value="all">All asset types</option>{ASSET_TYPES.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select>
             <select aria-label="Filter assets by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">All statuses</option>{STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+            <select aria-label="Filter assets by mapping status" value={mappingFilter} onChange={(e) => setMappingFilter(e.target.value)}><option value="all">Mapped &amp; unmapped</option><option value="mapped">Mapped only</option><option value="unmapped">Needs coordinates</option></select>
+            {(search || typeFilter !== "all" || statusFilter !== "all" || mappingFilter !== "all") && <button type="button" className="button compact" onClick={() => { setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setMappingFilter("all"); }}>Clear filters</button>}
           </div>
           {loading ? <p className="muted">Loading GIS assets…</p> : filteredAssets.length === 0 ? (
             <div className="empty empty-card"><h3>{assets.length ? "No matching assets" : "No GIS assets yet"}</h3><p>{assets.length ? "Change the search or status filter." : "Add an asset to start building the project GIS register."}</p></div>
