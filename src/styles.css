@@ -367,6 +367,9 @@ select:focus, input:focus, textarea:focus { border-color: #6b7c8a; box-shadow: 0
 .form-grid label { min-width:0; margin:0; }
 .form-grid input,.form-grid select { display:block; width:100%; margin-top:6px; }
 .gis-register .row.gap input,.gis-register .row.gap select { width:auto; }
+.gis-register .gis-filters { align-items: center; }
+.gis-register .gis-filters select { flex: 1 1 135px; min-width: 0; }
+.gis-register .gis-filters .button.compact { width: auto; margin: 0; white-space: nowrap; }
 .gis-register .table-wrap table { min-width:610px; }
 .gis-register .table-wrap td { vertical-align:top; }
 .gis-register .table-wrap .button.compact { width:auto; margin:0; padding:7px 9px; }
