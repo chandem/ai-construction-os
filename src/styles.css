@@ -418,3 +418,11 @@ select:focus, input:focus, textarea:focus { border-color: #6b7c8a; box-shadow: 0
   .planning-gantt-head { align-items: flex-start; flex-direction: column; }
   .planning-filters { grid-template-columns: 1fr; }
 }
+
+
+/* Planning Center: dependency-based critical path */
+.planning-critical-summary { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; margin:14px 0 4px; padding:11px 13px; border:1px solid #d6e0e8; border-radius:10px; background:#f5f8fa; color:#31485b; font-size:12px; line-height:1.5; }
+.planning-critical-summary strong { color:#1d3448; }
+.planning-gantt-bar.is-critical { outline:2px solid #a45b17; outline-offset:1px; }
+.planning-gantt-bar.is-critical:not(.is-overdue) { border-color:#d79a53; background:#ffedcf; }
+.planning-gantt-bar.is-critical:not(.is-overdue) > span { background:#a45b17; }

@@ -25,6 +25,54 @@ type Activity = {
   predecessor_ids?: string[] | null;
 };
 
+function analyzeCriticalPath(activities: Activity[]) {
+  const rows = activities.filter((a) => Boolean(a.id));
+  const byId = new Map(rows.map((a) => [a.id as string, a]));
+  const predecessors = new Map<string, string[]>();
+  const successors = new Map<string, string[]>();
+  rows.forEach((a) => {
+    const id = a.id as string;
+    const valid = (a.predecessor_ids || []).filter((p) => p !== id && byId.has(p));
+    predecessors.set(id, valid);
+    successors.set(id, []);
+  });
+  predecessors.forEach((preds, id) => preds.forEach((p) => successors.get(p)?.push(id)));
+  const indegree = new Map(rows.map((a) => [a.id as string, (predecessors.get(a.id as string) || []).length]));
+  const queue = rows.filter((a) => indegree.get(a.id as string) === 0).map((a) => a.id as string);
+  const order: string[] = [];
+  while (queue.length) {
+    const id = queue.shift()!;
+    order.push(id);
+    (successors.get(id) || []).forEach((next) => {
+      indegree.set(next, (indegree.get(next) || 0) - 1);
+      if (indegree.get(next) === 0) queue.push(next);
+    });
+  }
+  if (order.length !== rows.length || !rows.length) return { criticalIds: new Set<string>(), duration: 0, hasCycle: order.length !== rows.length };
+  const durationOf = (id: string) => Math.max(1, Number(byId.get(id)?.duration_days || 1));
+  const earlyStart = new Map<string, number>();
+  const earlyFinish = new Map<string, number>();
+  order.forEach((id) => {
+    const start = Math.max(0, ...(predecessors.get(id) || []).map((p) => earlyFinish.get(p) || 0));
+    earlyStart.set(id, start);
+    earlyFinish.set(id, start + durationOf(id));
+  });
+  const projectDuration = Math.max(0, ...earlyFinish.values());
+  const lateFinish = new Map<string, number>();
+  const lateStart = new Map<string, number>();
+  [...order].reverse().forEach((id) => {
+    const next = successors.get(id) || [];
+    const finish = next.length ? Math.min(...next.map((n) => lateStart.get(n) ?? projectDuration)) : projectDuration;
+    lateFinish.set(id, finish);
+    lateStart.set(id, finish - durationOf(id));
+  });
+  const criticalIds = new Set<string>();
+  order.forEach((id) => {
+    if (Math.abs((lateStart.get(id) || 0) - (earlyStart.get(id) || 0)) < 0.0001) criticalIds.add(id);
+  });
+  return { criticalIds, duration: projectDuration, hasCycle: false };
+}
+
 export function PlanningCenter({ projectId, token }: Props) {
   const [summary, setSummary] = React.useState<any>(null);
   const [wbs, setWbs] = React.useState<WbsNode[]>([]);
@@ -160,6 +208,7 @@ export function PlanningCenter({ projectId, token }: Props) {
     return matchesQuery && matchesStatus;
   });
   const datedActivities = filteredActivities.filter((a) => a.planned_start && a.planned_finish && !Number.isNaN(Date.parse(a.planned_start)) && !Number.isNaN(Date.parse(a.planned_finish)));
+  const criticalPath = analyzeCriticalPath(activities);
   const timelineStart = datedActivities.length ? Math.min(...datedActivities.map((a) => Date.parse(a.planned_start!))) : 0;
   const timelineEnd = datedActivities.length ? Math.max(...datedActivities.map((a) => Date.parse(a.planned_finish!))) : 0;
   const timelineDays = datedActivities.length ? Math.max(1, Math.round((timelineEnd - timelineStart) / 86400000) + 1) : 0;
@@ -272,6 +321,7 @@ export function PlanningCenter({ projectId, token }: Props) {
               </div>
               <span className="muted small">{datedActivities.length} dated activities</span>
             </div>
+            <div className="planning-critical-summary" role="status"><strong>Critical path analysis</strong><span>{criticalPath.hasCycle ? "Dependency cycle detected — review predecessor links." : criticalPath.criticalIds.size ? `${criticalPath.criticalIds.size} critical activities · ${criticalPath.duration} duration days (calendar dates and holidays are not adjusted)` : "Add valid predecessor links and activity durations to calculate the critical path."}</span></div>
             <div className="planning-filters">
               <input type="search" value={activitySearch} onChange={(e) => setActivitySearch(e.target.value)} placeholder="Search activity, code, section…" aria-label="Search schedule activities" />
               <select value={activityFilter} onChange={(e) => setActivityFilter(e.target.value)} aria-label="Filter schedule activities">
@@ -313,7 +363,7 @@ export function PlanningCenter({ projectId, token }: Props) {
                           <small>{dateLabel(activity.planned_start)} – {dateLabel(activity.planned_finish)}</small>
                         </div>
                         <div className="planning-gantt-track">
-                          <div className={"planning-gantt-bar" + (isOverdue ? " is-overdue" : "")} style={{ left: left + "%", width: Math.max(1, width) + "%" }} title={(activity.name || "Activity") + ": " + pct + "% complete"}>
+                          <div className={"planning-gantt-bar" + (isOverdue ? " is-overdue" : "") + (activity.id && criticalPath.criticalIds.has(activity.id) ? " is-critical" : "")} style={{ left: left + "%", width: Math.max(1, width) + "%" }} title={(activity.name || "Activity") + ": " + pct + "% complete"}>
                             <span style={{ width: pct + "%" }} />
                           </div>
                         </div>
