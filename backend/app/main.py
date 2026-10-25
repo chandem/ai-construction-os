@@ -13,6 +13,7 @@ from .integration_routes import router as integration_router
 from .ai_document_integration_routes import router as ai_document_integration_router
 from .procurement_routes import router as procurement_router
 from .cost_control_routes import router as cost_control_router
+from .payment_routes import router as payment_router
 from .routes import router
 
 app = FastAPI(
@@ -41,6 +42,7 @@ app.include_router(integration_router)
 app.include_router(ai_document_integration_router)
 app.include_router(procurement_router)
 app.include_router(cost_control_router)
+app.include_router(payment_router)
 
 
 @app.get("/")
