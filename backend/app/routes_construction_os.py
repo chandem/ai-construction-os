@@ -1,5 +1,7 @@
 """Construction OS home routes (Phase 15)."""
-from fastapi import APIRouter, Depends
+import time
+
+from fastapi import APIRouter, Depends, HTTPException
 
 from .auth import get_access_token, get_current_user
 from .db import supabase
@@ -197,17 +199,34 @@ def project_executive_summary(project_id: str, token: str = Depends(get_access_t
     client.postgrest.auth(token)
     _project_for_member(project_id, user["id"], client)
 
-    project_result = (
-        client.table("projects")
-        .select("id,name,code,status")
-        .eq("id", project_id)
-        .single()
-        .execute()
-    )
-    if not project_result.data:
-        return {"data": None, "warnings": [{"message": "Project record is unavailable."}]}
-
     warnings: list[dict] = []
+    project_result = None
+    last_error: Exception | None = None
+    # Supabase/httpx can briefly fail with ReadError while the service is under load.
+    # Retry once before returning a clear, recoverable response to the dashboard.
+    for attempt in range(2):
+        try:
+            project_result = (
+                client.table("projects")
+                .select("id,name,code,status")
+                .eq("id", project_id)
+                .single()
+                .execute()
+            )
+            last_error = None
+            break
+        except Exception as exc:
+            last_error = exc
+            if attempt == 0:
+                time.sleep(0.25)
+
+    if last_error is not None:
+        raise HTTPException(
+            status_code=503,
+            detail="Project summary is temporarily unavailable because the database connection failed. Please refresh in a moment.",
+        ) from last_error
+    if not project_result or not project_result.data:
+        return {"data": None, "warnings": [{"message": "Project record is unavailable."}]}
 
     def rows(table: str, columns: str) -> list[dict]:
         try:
