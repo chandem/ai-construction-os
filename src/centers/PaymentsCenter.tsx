@@ -1,3 +1,4 @@
+import "../styles-payment.css";
 import React from "react";
 import { apiGet, apiPost } from "../api";
 
