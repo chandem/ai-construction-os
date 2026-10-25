@@ -426,3 +426,14 @@ select:focus, input:focus, textarea:focus { border-color: #6b7c8a; box-shadow: 0
 .planning-gantt-bar.is-critical { outline:2px solid #a45b17; outline-offset:1px; }
 .planning-gantt-bar.is-critical:not(.is-overdue) { border-color:#d79a53; background:#ffedcf; }
 .planning-gantt-bar.is-critical:not(.is-overdue) > span { background:#a45b17; }
+
+
+/* Planning Center: editable activity dependencies */
+.planning-dependency-cell { min-width: 210px; }
+.planning-dependency-view { display:flex; align-items:flex-start; flex-direction:column; gap:6px; max-width:240px; }
+.planning-dependency-view span { overflow-wrap:anywhere; color:var(--muted); font-size:11px; line-height:1.4; }
+.planning-dependency-view .button.compact,.planning-dependency-editor .button.compact { width:auto; margin:0; padding:7px 10px; }
+.planning-dependency-editor { display:grid; gap:7px; min-width:190px; }
+.planning-dependency-editor select { min-height:96px; padding:7px; font-size:11px; }
+.planning-dependency-editor small { color:var(--muted); font-size:10px; line-height:1.4; }
+.planning-dependency-editor .row.gap { gap:6px; }

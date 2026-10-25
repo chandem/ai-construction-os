@@ -1,5 +1,5 @@
 """Operations routes: planning + procurement (Phases 5–6)."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 
 from .auth import get_access_token, get_current_user
 from .db import supabase
@@ -145,6 +145,72 @@ def generate_and_persist_schedule(project_id: str, token: str = Depends(get_acce
     sched = build_schedule_from_wbs(wbs, lines, project_id=project_id)
     n = persist_schedule_activities(client, sched.get("activities") or [])
     return {"data": sched.get("activities") or [], "persisted": n, "activity_count": sched.get("activity_count")}
+
+
+@router.post("/projects/{project_id}/planning/schedule/{activity_id}/dependencies")
+def update_schedule_dependencies(
+    project_id: str,
+    activity_id: str,
+    payload: dict = Body(...),
+    token: str = Depends(get_access_token),
+):
+    """Update predecessor links for one schedule activity, scoped to its project."""
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+    raw_ids = payload.get("predecessor_ids", [])
+    if not isinstance(raw_ids, list) or any(not isinstance(item, str) for item in raw_ids):
+        raise HTTPException(status_code=422, detail="predecessor_ids must be a list of activity IDs.")
+    predecessor_ids = list(dict.fromkeys(item.strip() for item in raw_ids if item.strip()))
+    if activity_id in predecessor_ids:
+        raise HTTPException(status_code=422, detail="An activity cannot depend on itself.")
+    try:
+        result = (
+            client.table("schedule_activities").select("id,predecessor_ids")
+            .eq("project_id", project_id).execute()
+        )
+        rows = result.data or []
+        by_id = {str(row["id"]): row for row in rows if row.get("id")}
+        if activity_id not in by_id:
+            raise HTTPException(status_code=404, detail="Schedule activity not found.")
+        unknown = [item for item in predecessor_ids if item not in by_id]
+        if unknown:
+            raise HTTPException(status_code=422, detail="All predecessors must belong to this project's schedule.")
+        graph = {
+            key: list(dict.fromkeys(value.get("predecessor_ids") or []))
+            for key, value in by_id.items()
+        }
+        graph[activity_id] = predecessor_ids
+        for node, preds in graph.items():
+            if any(pred not in by_id or pred == node for pred in preds):
+                raise HTTPException(status_code=422, detail="Dependency links contain an invalid or self reference.")
+        visiting, visited = set(), set()
+        def has_cycle(node):
+            if node in visiting:
+                return True
+            if node in visited:
+                return False
+            visiting.add(node)
+            for pred in graph.get(node, []):
+                if has_cycle(pred):
+                    return True
+            visiting.remove(node)
+            visited.add(node)
+            return False
+        if any(has_cycle(node) for node in graph if node not in visited):
+            raise HTTPException(status_code=422, detail="These dependencies create a cycle. Change the predecessor selection and try again.")
+        saved = (
+            client.table("schedule_activities").update({"predecessor_ids": predecessor_ids})
+            .eq("project_id", project_id).eq("id", activity_id).execute()
+        )
+        if not saved.data:
+            raise HTTPException(status_code=404, detail="Schedule activity was not updated.")
+        return {"data": saved.data[0], "warning": "Dependencies saved. Critical path recalculated from the updated schedule."}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Could not update schedule dependencies. Verify schedule_activities.predecessor_ids is writable.") from exc
 
 
 # Phase 6 — Procurement
