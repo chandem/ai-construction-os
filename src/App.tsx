@@ -5,7 +5,8 @@ import { apiGet, apiPost, apiPatch, apiUpload, apiDownload, apiDelete } from "./
 import { AuthScreen } from "./AuthScreen";
 import { MenuButton } from "./MenuButton";
 import { DocumentList } from "./DocumentList";
-import type { Project, Document, Message, Conversation, DesignAsset, WorkspaceView } from "./types";
+import { PROJECT_TYPE_OPTIONS } from "./types";
+import type { Project, ProjectType, Document, Message, Conversation, DesignAsset, WorkspaceView } from "./types";
 import { OsHome } from "./centers/OsHome";
 import { DesignCenter } from "./centers/DesignCenter";
 import { CommercialCenter } from "./centers/CommercialCenter";
@@ -85,10 +86,12 @@ export function App() {
   const [editingProject, setEditingProject] = React.useState(false);
   const [editProjectName, setEditProjectName] = React.useState("");
   const [editProjectCode, setEditProjectCode] = React.useState("");
+  const [editProjectType, setEditProjectType] = React.useState<ProjectType>("other");
   const [updatingProject, setUpdatingProject] = React.useState(false);
   const [deletingProject, setDeletingProject] = React.useState(false);
   const [newProjectName, setNewProjectName] = React.useState("");
   const [newProjectCode, setNewProjectCode] = React.useState("");
+  const [newProjectType, setNewProjectType] = React.useState<ProjectType>("other");
   const [creatingProject, setCreatingProject] = React.useState(false);
   const [documents, setDocuments] = React.useState<Document[]>([]);
   const [messages, setMessages] = React.useState<Message[]>([]);
@@ -192,12 +195,14 @@ export function App() {
       const r = await apiPost("/api/v1/projects", token, {
         name: newProjectName.trim(),
         code: newProjectCode.trim() || undefined,
+        project_type: newProjectType,
       });
       const p = r.data || r;
       setProjects((prev) => [p, ...prev]);
       setProjectId(p.id);
       setNewProjectName("");
       setNewProjectCode("");
+      setNewProjectType("other");
       setShowCreateProject(false);
       setView("os-home");
       setNotice("Project created.");
@@ -213,6 +218,7 @@ export function App() {
     if (!project) return;
     setEditProjectName(project.name || "");
     setEditProjectCode(project.code || "");
+    setEditProjectType((project.project_type as ProjectType) || "other");
     setEditingProject(true);
     setError("");
     setNotice("");
@@ -228,6 +234,7 @@ export function App() {
       const response = await apiPatch("/api/v1/projects/" + projectId, token, {
         name: editProjectName.trim(),
         code: editProjectCode.trim() || null,
+        project_type: editProjectType,
       });
       const updated = response.data || response;
       setProjects((current) => current.map((item) => item.id === projectId ? { ...item, ...updated } : item));
@@ -491,7 +498,7 @@ export function App() {
               <option value="">{projectsLoading ? "Loading projects..." : "Select project"}</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name}{p.code ? " - " + p.code : ""}
+                  {p.name}{p.code ? " - " + p.code : ""}{" · " + (PROJECT_TYPE_OPTIONS.find((option) => option.value === p.project_type)?.label || "Other civil construction")}
                 </option>
               ))}
             </select>
@@ -506,6 +513,10 @@ export function App() {
                 <input type="text" value={editProjectName} onChange={(e) => setEditProjectName(e.target.value)} maxLength={200} disabled={updatingProject} />
                 <label>Project code (optional)</label>
                 <input type="text" value={editProjectCode} onChange={(e) => setEditProjectCode(e.target.value)} maxLength={50} disabled={updatingProject} />
+                <label>Construction project type</label>
+                <select value={editProjectType} onChange={(e) => setEditProjectType(e.target.value as ProjectType)} disabled={updatingProject}>
+                  {PROJECT_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
                 <div className="project-edit-actions">
                   <button className="button primary compact" type="submit" disabled={updatingProject || !editProjectName.trim()}>{updatingProject ? "Saving..." : "Save changes"}</button>
                   <button className="project-action-cancel" type="button" onClick={() => setEditingProject(false)} disabled={updatingProject}>Cancel</button>
@@ -521,6 +532,10 @@ export function App() {
                 <input type="text" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="e.g. Office block Package A" disabled={creatingProject} />
                 <label>Project code (optional)</label>
                 <input type="text" value={newProjectCode} onChange={(e) => setNewProjectCode(e.target.value)} placeholder="e.g. ARR-P2" disabled={creatingProject} />
+                <label>Construction project type</label>
+                <select value={newProjectType} onChange={(e) => setNewProjectType(e.target.value as ProjectType)} disabled={creatingProject}>
+                  {PROJECT_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
                 <button className="button primary compact" disabled={creatingProject || !newProjectName.trim()}>
                   {creatingProject ? "Creating..." : "Create project"}
                 </button>
