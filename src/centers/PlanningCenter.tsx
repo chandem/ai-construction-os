@@ -321,7 +321,7 @@ export function PlanningCenter({ projectId, token }: Props) {
               </div>
               <span className="muted small">{datedActivities.length} dated activities</span>
             </div>
-            <div className="planning-critical-summary" role="status"><strong>Critical path analysis</strong><span>{criticalPath.hasCycle ? "Dependency cycle detected — review predecessor links." : criticalPath.criticalIds.size ? `${criticalPath.criticalIds.size} critical activities · ${criticalPath.duration} working-duration days (duration-based estimate)` : "Add valid predecessor links and activity durations to calculate the critical path."}</span></div>
+            <div className="planning-critical-summary" role="status"><strong>Critical path analysis</strong><span>{criticalPath.hasCycle ? "Dependency cycle detected — review predecessor links." : criticalPath.criticalIds.size ? `${criticalPath.criticalIds.size} critical activities · ${criticalPath.duration} duration days (calendar dates and holidays are not adjusted)` : "Add valid predecessor links and activity durations to calculate the critical path."}</span></div>
             <div className="planning-filters">
               <input type="search" value={activitySearch} onChange={(e) => setActivitySearch(e.target.value)} placeholder="Search activity, code, section…" aria-label="Search schedule activities" />
               <select value={activityFilter} onChange={(e) => setActivityFilter(e.target.value)} aria-label="Filter schedule activities">
