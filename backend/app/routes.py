@@ -775,14 +775,28 @@ async def reprocess_document(
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Empty storage object")
 
-    job = client.table("document_processing_jobs").insert(
-        {
-            "document_id": document_id,
-            "status": "queued",
-            "processor": "construction-text-embedding-v1",
-            "progress": 0,
-        }
-    ).execute()
+    try:
+        job = client.table("document_processing_jobs").insert(
+            {
+                "document_id": document_id,
+                "status": "queued",
+                "processor": "construction-text-embedding-v1",
+                "progress": 0,
+            }
+        ).execute()
+    except Exception as exc:
+        # The partial unique index is the race-safe authority. If another
+        # request inserted an active job after our pre-check, return a conflict.
+        error_code = getattr(exc, "code", None)
+        if error_code == "23505" or "23505" in str(exc):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This document already has an active processing job. "
+                    "Wait for it to finish before requesting reprocessing."
+                ),
+            ) from exc
+        raise HTTPException(status_code=500, detail="Could not create processing job") from exc
     if not job.data:
         raise HTTPException(status_code=500, detail="Could not create processing job")
     job_id = job.data[0]["id"]
