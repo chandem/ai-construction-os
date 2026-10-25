@@ -6,6 +6,7 @@ import time
 import httpx
 from pathlib import Path
 from uuid import uuid4
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -40,12 +41,14 @@ class CreateProjectRequest(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     code: str | None = Field(default=None, max_length=50)
     description: str | None = Field(default=None, max_length=2000)
+    project_type: Literal["road", "building", "bridge", "water", "utilities", "industrial", "other"] = "other"
 
 
 class UpdateProjectRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     code: str | None = Field(default=None, max_length=50)
     description: str | None = Field(default=None, max_length=2000)
+    project_type: Literal["road", "building", "bridge", "water", "utilities", "industrial", "other"] | None = None
 
 
 @router.get("/auth/me")
@@ -292,6 +295,7 @@ def create_project(payload: CreateProjectRequest, token: str = Depends(get_acces
         "name": name,
         "code": code,
         "description": description,
+        "project_type": payload.project_type,
         "status": "active",
         "created_by": user["id"],
     }
@@ -302,6 +306,7 @@ def create_project(payload: CreateProjectRequest, token: str = Depends(get_acces
         fallback = {"organization_id": org_id, "name": name}
         if code:
             fallback["code"] = code
+        fallback["project_type"] = payload.project_type
         try:
             result = client.table("projects").insert(fallback).execute()
         except Exception as inner:
@@ -330,6 +335,8 @@ def update_project(project_id: str, payload: UpdateProjectRequest, token: str = 
         updates["code"] = (payload.code or "").strip() or None
     if "description" in fields:
         updates["description"] = (payload.description or "").strip() or None
+    if "project_type" in fields and payload.project_type is not None:
+        updates["project_type"] = payload.project_type
     if not updates:
         raise HTTPException(status_code=400, detail="Provide at least one project field to update")
 
