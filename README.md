@@ -56,7 +56,7 @@ The latest backend release includes **AI Document Intelligence 2.0**, which eval
 | **Integrations** | External systems and synchronization |
 | **Operations** | Queues, jobs, health and operational monitoring |
 
-The platform is **project-type aware** rather than road-only. Specialized infrastructure capabilities such as GIS can coexist with building, industrial, structural, MEP, and other construction workflows.
+The platform is **project-type aware** rather than road-only. Each project can be classified as road/highway, building, bridge, water/irrigation, utilities/drainage, industrial/facility, or other civil construction. This project classification is the foundation for progressively enabling relevant workflows, templates, and AI prompts without splitting the platform into separate products.
 
 ---
 
