@@ -1,4 +1,6 @@
 """Field + quality routes (Phases 7–8)."""
+import time
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -196,28 +198,55 @@ def list_progress_updates(project_id: str, token: str = Depends(get_access_token
     client = supabase
     client.postgrest.auth(token)
     _project_for_member(project_id, user["id"], client)
-    try:
-        result = (
-            client.table("progress_updates")
-            .select(PROGRESS_FIELDS)
-            .eq("project_id", project_id)
-            .order("report_date", desc=True)
-            .execute()
-        )
-        return {"data": result.data or []}
-    except Exception as exc:
-        msg = str(exc)[:500]
-        low = msg.lower()
-        if "schema cache" in low or "could not find" in low or "pgrst" in low or "does not exist" in low:
-            hint = (
-                "progress_updates is not visible to the API yet. "
-                "In Supabase SQL run: notify pgrst, 'reload schema'; "
-                "Then grant access and restart the Render backend. "
-                f"API error: {msg}"
+    result = None
+    last_error = None
+    for attempt in range(2):
+        try:
+            result = (
+                client.table("progress_updates")
+                .select(PROGRESS_FIELDS)
+                .eq("project_id", project_id)
+                .order("report_date", desc=True)
+                .execute()
             )
-        else:
-            hint = f"progress_updates query failed: {msg}"
-        return {"data": [], "warning": hint, "detail": msg}
+            break
+        except Exception as exc:
+            last_error = exc
+            msg = str(exc).lower()
+            transient = any(
+                marker in msg
+                for marker in (
+                    "resource temporarily unavailable",
+                    "readerror",
+                    "connection reset",
+                    "connection aborted",
+                    "timed out",
+                    "timeout",
+                    "temporarily unavailable",
+                )
+            )
+            if attempt == 0 and transient:
+                time.sleep(0.25)
+                continue
+            break
+
+    if result is not None:
+        return {"data": result.data or []}
+
+    msg = str(last_error or "Unknown database error")[:500]
+    low = msg.lower()
+    if "schema cache" in low or "could not find" in low or "pgrst" in low or "does not exist" in low:
+        hint = (
+            "progress_updates is not visible to the API yet. "
+            "In Supabase SQL run: notify pgrst, 'reload schema'; "
+            "Then grant access and restart the Render backend. "
+            f"API error: {msg}"
+        )
+    elif any(marker in low for marker in ("resource temporarily unavailable", "readerror", "connection reset", "connection aborted", "timed out", "timeout", "temporarily unavailable")):
+        hint = f"progress_updates is temporarily unavailable after retry; please refresh shortly. API error: {msg}"
+    else:
+        hint = f"progress_updates query failed: {msg}"
+    return {"data": [], "warning": hint, "detail": msg}
 
 
 @router.post("/projects/{project_id}/field/progress")
