@@ -13,6 +13,7 @@ import { PlanningCenter } from "./centers/PlanningCenter";
 import { ProcurementCenter } from "./centers/ProcurementCenter";
 import { InventoryCenter } from "./centers/InventoryCenter";
 import { CostControlCenter } from "./centers/CostControlCenter";
+import { PaymentsCenter } from "./centers/PaymentsCenter";
 import { FieldCenter } from "./centers/FieldCenter";
 import { QualityCenter } from "./centers/QualityCenter";
 import { GisCenter } from "./centers/GisCenter";
@@ -24,7 +25,7 @@ import { OpsCenter } from "./centers/OpsCenter";
 const GROUPS: { title: string; items: { id: WorkspaceView; label: string }[] }[] = [
   { title: "Home", items: [{ id: "os-home", label: "OS Home" }, { id: "assistant", label: "AI Assistant" }] },
   { title: "Design", items: [{ id: "design-center", label: "Design" }] },
-  { title: "Commercial", items: [{ id: "commercial", label: "Commercial" }, { id: "planning", label: "Planning" }, { id: "procurement", label: "Procurement" }, { id: "inventory", label: "Inventory" }, { id: "cost-control", label: "Cost Control" }] },
+  { title: "Commercial", items: [{ id: "commercial", label: "Commercial" }, { id: "planning", label: "Planning" }, { id: "procurement", label: "Procurement" }, { id: "inventory", label: "Inventory" }, { id: "cost-control", label: "Cost Control" }, { id: "payments", label: "Payments" }] },
   { title: "Delivery", items: [{ id: "field", label: "Field" }, { id: "quality", label: "Quality" }] },
   { title: "Intelligence", items: [{ id: "prediction", label: "Prediction" }, { id: "brain", label: "Brain" }, { id: "gis", label: "GIS" }] },
   { title: "System", items: [{ id: "integrations", label: "Integrations" }, { id: "ops", label: "Ops" }] },
@@ -671,6 +672,7 @@ export function App() {
           {projectId && view === "procurement" && <ProcurementCenter {...centerProps} />}
           {projectId && view === "inventory" && <InventoryCenter {...centerProps} />}
           {projectId && view === "cost-control" && <CostControlCenter {...centerProps} />}
+          {projectId && view === "payments" && <PaymentsCenter {...centerProps} />}
           {projectId && view === "field" && <FieldCenter {...centerProps} />}
           {projectId && view === "quality" && <QualityCenter {...centerProps} />}
           {projectId && view === "gis" && <GisCenter {...centerProps} />}
