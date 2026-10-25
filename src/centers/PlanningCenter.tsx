@@ -86,6 +86,8 @@ export function PlanningCenter({ projectId, token }: Props) {
   const [editNote, setEditNote] = React.useState("");
   const [activitySearch, setActivitySearch] = React.useState("");
   const [activityFilter, setActivityFilter] = React.useState("all");
+  const [dependencyEditId, setDependencyEditId] = React.useState<string | null>(null);
+  const [selectedPredecessors, setSelectedPredecessors] = React.useState<string[]>([]);
 
   async function load() {
     if (!projectId || !token) return;
@@ -139,6 +141,39 @@ export function PlanningCenter({ projectId, token }: Props) {
     setEditId(row.id);
     setEditPct(row.percent_complete == null ? "0" : String(row.percent_complete));
     setEditNote("");
+  }
+
+  function startDependencies(row: Activity) {
+    if (!row.id) return;
+    setDependencyEditId(row.id);
+    setSelectedPredecessors((row.predecessor_ids || []).filter((id) => id !== row.id));
+    setError("");
+    setNotice("");
+  }
+
+  async function saveDependencies(row: Activity) {
+    if (!row.id) return;
+    if (selectedPredecessors.includes(row.id)) {
+      setError("An activity cannot depend on itself.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await apiPost(
+        "/api/v1/projects/" + projectId + "/planning/schedule/" + row.id + "/dependencies",
+        token,
+        { predecessor_ids: selectedPredecessors }
+      );
+      setNotice(result.warning || "Dependencies saved.");
+      setDependencyEditId(null);
+      await load();
+    } catch (e: any) {
+      setError(e.message || "Could not save activity dependencies.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveProgress(row: Activity) {
@@ -390,6 +425,7 @@ export function PlanningCenter({ projectId, token }: Props) {
                     <th>Code</th>
                     <th>Activity</th>
                     <th>Section</th>
+                    <th>Dependencies</th>
                     <th>Start</th>
                     <th>Finish</th>
                     <th>%</th>
@@ -405,6 +441,25 @@ export function PlanningCenter({ projectId, token }: Props) {
                       </td>
                       <td>{row.name || "—"}</td>
                       <td>{row.work_section || "—"}</td>
+                      <td className="planning-dependency-cell">
+                        {dependencyEditId === row.id ? (
+                          <div className="planning-dependency-editor">
+                            <select multiple value={selectedPredecessors} onChange={(e) => setSelectedPredecessors(Array.from(e.currentTarget.selectedOptions, (option) => option.value))} aria-label={"Predecessor activities for " + (row.name || row.code || "activity")}>
+                              {activities.filter((candidate) => candidate.id && candidate.id !== row.id).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.code ? candidate.code + " — " : ""}{candidate.name || "Unnamed activity"}</option>)}
+                            </select>
+                            <small>Choose one or more predecessors (use Ctrl/long-press for multiple).</small>
+                            <div className="row gap">
+                              <button type="button" className="button compact" disabled={busy} onClick={() => saveDependencies(row)}>Save</button>
+                              <button type="button" className="button compact" disabled={busy} onClick={() => setDependencyEditId(null)}>Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="planning-dependency-view">
+                            <span>{(row.predecessor_ids || []).length ? (row.predecessor_ids || []).map((id) => activities.find((candidate) => candidate.id === id)?.code || activities.find((candidate) => candidate.id === id)?.name || "Unknown activity").join(", ") : "None"}</span>
+                            <button type="button" className="button compact" disabled={busy || !row.id} onClick={() => startDependencies(row)}>Edit</button>
+                          </div>
+                        )}
+                      </td>
                       <td>{row.planned_start || "—"}</td>
                       <td>{row.planned_finish || "—"}</td>
                       <td>
