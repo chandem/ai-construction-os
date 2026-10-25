@@ -5,8 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from .auth import get_access_token, get_current_user
-from .db import supabase
-from .routes import _project_for_member
+from .routes import _authenticated_client, _project_for_member
 from .field import (
     apply_progress_to_activity,
     build_diary_entry,
@@ -81,8 +80,7 @@ INCIDENT_FIELDS = (
 @router.get("/projects/{project_id}/field/summary")
 def project_field_summary(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     diary, progress, activities = [], [], []
     try:
@@ -134,8 +132,7 @@ def project_field_summary(project_id: str, token: str = Depends(get_access_token
 @router.get("/projects/{project_id}/field/diary")
 def list_site_diary(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     try:
         result = (
@@ -168,8 +165,7 @@ def create_site_diary(
     token: str = Depends(get_access_token),
 ):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     row = build_diary_entry(
         project_id=project_id,
@@ -195,8 +191,7 @@ def create_site_diary(
 @router.get("/projects/{project_id}/field/progress")
 def list_progress_updates(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     result = None
     last_error = None
@@ -256,8 +251,7 @@ def record_progress(
     token: str = Depends(get_access_token),
 ):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     if not (body.activity_id or "").strip():
         raise HTTPException(status_code=400, detail="activity_id is required")
@@ -339,8 +333,7 @@ class IncidentCreate(BaseModel):
 @router.get("/projects/{project_id}/quality/summary")
 def project_quality_summary(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     inspections, ncrs, incidents = [], [], []
     try:
@@ -377,8 +370,7 @@ def project_quality_summary(project_id: str, token: str = Depends(get_access_tok
 @router.get("/projects/{project_id}/quality/inspections")
 def list_inspections(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     try:
         result = (
@@ -401,8 +393,7 @@ def create_inspection(
     token: str = Depends(get_access_token),
 ):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     row = build_inspection(
         project_id=project_id,
@@ -424,8 +415,7 @@ def create_inspection(
 @router.get("/projects/{project_id}/quality/ncrs")
 def list_ncrs(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     try:
         result = client.table("ncrs").select(NCR_FIELDS).eq("project_id", project_id).execute()
@@ -437,8 +427,7 @@ def list_ncrs(project_id: str, token: str = Depends(get_access_token)):
 @router.post("/projects/{project_id}/quality/ncrs")
 def create_ncr(project_id: str, body: NcrCreate, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     row = build_ncr(
         project_id=project_id,
@@ -459,8 +448,7 @@ def create_ncr(project_id: str, body: NcrCreate, token: str = Depends(get_access
 @router.get("/projects/{project_id}/quality/incidents")
 def list_incidents(project_id: str, token: str = Depends(get_access_token)):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     try:
         result = (
@@ -482,8 +470,7 @@ def create_incident(
     token: str = Depends(get_access_token),
 ):
     user = get_current_user(token)
-    client = supabase
-    client.postgrest.auth(token)
+    client = _authenticated_client(token)
     _project_for_member(project_id, user["id"], client)
     row = build_incident(
         project_id=project_id,
