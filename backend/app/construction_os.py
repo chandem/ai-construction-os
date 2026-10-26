@@ -58,11 +58,19 @@ def module_status(
         return {"id": module_id, "label": label, "status": "error", "row_signal": 0, "message": error[:500]}
     if payload is None:
         return {"id": module_id, "label": label, "status": "unknown", "row_signal": 0, "message": "Not loaded"}
-    if isinstance(payload, dict) and (payload.get("warning") or payload.get("error")):
+    if isinstance(payload, dict) and payload.get("missing_table"):
         return {
             "id": module_id,
             "label": label,
             "status": "needs_setup",
+            "row_signal": 0,
+            "message": str(payload.get("warning") or "A required database table is missing.")[:500],
+        }
+    if isinstance(payload, dict) and (payload.get("warning") or payload.get("error")):
+        return {
+            "id": module_id,
+            "label": label,
+            "status": "error",
             "row_signal": 0,
             "message": str(payload.get("warning") or payload.get("error"))[:500],
         }
