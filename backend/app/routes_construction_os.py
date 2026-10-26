@@ -47,26 +47,51 @@ def _looks_like_missing_table(message: str) -> bool:
 
 
 def _safe_get(client, table: str, project_id: str, limit: int = 5) -> dict:
-    try:
-        result = (
-            client.table(table)
-            .select("*")
-            .eq("project_id", project_id)
-            .limit(limit)
-            .execute()
-        )
-        return {"data": result.data or [], "table": table}
-    except Exception as e:
-        err = str(e)[:300]
-        payload: dict = {"data": [], "warning": err, "table": table}
-        if _looks_like_missing_table(err):
-            sql_hint = TABLE_SQL_HINTS.get(table)
-            payload["missing_table"] = table
-            payload["warning"] = (
-                f"Table '{table}' is not available."
-                + (f" Apply {sql_hint} in Supabase SQL editor." if sql_hint else " Apply the matching supabase/*.sql script.")
+    # A transient socket/process resource error must not mark a healthy module as broken.
+    # Retry only common transient transport failures; schema and permission errors
+    # should be reported immediately without extra database calls.
+    last_error: Exception | None = None
+    for attempt in range(2):
+        try:
+            result = (
+                client.table(table)
+                .select("*")
+                .eq("project_id", project_id)
+                .limit(limit)
+                .execute()
             )
-        return payload
+            return {"data": result.data or [], "table": table}
+        except Exception as exc:
+            last_error = exc
+            message = str(exc).lower()
+            transient = any(
+                marker in message
+                for marker in (
+                    "resource temporarily unavailable",
+                    "errno 11",
+                    "connection reset",
+                    "connection refused",
+                    "timed out",
+                    "timeout",
+                    "readerror",
+                    "remoteprotocolerror",
+                )
+            )
+            if attempt == 0 and transient:
+                time.sleep(0.2)
+                continue
+            break
+
+    err = str(last_error or "Database request failed")[:300]
+    payload: dict = {"data": [], "warning": err, "table": table}
+    if _looks_like_missing_table(err):
+        sql_hint = TABLE_SQL_HINTS.get(table)
+        payload["missing_table"] = table
+        payload["warning"] = (
+            f"Table '{table}' is not available."
+            + (f" Apply {sql_hint} in Supabase SQL editor." if sql_hint else " Apply the matching supabase/*.sql script.")
+        )
+    return payload
 
 
 @router.get("/projects/{project_id}/os/snapshot")
