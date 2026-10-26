@@ -1,5 +1,5 @@
 import React from "react";
-import { apiGet, apiPost, apiPatch } from "../api";
+import { apiGet, apiPost, apiPatch, apiDelete } from "../api";
 
 type Props = { projectId: string; token: string };
 
@@ -161,6 +161,16 @@ export function PlanningCenter({ projectId, token }: Props) {
     finally { setBusy(false); }
   }
 
+  async function deleteWbsItem(row: WbsNode) {
+    if (!row.id || !window.confirm("Delete WBS item '" + (row.name || row.code || "this item") + "'? This cannot be undone.")) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await apiDelete("/api/v1/projects/" + projectId + "/planning/wbs/" + row.id, token);
+      setNotice("WBS item deleted."); await load();
+    } catch (e: any) { setError(e.message || "Could not delete WBS item."); }
+    finally { setBusy(false); }
+  }
+
   async function saveWbsEdit(row: WbsNode) {
     if (!row.id || !wbsDraft.name.trim()) { setError("WBS item name is required."); return; }
     setBusy(true); setError(""); setNotice("");
@@ -198,6 +208,16 @@ export function PlanningCenter({ projectId, token }: Props) {
       duration_days: String(row.duration_days || 1), notes: String((row as any).notes || ""),
     });
     setError(""); setNotice("");
+  }
+
+  async function deleteActivity(row: Activity) {
+    if (!row.id || !window.confirm("Delete schedule activity '" + (row.name || row.code || "this activity") + "'? Dependent links to it will be removed.")) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await apiDelete("/api/v1/projects/" + projectId + "/planning/schedule/" + row.id, token);
+      setNotice("Schedule activity deleted."); await load();
+    } catch (e: any) { setError(e.message || "Could not delete schedule activity."); }
+    finally { setBusy(false); }
   }
 
   async function saveActivityEdit(row: Activity) {
@@ -432,7 +452,7 @@ export function PlanningCenter({ projectId, token }: Props) {
                       </td>
                       <td>{row.level ?? "—"}</td>
                       <td>{editingWbsId === row.id ? <input value={wbsDraft.name} onChange={e => setWbsDraft({...wbsDraft,name:e.target.value})} aria-label="Edit WBS item name" /> : (row.work_section || "—")}</td>
-                      <td>{editingWbsId === row.id ? <div className="row gap"><button type="button" className="button compact" disabled={busy} onClick={() => saveWbsEdit(row)}>Save</button><button type="button" className="button compact" disabled={busy} onClick={() => setEditingWbsId(null)}>Cancel</button></div> : <button type="button" className="button compact" disabled={busy || !row.id} onClick={() => {setEditingWbsId(row.id || null);setWbsDraft({name:row.name || "",code:row.code || "",work_section:row.work_section || ""});}}>Edit</button>}</td>
+                      <td>{editingWbsId === row.id ? <div className="row gap"><button type="button" className="button compact" disabled={busy} onClick={() => saveWbsEdit(row)}>Save</button><button type="button" className="button compact" disabled={busy} onClick={() => setEditingWbsId(null)}>Cancel</button></div> : <div className="row gap"><button type="button" className="button compact" disabled={busy || !row.id} onClick={() => {setEditingWbsId(row.id || null);setWbsDraft({name:row.name || "",code:row.code || "",work_section:row.work_section || ""});}}>Edit</button><button type="button" className="button compact" disabled={busy || !row.id} onClick={() => deleteWbsItem(row)}>Delete</button></div>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -626,7 +646,7 @@ export function PlanningCenter({ projectId, token }: Props) {
                         <label>Duration (days) <input type="number" min="1" value={activityEditDraft.duration_days} onChange={e => setActivityEditDraft({...activityEditDraft,duration_days:e.target.value})} /></label>
                         <label>Notes <input value={activityEditDraft.notes} onChange={e => setActivityEditDraft({...activityEditDraft,notes:e.target.value})} /></label>
                         <div className="row gap"><button type="button" className="button compact" disabled={busy} onClick={() => saveActivityEdit(row)}>Save</button><button type="button" className="button compact" disabled={busy} onClick={() => setEditingActivityId(null)}>Cancel</button></div>
-                      </div> : <button type="button" className="button compact" disabled={busy || !row.id} onClick={() => startActivityEdit(row)}>Edit</button>}</td>
+                      </div> : <div className="row gap"><button type="button" className="button compact" disabled={busy || !row.id} onClick={() => startActivityEdit(row)}>Edit</button><button type="button" className="button compact" disabled={busy || !row.id} onClick={() => deleteActivity(row)}>Delete</button></div>}</td>
                     </tr>
                   ))}
                 </tbody>

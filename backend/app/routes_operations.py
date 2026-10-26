@@ -200,6 +200,24 @@ def edit_manual_wbs_node(project_id: str, node_id: str, payload: dict = Body(...
         raise HTTPException(status_code=503, detail="Could not update WBS item.") from exc
 
 
+@router.delete("/projects/{project_id}/planning/wbs/{node_id}")
+def delete_manual_wbs_node(project_id: str, node_id: str, token: str = Depends(get_access_token)):
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+    try:
+        existing = client.table("wbs_nodes").select("id").eq("project_id", project_id).eq("id", node_id).execute().data or []
+        if not existing:
+            raise HTTPException(status_code=404, detail="WBS item not found.")
+        client.table("wbs_nodes").delete().eq("project_id", project_id).eq("id", node_id).execute()
+        return {"message": "WBS item deleted."}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Could not delete WBS item.") from exc
+
+
 @router.post("/projects/{project_id}/planning/schedule/manual")
 def create_manual_schedule_activity(project_id: str, payload: dict = Body(...), token: str = Depends(get_access_token)):
     user = get_current_user(token)
@@ -267,6 +285,32 @@ def edit_schedule_activity(project_id: str, activity_id: str, payload: dict = Bo
         raise
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Could not update schedule activity.") from exc
+
+
+@router.delete("/projects/{project_id}/planning/schedule/{activity_id}")
+def delete_schedule_activity(project_id: str, activity_id: str, token: str = Depends(get_access_token)):
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+    try:
+        existing = client.table("schedule_activities").select("id").eq("project_id", project_id).eq("id", activity_id).execute().data or []
+        if not existing:
+            raise HTTPException(status_code=404, detail="Schedule activity not found.")
+        # Remove this activity from all predecessor lists before deleting it.
+        rows = client.table("schedule_activities").select("id,predecessor_ids").eq("project_id", project_id).execute().data or []
+        for row in rows:
+            predecessors = row.get("predecessor_ids") or []
+            if row.get("id") != activity_id and activity_id in predecessors:
+                client.table("schedule_activities").update({
+                    "predecessor_ids": [item for item in predecessors if item != activity_id]
+                }).eq("project_id", project_id).eq("id", row["id"]).execute()
+        client.table("schedule_activities").delete().eq("project_id", project_id).eq("id", activity_id).execute()
+        return {"message": "Schedule activity deleted; dependent links were updated."}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Could not delete schedule activity.") from exc
 
 
 @router.post("/projects/{project_id}/planning/schedule/{activity_id}/dependencies")
