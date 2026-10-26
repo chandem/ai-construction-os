@@ -44,6 +44,18 @@ def test_recommend_actions_prioritizes_design_when_empty():
     assert actions[0]["module"] == "design"
 
 
+def test_recommend_actions_includes_recovery_for_module_errors():
+    failed_field = module_status(
+        module_id="field",
+        payload={"data": [], "warning": "permission denied"},
+    )
+    actions = recommend_actions([failed_field])
+    field_actions = [action for action in actions if action["module"] == "field"]
+    assert field_actions
+    assert field_actions[0]["title"] == "Review Field module"
+    assert "permission denied" in field_actions[0]["detail"]
+
+
 def test_build_os_snapshot_readiness():
     mods = [
         module_status(module_id="design", payload={"data": [1, 2, 3]}),
