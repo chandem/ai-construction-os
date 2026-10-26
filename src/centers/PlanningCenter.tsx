@@ -449,6 +449,7 @@ export function PlanningCenter({ projectId, token }: Props) {
                     <th>%</th>
                     <th>Status</th>
                     <th>Update</th>
+                    <th>Details</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -457,8 +458,8 @@ export function PlanningCenter({ projectId, token }: Props) {
                       <td>
                         <code className="boq-code">{row.code || "—"}</code>
                       </td>
-                      <td>{row.name || "—"}</td>
-                      <td>{row.work_section || "—"}</td>
+                      <td>{editingActivityId === row.id ? <input value={activityEditDraft.name} onChange={e => setActivityEditDraft({...activityEditDraft,name:e.target.value})} aria-label="Edit activity name" /> : (row.name || "—")}</td>
+                      <td>{editingActivityId === row.id ? <input value={activityEditDraft.work_section} onChange={e => setActivityEditDraft({...activityEditDraft,work_section:e.target.value})} aria-label="Edit activity work section" /> : (row.work_section || "—")}</td>
                       <td className="planning-dependency-cell">
                         {dependencyEditId === row.id ? (
                           <div className="planning-dependency-editor">
@@ -478,8 +479,8 @@ export function PlanningCenter({ projectId, token }: Props) {
                           </div>
                         )}
                       </td>
-                      <td>{row.planned_start || "—"}</td>
-                      <td>{row.planned_finish || "—"}</td>
+                      <td>{editingActivityId === row.id ? <input type="date" value={activityEditDraft.planned_start} onChange={e => setActivityEditDraft({...activityEditDraft,planned_start:e.target.value})} aria-label="Edit planned start" /> : (row.planned_start || "—")}</td>
+                      <td>{editingActivityId === row.id ? <input type="date" value={activityEditDraft.planned_finish} onChange={e => setActivityEditDraft({...activityEditDraft,planned_finish:e.target.value})} aria-label="Edit planned finish" /> : (row.planned_finish || "—")}</td>
                       <td>
                         {row.percent_complete == null ? "—" : Number(row.percent_complete) + "%"}
                       </td>
@@ -536,6 +537,12 @@ export function PlanningCenter({ projectId, token }: Props) {
                           </button>
                         )}
                       </td>
+                      <td>{editingActivityId === row.id ? <div className="planning-dependency-editor">
+                        <label>Code <input value={activityEditDraft.code} onChange={e => setActivityEditDraft({...activityEditDraft,code:e.target.value})} /></label>
+                        <label>Duration (days) <input type="number" min="1" value={activityEditDraft.duration_days} onChange={e => setActivityEditDraft({...activityEditDraft,duration_days:e.target.value})} /></label>
+                        <label>Notes <input value={activityEditDraft.notes} onChange={e => setActivityEditDraft({...activityEditDraft,notes:e.target.value})} /></label>
+                        <div className="row gap"><button type="button" className="button compact" disabled={busy} onClick={() => saveActivityEdit(row)}>Save</button><button type="button" className="button compact" disabled={busy} onClick={() => setEditingActivityId(null)}>Cancel</button></div>
+                      </div> : <button type="button" className="button compact" disabled={busy || !row.id} onClick={() => startActivityEdit(row)}>Edit</button>}</td>
                     </tr>
                   ))}
                 </tbody>
