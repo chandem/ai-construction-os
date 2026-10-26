@@ -494,6 +494,14 @@ export function OsHome({ projectId, token, documentCount = 0, documents = [], do
                   return (
                     <article className="dashboard-action-card" key={i}>
                       <div>
+                        {Number.isFinite(Number(a.priority)) && (
+                          <span
+                            className={"dashboard-status " + (Number(a.priority) <= 1 ? "warning" : "neutral")}
+                            aria-label={"Action priority " + Number(a.priority)}
+                          >
+                            Priority {Number(a.priority)}
+                          </span>
+                        )}
                         <b>{a.title || a.label || "Recommended action"}</b>
                         <span>{a.description || a.detail || a.reason || ""}</span>
                       </div>
