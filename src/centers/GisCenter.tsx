@@ -1,4 +1,6 @@
 import React from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { apiDelete, apiGet, apiPatch, apiPost } from "../api";
 
 type Props = { projectId: string; token: string };
@@ -62,6 +64,7 @@ export function GisCenter({ projectId, token }: Props) {
   const [status, setStatus] = React.useState("existing");
   const [description, setDescription] = React.useState("");
   const [geometryCoordinates, setGeometryCoordinates] = React.useState("");
+  const mapElementRef = React.useRef<HTMLDivElement | null>(null);
 
   const load = React.useCallback(async () => {
     if (!projectId || !token) return;
@@ -98,6 +101,41 @@ export function GisCenter({ projectId, token }: Props) {
   const selected = assets.find((asset) => asset.id === selectedId) || null;
   const geocoded = assets.filter((asset) => asset.latitude != null && asset.longitude != null).length;
 
+  React.useEffect(() => {
+    const element = mapElementRef.current;
+    if (!element || !selected) return;
+    const coordinates = Array.isArray(selected.properties?.geometry_coordinates)
+      ? selected.properties.geometry_coordinates.filter((point: any) =>
+          Number.isFinite(Number(point?.latitude)) && Number(point.latitude) >= -90 && Number(point.latitude) <= 90 &&
+          Number.isFinite(Number(point?.longitude)) && Number(point.longitude) >= -180 && Number(point.longitude) <= 180)
+      : [];
+    const hasReference = selected.latitude != null && selected.longitude != null;
+    if (!hasReference && coordinates.length === 0) return;
+    const map = L.map(element, { scrollWheelZoom: false });
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19,
+    }).addTo(map);
+    const points: L.LatLngExpression[] = coordinates.map((point: any) => [Number(point.latitude), Number(point.longitude)]);
+    const bounds = L.latLngBounds([]);
+    if (selected.geometry_type === "line" && points.length >= 2) {
+      L.polyline(points, { color: "#2563eb", weight: 5, opacity: 0.9 }).addTo(map);
+      points.forEach((point) => bounds.extend(point));
+    } else if (selected.geometry_type === "polygon" && points.length >= 3) {
+      L.polygon(points, { color: "#0f766e", weight: 3, fillColor: "#14b8a6", fillOpacity: 0.25 }).addTo(map);
+      points.forEach((point) => bounds.extend(point));
+    } else {
+      points.forEach((point) => { L.circleMarker(point, { radius: 5, color: "#2563eb", fillOpacity: 0.85 }).addTo(map); bounds.extend(point); });
+    }
+    if (hasReference) {
+      const reference: L.LatLngExpression = [Number(selected.latitude), Number(selected.longitude)];
+      L.circleMarker(reference, { radius: 7, color: "#b45309", fillColor: "#f59e0b", fillOpacity: 1 }).bindTooltip("Asset reference point").addTo(map);
+      bounds.extend(reference);
+    }
+    if (bounds.isValid()) map.fitBounds(bounds, { padding: [24, 24], maxZoom: 16 }); else map.setView([9.0, 39.0], 6);
+    const resize = window.setTimeout(() => map.invalidateSize(), 100);
+    return () => { window.clearTimeout(resize); map.remove(); };
+  }, [selected]);
+
   function resetForm() {
     setEditingId("");
     setName("");
@@ -117,7 +155,7 @@ export function GisCenter({ projectId, token }: Props) {
     setAssetType(asset.asset_type || "other");
     setGeometryType(asset.geometry_type || "point");
     const savedCoordinates = asset.properties?.geometry_coordinates;
-    setGeometryCoordinates(Array.isArray(savedCoordinates) ? savedCoordinates.map((point: any) => `${point.latitude}, ${point.longitude}`).join("\\n") : "");
+    setGeometryCoordinates(Array.isArray(savedCoordinates) ? savedCoordinates.map((point: any) => `${point.latitude}, ${point.longitude}`).join("\n") : "");
     setLatitude(asset.latitude == null ? "" : String(asset.latitude));
     setLongitude(asset.longitude == null ? "" : String(asset.longitude));
     setWorkSection(asset.work_section || "");
@@ -275,16 +313,16 @@ export function GisCenter({ projectId, token }: Props) {
             {selected && selected.latitude != null && selected.longitude != null &&
               <a className="button compact" href={`https://www.openstreetmap.org/?mlat=${selected.latitude}&mlon=${selected.longitude}#map=15/${selected.latitude}/${selected.longitude}`} target="_blank" rel="noreferrer">Open full map ↗</a>}
           </div>
-          {selected && mapUrl(selected) ? (
-            <iframe title={`Map location for ${selected.name}`} src={mapUrl(selected)} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
+          {selected && (mapUrl(selected) || (Array.isArray(selected.properties?.geometry_coordinates) && selected.properties.geometry_coordinates.length > 0)) ? (
+            <div ref={mapElementRef} className="gis-leaflet-map" role="img" aria-label={"GIS map showing " + selected.name + " geometry"} />
           ) : (
             <div className="gis-map-empty">
               <div aria-hidden="true" style={{ fontSize: 32 }}>⌖</div>
-              <h3>No mapped asset selected</h3>
-              <p className="muted small">Add latitude and longitude to an asset, or select an asset that already has coordinates.</p>
+              <h3>No mapped geometry selected</h3>
+              <p className="muted small">Add reference coordinates or enter surveyed alignment or footprint coordinates for this asset.</p>
             </div>
           )}
-          <p className="muted small">Map tiles © OpenStreetMap contributors. The current preview marks the asset reference coordinate; line alignments and polygon footprints are saved separately as ordered geometry coordinates.</p>
+          <p className="muted small">OpenStreetMap tiles. Blue lines show alignments, teal shapes show footprints, and amber markers show the asset reference point. Accurate geometry requires surveyed coordinates.</p>
         </div>
 
         <div className="gis-register">
