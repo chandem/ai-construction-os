@@ -113,6 +113,20 @@ def recommend_actions(modules: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if prediction and prediction["status"] in ("empty", "unknown"):
         add(3, "prediction", "Run risk & forecast pass", "Generate prediction from schedule, NCRs, and cost signals.")
 
+    # Give every failed module a direct recovery action, not only Ops.
+    # Keep the Ops-specific guidance more useful than a generic module review.
+    for module in modules:
+        if module.get("status") != "error" or module.get("id") == "ops":
+            continue
+        module_id = str(module.get("id") or "unknown")
+        label = str(module.get("label") or module_id)
+        add(
+            1,
+            module_id,
+            f"Review {label} module",
+            str(module.get("message") or "The module reported an API, permission, or connectivity error. Review its status and resolve the underlying issue.")[:300],
+        )
+
     ops = by_id.get("ops")
     if ops and ops["status"] == "error":
         add(1, "ops", "Check platform health", "Ops health reported an error — review queue and cost budgets.")
