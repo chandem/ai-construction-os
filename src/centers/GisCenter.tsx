@@ -265,7 +265,7 @@ export function GisCenter({ projectId, token }: Props) {
         <div className="row gap">
           <button type="button" className="button compact" disabled={busy || loading} onClick={() => void load()}>Refresh</button>
           <button type="button" className="button primary compact" disabled={busy} onClick={() => { resetForm(); setFormOpen((value) => !value); }}>
-            {formOpen && !editingId ? "Close form" : "Structure of infrastructure"}
+            {formOpen && !editingId ? "Close form" : "Infrastructure Structure"}
           </button>
         </div>
       </div>
