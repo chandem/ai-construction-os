@@ -310,7 +310,13 @@ export function PlanningCenter({ projectId, token }: Props) {
         <p className="muted">Loading planning data…</p>
       ) : (
         <>
-          <h3>Work breakdown structure</h3>
+          <div className="panel-head"><h3>Work breakdown structure</h3><button type="button" className="button compact" disabled={busy} onClick={() => setShowWbsForm(!showWbsForm)}>{showWbsForm ? "Cancel" : "Add WBS item"}</button></div>
+          {showWbsForm && <form className="planning-filters" onSubmit={addWbsItem}>
+            <input required value={wbsName} onChange={e => setWbsName(e.target.value)} placeholder="Work item name" aria-label="WBS item name" />
+            <input value={wbsCode} onChange={e => setWbsCode(e.target.value)} placeholder="Code (optional)" aria-label="WBS item code" />
+            <input value={wbsSection} onChange={e => setWbsSection(e.target.value)} placeholder="Work section" aria-label="WBS work section" />
+            <button className="button primary compact" type="submit" disabled={busy}>Save item</button>
+          </form>}
           {wbs.length === 0 ? (
             <div className="empty empty-card">
               <h3>No WBS yet</h3>
@@ -411,7 +417,17 @@ export function PlanningCenter({ projectId, token }: Props) {
             <div className="planning-gantt-legend"><span><i /> Planned duration</span><span><i className="progress" /> Actual progress</span><span><i className="overdue" /> Overdue</span></div>
           </div>
 
-          <h3 style={{ marginTop: 24 }}>Schedule &amp; progress</h3>
+          <div className="panel-head" style={{ marginTop: 24 }}><h3>Schedule &amp; progress</h3><button type="button" className="button compact" disabled={busy} onClick={() => setShowActivityForm(!showActivityForm)}>{showActivityForm ? "Cancel" : "Add activity"}</button></div>
+          {showActivityForm && <form className="planning-filters" onSubmit={addActivity}>
+            <input required value={activityDraft.name} onChange={e => setActivityDraft({...activityDraft,name:e.target.value})} placeholder="Activity name" aria-label="New activity name" />
+            <input value={activityDraft.code} onChange={e => setActivityDraft({...activityDraft,code:e.target.value})} placeholder="Code (optional)" aria-label="New activity code" />
+            <input value={activityDraft.work_section} onChange={e => setActivityDraft({...activityDraft,work_section:e.target.value})} placeholder="Work section" aria-label="New activity work section" />
+            <label>Start <input type="date" value={activityDraft.planned_start} onChange={e => setActivityDraft({...activityDraft,planned_start:e.target.value})} /></label>
+            <label>Finish <input type="date" value={activityDraft.planned_finish} onChange={e => setActivityDraft({...activityDraft,planned_finish:e.target.value})} /></label>
+            <label>Duration (days) <input type="number" min="1" value={activityDraft.duration_days} onChange={e => setActivityDraft({...activityDraft,duration_days:e.target.value})} /></label>
+            <input value={activityDraft.notes} onChange={e => setActivityDraft({...activityDraft,notes:e.target.value})} placeholder="Notes (optional)" aria-label="Activity notes" />
+            <button className="button primary compact" type="submit" disabled={busy}>Save activity</button>
+          </form>}
           {filteredActivities.length === 0 ? (
             <div className="empty empty-card">
               <h3>No schedule activities</h3>
