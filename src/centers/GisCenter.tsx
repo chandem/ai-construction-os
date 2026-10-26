@@ -14,6 +14,7 @@ type Asset = {
   description?: string | null;
   status?: string | null;
   created_at?: string;
+  properties?: Record<string, any> | null;
 };
 
 const ASSET_TYPES = ["building", "road", "bridge", "culvert", "utility", "pipeline", "tower", "equipment", "boundary", "other"];
@@ -60,6 +61,7 @@ export function GisCenter({ projectId, token }: Props) {
   const [workSection, setWorkSection] = React.useState("");
   const [status, setStatus] = React.useState("existing");
   const [description, setDescription] = React.useState("");
+  const [geometryCoordinates, setGeometryCoordinates] = React.useState("");
 
   const load = React.useCallback(async () => {
     if (!projectId || !token) return;
@@ -100,12 +102,13 @@ export function GisCenter({ projectId, token }: Props) {
     setEditingId("");
     setName("");
     setAssetType("road");
-    setGeometryType("point");
+    setGeometryType("line");
     setLatitude("");
     setLongitude("");
     setWorkSection("");
     setStatus("existing");
     setDescription("");
+    setGeometryCoordinates("");
   }
 
   function startEdit(asset: Asset) {
@@ -113,6 +116,8 @@ export function GisCenter({ projectId, token }: Props) {
     setName(asset.name || "");
     setAssetType(asset.asset_type || "other");
     setGeometryType(asset.geometry_type || "point");
+    const savedCoordinates = asset.properties?.geometry_coordinates;
+    setGeometryCoordinates(Array.isArray(savedCoordinates) ? savedCoordinates.map((point: any) => `${point.latitude}, ${point.longitude}`).join("\\n") : "");
     setLatitude(asset.latitude == null ? "" : String(asset.latitude));
     setLongitude(asset.longitude == null ? "" : String(asset.longitude));
     setWorkSection(asset.work_section || "");
@@ -140,6 +145,34 @@ export function GisCenter({ projectId, token }: Props) {
       setError("Enter both latitude and longitude, or leave both blank.");
       return;
     }
+    const coordinateLines = geometryCoordinates.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const parsedCoordinates: Array<{ latitude: number; longitude: number }> = [];
+    for (const line of coordinateLines) {
+      const parts = line.split(/[,\s]+/).filter(Boolean);
+      if (parts.length !== 2) {
+        setError("Enter one latitude, longitude pair per line, separated by a comma.");
+        return;
+      }
+      const pointLat = Number(parts[0]);
+      const pointLon = Number(parts[1]);
+      if (!Number.isFinite(pointLat) || pointLat < -90 || pointLat > 90 || !Number.isFinite(pointLon) || pointLon < -180 || pointLon > 180) {
+        setError("Every geometry point must have a valid latitude (−90 to 90) and longitude (−180 to 180).");
+        return;
+      }
+      parsedCoordinates.push({ latitude: pointLat, longitude: pointLon });
+    }
+    if (geometryType === "line" && parsedCoordinates.length < 2) {
+      setError("A line needs at least two coordinate pairs.");
+      return;
+    }
+    if (geometryType === "polygon" && parsedCoordinates.length < 3) {
+      setError("A polygon footprint needs at least three coordinate pairs.");
+      return;
+    }
+    if ((geometryType === "line" || geometryType === "polygon") && parsedCoordinates.length > 5000) {
+      setError("A geometry can contain at most 5,000 coordinate pairs.");
+      return;
+    }
     setBusy(true);
     setError("");
     setNotice("");
@@ -147,6 +180,7 @@ export function GisCenter({ projectId, token }: Props) {
       name: name.trim(), asset_type: assetType, geometry_type: geometryType,
       latitude: lat, longitude: lon, work_section: workSection.trim() || null,
       status, description: description.trim() || null,
+      properties: { ...(editingId ? (assets.find((asset) => asset.id === editingId)?.properties || {}) : {}), geometry_coordinates: geometryType === "point" || geometryType === "unknown" ? [] : parsedCoordinates },
     };
     try {
       const path = `/api/v1/projects/${projectId}/gis/assets`;
@@ -218,11 +252,12 @@ export function GisCenter({ projectId, token }: Props) {
           </div>
           <div className="form-grid">
             <label>Asset name *<input required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Shakiso access road" /></label>
-            <label>Asset type<select value={assetType} onChange={(e) => setAssetType(e.target.value)}>{ASSET_TYPES.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
+            <label>Asset type<select value={assetType} onChange={(e) => { const nextType = e.target.value; setAssetType(nextType); setGeometryType(nextType === "building" || nextType === "boundary" ? "polygon" : nextType === "road" || nextType === "pipeline" ? "line" : "point"); }}>{ASSET_TYPES.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
             <label>Geometry<select value={geometryType} onChange={(e) => setGeometryType(e.target.value)}><option value="point">Point</option><option value="line">Line</option><option value="polygon">Polygon</option><option value="unknown">Unknown</option></select></label>
             <label>Status<select value={status} onChange={(e) => setStatus(e.target.value)}>{STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
             <label>Latitude<input inputMode="decimal" type="number" min="-90" max="90" step="any" value={latitude} onChange={(e) => setLatitude(e.target.value)} placeholder="e.g. 5.950000" /></label>
             <label>Longitude<input inputMode="decimal" type="number" min="-180" max="180" step="any" value={longitude} onChange={(e) => setLongitude(e.target.value)} placeholder="e.g. 38.980000" /></label>
+            {(geometryType === "line" || geometryType === "polygon") && <label className="gis-geometry-coordinates">{geometryType === "line" ? "Alignment coordinates *" : "Footprint boundary coordinates *"}<textarea rows={5} value={geometryCoordinates} onChange={(e) => setGeometryCoordinates(e.target.value)} placeholder={"One point per line: latitude, longitude\n5.950000, 38.980000\n5.951000, 38.982000"} required /><span className="muted small">{geometryType === "line" ? "Enter at least 2 surveyed points in order along the road or utility." : "Enter at least 3 surveyed boundary points in order around the footprint."} Coordinates use WGS84 decimal degrees.</span></label>}
             <label>Work section / chainage<input value={workSection} onChange={(e) => setWorkSection(e.target.value)} placeholder="e.g. km 12+500 – km 13+000" /></label>
             <label>Description<input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Condition, location notes, or identifier" /></label>
           </div>
@@ -249,7 +284,7 @@ export function GisCenter({ projectId, token }: Props) {
               <p className="muted small">Add latitude and longitude to an asset, or select an asset that already has coordinates.</p>
             </div>
           )}
-          <p className="muted small">Map tiles © OpenStreetMap contributors. Locations are only shown when coordinates are supplied.</p>
+          <p className="muted small">Map tiles © OpenStreetMap contributors. The current preview marks the asset reference coordinate; line alignments and polygon footprints are saved separately as ordered geometry coordinates.</p>
         </div>
 
         <div className="gis-register">
