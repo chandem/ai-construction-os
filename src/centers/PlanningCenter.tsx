@@ -334,6 +334,7 @@ export function PlanningCenter({ projectId, token }: Props) {
                     <th>Name</th>
                     <th>Level</th>
                     <th>Section</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -346,7 +347,8 @@ export function PlanningCenter({ projectId, token }: Props) {
                         {row.name || "—"}
                       </td>
                       <td>{row.level ?? "—"}</td>
-                      <td>{row.work_section || "—"}</td>
+                      <td>{editingWbsId === row.id ? <input value={wbsDraft.name} onChange={e => setWbsDraft({...wbsDraft,name:e.target.value})} aria-label="Edit WBS item name" /> : (row.work_section || "—")}</td>
+                      <td>{editingWbsId === row.id ? <div className="row gap"><button type="button" className="button compact" disabled={busy} onClick={() => saveWbsEdit(row)}>Save</button><button type="button" className="button compact" disabled={busy} onClick={() => setEditingWbsId(null)}>Cancel</button></div> : <button type="button" className="button compact" disabled={busy || !row.id} onClick={() => {setEditingWbsId(row.id || null);setWbsDraft({name:row.name || "",code:row.code || "",work_section:row.work_section || ""});}}>Edit</button>}</td>
                     </tr>
                   ))}
                 </tbody>
