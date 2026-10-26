@@ -310,7 +310,13 @@ export function PlanningCenter({ projectId, token }: Props) {
         <p className="muted">Loading planning data…</p>
       ) : (
         <>
-          <h3>Work breakdown structure</h3>
+          <div className="panel-head"><h3>Work breakdown structure</h3><button type="button" className="button compact" disabled={busy} onClick={() => setShowWbsForm(!showWbsForm)}>{showWbsForm ? "Cancel" : "Add WBS item"}</button></div>
+          {showWbsForm && <form className="planning-filters" onSubmit={addWbsItem}>
+            <input required value={wbsName} onChange={e => setWbsName(e.target.value)} placeholder="Work item name" aria-label="WBS item name" />
+            <input value={wbsCode} onChange={e => setWbsCode(e.target.value)} placeholder="Code (optional)" aria-label="WBS item code" />
+            <input value={wbsSection} onChange={e => setWbsSection(e.target.value)} placeholder="Work section" aria-label="WBS work section" />
+            <button className="button primary compact" type="submit" disabled={busy}>Save item</button>
+          </form>}
           {wbs.length === 0 ? (
             <div className="empty empty-card">
               <h3>No WBS yet</h3>
@@ -328,6 +334,7 @@ export function PlanningCenter({ projectId, token }: Props) {
                     <th>Name</th>
                     <th>Level</th>
                     <th>Section</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -340,7 +347,8 @@ export function PlanningCenter({ projectId, token }: Props) {
                         {row.name || "—"}
                       </td>
                       <td>{row.level ?? "—"}</td>
-                      <td>{row.work_section || "—"}</td>
+                      <td>{editingWbsId === row.id ? <input value={wbsDraft.name} onChange={e => setWbsDraft({...wbsDraft,name:e.target.value})} aria-label="Edit WBS item name" /> : (row.work_section || "—")}</td>
+                      <td>{editingWbsId === row.id ? <div className="row gap"><button type="button" className="button compact" disabled={busy} onClick={() => saveWbsEdit(row)}>Save</button><button type="button" className="button compact" disabled={busy} onClick={() => setEditingWbsId(null)}>Cancel</button></div> : <button type="button" className="button compact" disabled={busy || !row.id} onClick={() => {setEditingWbsId(row.id || null);setWbsDraft({name:row.name || "",code:row.code || "",work_section:row.work_section || ""});}}>Edit</button>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -411,7 +419,17 @@ export function PlanningCenter({ projectId, token }: Props) {
             <div className="planning-gantt-legend"><span><i /> Planned duration</span><span><i className="progress" /> Actual progress</span><span><i className="overdue" /> Overdue</span></div>
           </div>
 
-          <h3 style={{ marginTop: 24 }}>Schedule &amp; progress</h3>
+          <div className="panel-head" style={{ marginTop: 24 }}><h3>Schedule &amp; progress</h3><button type="button" className="button compact" disabled={busy} onClick={() => setShowActivityForm(!showActivityForm)}>{showActivityForm ? "Cancel" : "Add activity"}</button></div>
+          {showActivityForm && <form className="planning-filters" onSubmit={addActivity}>
+            <input required value={activityDraft.name} onChange={e => setActivityDraft({...activityDraft,name:e.target.value})} placeholder="Activity name" aria-label="New activity name" />
+            <input value={activityDraft.code} onChange={e => setActivityDraft({...activityDraft,code:e.target.value})} placeholder="Code (optional)" aria-label="New activity code" />
+            <input value={activityDraft.work_section} onChange={e => setActivityDraft({...activityDraft,work_section:e.target.value})} placeholder="Work section" aria-label="New activity work section" />
+            <label>Start <input type="date" value={activityDraft.planned_start} onChange={e => setActivityDraft({...activityDraft,planned_start:e.target.value})} /></label>
+            <label>Finish <input type="date" value={activityDraft.planned_finish} onChange={e => setActivityDraft({...activityDraft,planned_finish:e.target.value})} /></label>
+            <label>Duration (days) <input type="number" min="1" value={activityDraft.duration_days} onChange={e => setActivityDraft({...activityDraft,duration_days:e.target.value})} /></label>
+            <input value={activityDraft.notes} onChange={e => setActivityDraft({...activityDraft,notes:e.target.value})} placeholder="Notes (optional)" aria-label="Activity notes" />
+            <button className="button primary compact" type="submit" disabled={busy}>Save activity</button>
+          </form>}
           {filteredActivities.length === 0 ? (
             <div className="empty empty-card">
               <h3>No schedule activities</h3>
@@ -431,6 +449,7 @@ export function PlanningCenter({ projectId, token }: Props) {
                     <th>%</th>
                     <th>Status</th>
                     <th>Update</th>
+                    <th>Details</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -439,8 +458,8 @@ export function PlanningCenter({ projectId, token }: Props) {
                       <td>
                         <code className="boq-code">{row.code || "—"}</code>
                       </td>
-                      <td>{row.name || "—"}</td>
-                      <td>{row.work_section || "—"}</td>
+                      <td>{editingActivityId === row.id ? <input value={activityEditDraft.name} onChange={e => setActivityEditDraft({...activityEditDraft,name:e.target.value})} aria-label="Edit activity name" /> : (row.name || "—")}</td>
+                      <td>{editingActivityId === row.id ? <input value={activityEditDraft.work_section} onChange={e => setActivityEditDraft({...activityEditDraft,work_section:e.target.value})} aria-label="Edit activity work section" /> : (row.work_section || "—")}</td>
                       <td className="planning-dependency-cell">
                         {dependencyEditId === row.id ? (
                           <div className="planning-dependency-editor">
@@ -460,8 +479,8 @@ export function PlanningCenter({ projectId, token }: Props) {
                           </div>
                         )}
                       </td>
-                      <td>{row.planned_start || "—"}</td>
-                      <td>{row.planned_finish || "—"}</td>
+                      <td>{editingActivityId === row.id ? <input type="date" value={activityEditDraft.planned_start} onChange={e => setActivityEditDraft({...activityEditDraft,planned_start:e.target.value})} aria-label="Edit planned start" /> : (row.planned_start || "—")}</td>
+                      <td>{editingActivityId === row.id ? <input type="date" value={activityEditDraft.planned_finish} onChange={e => setActivityEditDraft({...activityEditDraft,planned_finish:e.target.value})} aria-label="Edit planned finish" /> : (row.planned_finish || "—")}</td>
                       <td>
                         {row.percent_complete == null ? "—" : Number(row.percent_complete) + "%"}
                       </td>
@@ -518,6 +537,12 @@ export function PlanningCenter({ projectId, token }: Props) {
                           </button>
                         )}
                       </td>
+                      <td>{editingActivityId === row.id ? <div className="planning-dependency-editor">
+                        <label>Code <input value={activityEditDraft.code} onChange={e => setActivityEditDraft({...activityEditDraft,code:e.target.value})} /></label>
+                        <label>Duration (days) <input type="number" min="1" value={activityEditDraft.duration_days} onChange={e => setActivityEditDraft({...activityEditDraft,duration_days:e.target.value})} /></label>
+                        <label>Notes <input value={activityEditDraft.notes} onChange={e => setActivityEditDraft({...activityEditDraft,notes:e.target.value})} /></label>
+                        <div className="row gap"><button type="button" className="button compact" disabled={busy} onClick={() => saveActivityEdit(row)}>Save</button><button type="button" className="button compact" disabled={busy} onClick={() => setEditingActivityId(null)}>Cancel</button></div>
+                      </div> : <button type="button" className="button compact" disabled={busy || !row.id} onClick={() => startActivityEdit(row)}>Edit</button>}</td>
                     </tr>
                   ))}
                 </tbody>
