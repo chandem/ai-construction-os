@@ -66,3 +66,39 @@ def test_build_os_snapshot_readiness():
     assert snap["project_id"] == "p1"
     assert snap["readiness"] in ("bootstrap", "forming", "operational")
     assert os_summary(snap)["action_count"] >= 1
+
+
+
+def test_safe_get_retries_transient_resource_error():
+    from app.routes_construction_os import _safe_get
+
+    class Query:
+        def __init__(self):
+            self.calls = 0
+
+        def select(self, *_args):
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def limit(self, *_args):
+            return self
+
+        def execute(self):
+            self.calls += 1
+            if self.calls == 1:
+                raise OSError(11, "Resource temporarily unavailable")
+            return type("Result", (), {"data": [{"id": "row-1"}]})()
+
+    class Client:
+        def __init__(self):
+            self.query = Query()
+
+        def table(self, _table):
+            return self.query
+
+    client = Client()
+    result = _safe_get(client, "material_requirements", "project-1")
+    assert result["data"] == [{"id": "row-1"}]
+    assert client.query.calls == 2
