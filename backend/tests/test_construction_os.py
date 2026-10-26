@@ -20,9 +20,18 @@ def test_module_status_active_from_list_payload():
     assert st["row_signal"] == 2
 
 
-def test_module_status_needs_setup_on_warning():
-    st = module_status(module_id="field", payload={"data": [], "warning": "apply field.sql"})
+def test_module_status_needs_setup_when_table_is_missing():
+    st = module_status(
+        module_id="field",
+        payload={"data": [], "missing_table": "site_diary_entries", "warning": "Apply supabase/field.sql"},
+    )
     assert st["status"] == "needs_setup"
+
+
+def test_module_status_marks_non_schema_warning_as_error():
+    st = module_status(module_id="field", payload={"data": [], "warning": "permission denied"})
+    assert st["status"] == "error"
+    assert st["message"] == "permission denied"
 
 
 def test_recommend_actions_prioritizes_design_when_empty():
