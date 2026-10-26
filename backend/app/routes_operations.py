@@ -147,6 +147,128 @@ def generate_and_persist_schedule(project_id: str, token: str = Depends(get_acce
     return {"data": sched.get("activities") or [], "persisted": n, "activity_count": sched.get("activity_count")}
 
 
+
+@router.post("/projects/{project_id}/planning/wbs/manual")
+def create_manual_wbs_node(project_id: str, payload: dict = Body(...), token: str = Depends(get_access_token)):
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="WBS item name is required.")
+    try:
+        existing = client.table("wbs_nodes").select("id,level,sort_order").eq("project_id", project_id).execute().data or []
+        level = int(payload.get("level") or 1)
+        if level < 1 or level > 10:
+            raise HTTPException(status_code=422, detail="WBS level must be between 1 and 10.")
+        code = str(payload.get("code") or f"M{len(existing) + 1}")
+        row = {"project_id": project_id, "code": code, "name": name, "level": level,
+               "work_section": str(payload.get("work_section") or name).strip(),
+               "sort_order": int(payload.get("sort_order") or len(existing) + 1),
+               "status": "proposed", "source": "manual", "properties": {"created_manually": True}}
+        saved = client.table("wbs_nodes").insert(row).execute()
+        if not saved.data:
+            raise HTTPException(status_code=503, detail="WBS item was not saved.")
+        return {"data": saved.data[0], "message": "WBS item added."}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Could not add WBS item. Check the wbs_nodes schema.") from exc
+
+
+@router.patch("/projects/{project_id}/planning/wbs/{node_id}")
+def edit_manual_wbs_node(project_id: str, node_id: str, payload: dict = Body(...), token: str = Depends(get_access_token)):
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+    allowed = ("code", "name", "level", "work_section", "sort_order", "status")
+    changes = {key: payload[key] for key in allowed if key in payload}
+    if "name" in changes and not str(changes["name"]).strip():
+        raise HTTPException(status_code=422, detail="WBS item name cannot be empty.")
+    if not changes:
+        raise HTTPException(status_code=422, detail="No editable WBS fields supplied.")
+    try:
+        saved = client.table("wbs_nodes").update(changes).eq("project_id", project_id).eq("id", node_id).execute()
+        if not saved.data:
+            raise HTTPException(status_code=404, detail="WBS item not found.")
+        return {"data": saved.data[0], "message": "WBS item updated."}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Could not update WBS item.") from exc
+
+
+@router.post("/projects/{project_id}/planning/schedule/manual")
+def create_manual_schedule_activity(project_id: str, payload: dict = Body(...), token: str = Depends(get_access_token)):
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Activity name is required.")
+    try:
+        existing = client.table("schedule_activities").select("id,sort_order").eq("project_id", project_id).execute().data or []
+        start = payload.get("planned_start")
+        finish = payload.get("planned_finish")
+        duration = int(payload.get("duration_days") or 1)
+        if duration < 1 or duration > 36500:
+            raise HTTPException(status_code=422, detail="Duration must be between 1 and 36500 days.")
+        if start and finish and str(finish) < str(start):
+            raise HTTPException(status_code=422, detail="Finish date cannot be before start date.")
+        row = {"project_id": project_id, "code": str(payload.get("code") or f"M{len(existing) + 1}"),
+               "name": name, "work_section": str(payload.get("work_section") or "General").strip(),
+               "sort_order": int(payload.get("sort_order") or len(existing) + 1),
+               "status": str(payload.get("status") or "not_started"),
+               "planned_start": start or None, "planned_finish": finish or None,
+               "duration_days": duration, "percent_complete": 0,
+               "predecessor_ids": payload.get("predecessor_ids") or [],
+               "source": "manual", "notes": str(payload.get("notes") or "").strip() or None,
+               "properties": {"created_manually": True}}
+        saved = client.table("schedule_activities").insert(row).execute()
+        if not saved.data:
+            raise HTTPException(status_code=503, detail="Activity was not saved.")
+        return {"data": saved.data[0], "message": "Schedule activity added."}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Could not add activity. Check the schedule_activities schema.") from exc
+
+
+@router.patch("/projects/{project_id}/planning/schedule/{activity_id}")
+def edit_schedule_activity(project_id: str, activity_id: str, payload: dict = Body(...), token: str = Depends(get_access_token)):
+    user = get_current_user(token)
+    client = supabase
+    client.postgrest.auth(token)
+    _project_for_member(project_id, user["id"], client)
+    allowed = ("code", "name", "work_section", "sort_order", "status", "planned_start", "planned_finish", "duration_days", "notes")
+    changes = {key: payload[key] for key in allowed if key in payload}
+    if "name" in changes and not str(changes["name"]).strip():
+        raise HTTPException(status_code=422, detail="Activity name cannot be empty.")
+    if "duration_days" in changes and not 1 <= int(changes["duration_days"]) <= 36500:
+        raise HTTPException(status_code=422, detail="Duration must be between 1 and 36500 days.")
+    try:
+        current = client.table("schedule_activities").select("id,planned_start,planned_finish").eq("project_id", project_id).eq("id", activity_id).execute().data
+        if not current:
+            raise HTTPException(status_code=404, detail="Schedule activity not found.")
+        start = changes.get("planned_start", current[0].get("planned_start"))
+        finish = changes.get("planned_finish", current[0].get("planned_finish"))
+        if start and finish and str(finish) < str(start):
+            raise HTTPException(status_code=422, detail="Finish date cannot be before start date.")
+        if not changes:
+            raise HTTPException(status_code=422, detail="No editable activity fields supplied.")
+        saved = client.table("schedule_activities").update(changes).eq("project_id", project_id).eq("id", activity_id).execute()
+        if not saved.data:
+            raise HTTPException(status_code=404, detail="Schedule activity was not updated.")
+        return {"data": saved.data[0], "message": "Schedule activity updated."}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Could not update schedule activity.") from exc
+
+
 @router.post("/projects/{project_id}/planning/schedule/{activity_id}/dependencies")
 def update_schedule_dependencies(
     project_id: str,
