@@ -145,10 +145,10 @@ export function GisCenter({ projectId, token }: Props) {
       setError("Enter both latitude and longitude, or leave both blank.");
       return;
     }
-    const coordinateLines = geometryCoordinates.split(/\\r?\\n/).map((line) => line.trim()).filter(Boolean);
+    const coordinateLines = geometryCoordinates.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     const parsedCoordinates: Array<{ latitude: number; longitude: number }> = [];
     for (const line of coordinateLines) {
-      const parts = line.split(/[,\\s]+/).filter(Boolean);
+      const parts = line.split(/[,\s]+/).filter(Boolean);
       if (parts.length !== 2) {
         setError("Enter one latitude, longitude pair per line, separated by a comma.");
         return;
@@ -257,7 +257,7 @@ export function GisCenter({ projectId, token }: Props) {
             <label>Status<select value={status} onChange={(e) => setStatus(e.target.value)}>{STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
             <label>Latitude<input inputMode="decimal" type="number" min="-90" max="90" step="any" value={latitude} onChange={(e) => setLatitude(e.target.value)} placeholder="e.g. 5.950000" /></label>
             <label>Longitude<input inputMode="decimal" type="number" min="-180" max="180" step="any" value={longitude} onChange={(e) => setLongitude(e.target.value)} placeholder="e.g. 38.980000" /></label>
-            {(geometryType === "line" || geometryType === "polygon") && <label className="gis-geometry-coordinates">{geometryType === "line" ? "Alignment coordinates *" : "Footprint boundary coordinates *"}<textarea rows={5} value={geometryCoordinates} onChange={(e) => setGeometryCoordinates(e.target.value)} placeholder={"One point per line: latitude, longitude\\n5.950000, 38.980000\\n5.951000, 38.982000"} required /><span className="muted small">{geometryType === "line" ? "Enter at least 2 surveyed points in order along the road or utility." : "Enter at least 3 surveyed boundary points in order around the footprint."} Coordinates use WGS84 decimal degrees.</span></label>}
+            {(geometryType === "line" || geometryType === "polygon") && <label className="gis-geometry-coordinates">{geometryType === "line" ? "Alignment coordinates *" : "Footprint boundary coordinates *"}<textarea rows={5} value={geometryCoordinates} onChange={(e) => setGeometryCoordinates(e.target.value)} placeholder={"One point per line: latitude, longitude\n5.950000, 38.980000\n5.951000, 38.982000"} required /><span className="muted small">{geometryType === "line" ? "Enter at least 2 surveyed points in order along the road or utility." : "Enter at least 3 surveyed boundary points in order around the footprint."} Coordinates use WGS84 decimal degrees.</span></label>}
             <label>Work section / chainage<input value={workSection} onChange={(e) => setWorkSection(e.target.value)} placeholder="e.g. km 12+500 – km 13+000" /></label>
             <label>Description<input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Condition, location notes, or identifier" /></label>
           </div>
