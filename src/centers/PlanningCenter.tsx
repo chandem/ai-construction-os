@@ -1,5 +1,5 @@
 import React from "react";
-import { apiGet, apiPost } from "../api";
+import { apiGet, apiPost, apiPatch } from "../api";
 
 type Props = { projectId: string; token: string };
 
@@ -88,6 +88,17 @@ export function PlanningCenter({ projectId, token }: Props) {
   const [activityFilter, setActivityFilter] = React.useState("all");
   const [dependencyEditId, setDependencyEditId] = React.useState<string | null>(null);
   const [selectedPredecessors, setSelectedPredecessors] = React.useState<string[]>([]);
+  const [showWbsForm, setShowWbsForm] = React.useState(false);
+  const [wbsName, setWbsName] = React.useState("");
+  const [wbsCode, setWbsCode] = React.useState("");
+  const [wbsSection, setWbsSection] = React.useState("");
+  const [editingWbsId, setEditingWbsId] = React.useState<string | null>(null);
+  const [wbsDraft, setWbsDraft] = React.useState({ name: "", code: "", work_section: "" });
+  const [showActivityForm, setShowActivityForm] = React.useState(false);
+  const [activityDraft, setActivityDraft] = React.useState({ name: "", code: "", work_section: "", planned_start: "", planned_finish: "", duration_days: "1", notes: "" });
+  const [editingActivityId, setEditingActivityId] = React.useState<string | null>(null);
+  const [activityEditDraft, setActivityEditDraft] = React.useState({ name: "", code: "", work_section: "", planned_start: "", planned_finish: "", duration_days: "1", notes: "" });
+
 
   async function load() {
     if (!projectId || !token) return;
@@ -134,6 +145,79 @@ export function PlanningCenter({ projectId, token }: Props) {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function addWbsItem(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!wbsName.trim()) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await apiPost("/api/v1/projects/" + projectId + "/planning/wbs/manual", token, {
+        name: wbsName.trim(), code: wbsCode.trim() || null, work_section: wbsSection.trim() || null,
+      });
+      setWbsName(""); setWbsCode(""); setWbsSection(""); setShowWbsForm(false);
+      setNotice("WBS item added."); await load();
+    } catch (e: any) { setError(e.message || "Could not add WBS item."); }
+    finally { setBusy(false); }
+  }
+
+  async function saveWbsEdit(row: WbsNode) {
+    if (!row.id || !wbsDraft.name.trim()) { setError("WBS item name is required."); return; }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await apiPatch("/api/v1/projects/" + projectId + "/planning/wbs/" + row.id, token, {
+        name: wbsDraft.name.trim(), code: wbsDraft.code.trim() || null, work_section: wbsDraft.work_section.trim() || null,
+      });
+      setEditingWbsId(null); setNotice("WBS item updated."); await load();
+    } catch (e: any) { setError(e.message || "Could not update WBS item."); }
+    finally { setBusy(false); }
+  }
+
+  async function addActivity(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activityDraft.name.trim()) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await apiPost("/api/v1/projects/" + projectId + "/planning/schedule/manual", token, {
+        ...activityDraft, name: activityDraft.name.trim(), code: activityDraft.code.trim() || null,
+        work_section: activityDraft.work_section.trim() || null, duration_days: Number(activityDraft.duration_days || 1),
+        planned_start: activityDraft.planned_start || null, planned_finish: activityDraft.planned_finish || null,
+        notes: activityDraft.notes.trim() || null,
+      });
+      setActivityDraft({ name: "", code: "", work_section: "", planned_start: "", planned_finish: "", duration_days: "1", notes: "" });
+      setShowActivityForm(false); setNotice("Schedule activity added."); await load();
+    } catch (e: any) { setError(e.message || "Could not add schedule activity."); }
+    finally { setBusy(false); }
+  }
+
+  function startActivityEdit(row: Activity) {
+    setEditingActivityId(row.id || null);
+    setActivityEditDraft({
+      name: row.name || "", code: row.code || "", work_section: row.work_section || "",
+      planned_start: row.planned_start || "", planned_finish: row.planned_finish || "",
+      duration_days: String(row.duration_days || 1), notes: String((row as any).notes || ""),
+    });
+    setError(""); setNotice("");
+  }
+
+  async function saveActivityEdit(row: Activity) {
+    if (!row.id || !activityEditDraft.name.trim()) { setError("Activity name is required."); return; }
+    const duration = Number(activityEditDraft.duration_days);
+    if (!Number.isFinite(duration) || duration < 1) { setError("Duration must be at least one day."); return; }
+    if (activityEditDraft.planned_start && activityEditDraft.planned_finish && activityEditDraft.planned_finish < activityEditDraft.planned_start) {
+      setError("Finish date cannot be before start date."); return;
+    }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await apiPatch("/api/v1/projects/" + projectId + "/planning/schedule/" + row.id, token, {
+        name: activityEditDraft.name.trim(), code: activityEditDraft.code.trim() || null,
+        work_section: activityEditDraft.work_section.trim() || null,
+        planned_start: activityEditDraft.planned_start || null, planned_finish: activityEditDraft.planned_finish || null,
+        duration_days: duration, notes: activityEditDraft.notes.trim() || null,
+      });
+      setEditingActivityId(null); setNotice("Schedule activity updated."); await load();
+    } catch (e: any) { setError(e.message || "Could not update schedule activity."); }
+    finally { setBusy(false); }
   }
 
   function startProgress(row: Activity) {
