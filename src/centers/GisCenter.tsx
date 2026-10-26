@@ -155,7 +155,7 @@ export function GisCenter({ projectId, token }: Props) {
     setAssetType(asset.asset_type || "other");
     setGeometryType(asset.geometry_type || "point");
     const savedCoordinates = asset.properties?.geometry_coordinates;
-    setGeometryCoordinates(Array.isArray(savedCoordinates) ? savedCoordinates.map((point: any) => `${point.latitude}, ${point.longitude}`).join("\\n") : "");
+    setGeometryCoordinates(Array.isArray(savedCoordinates) ? savedCoordinates.map((point: any) => `${point.latitude}, ${point.longitude}`).join("\n") : "");
     setLatitude(asset.latitude == null ? "" : String(asset.latitude));
     setLongitude(asset.longitude == null ? "" : String(asset.longitude));
     setWorkSection(asset.work_section || "");
