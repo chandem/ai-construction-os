@@ -61,9 +61,9 @@ def _safe_get(client, table: str, project_id: str, limit: int = 5) -> dict:
                 .execute()
             )
             return {"data": result.data or [], "table": table}
-        except Exception as e:
-            last_error = e
-            message = str(e).lower()
+        except Exception as exc:
+            last_error = exc
+            message = str(exc).lower()
             transient = any(
                 marker in message
                 for marker in (
@@ -150,15 +150,15 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
                 "message": boq_payload.get("warning"),
             }
         )
-    # If design looked empty only because elements table is fine but BOQ schema is missing,
-    # still recommend schema apply via ops action.
+        # If design looked empty only because elements table is fine but BOQ schema is missing,
+        # still recommend schema apply via ops action (missing_tables drives the note).
     elif boq_payload.get("data") and not any(m["id"] == "design" and m["status"] == "active" for m in modules):
         # Promote design signal when BOQ rows exist even if engineering_elements is empty.
         for i, m in enumerate(modules):
             if m["id"] == "design" and m["status"] == "empty":
                 modules[i] = module_status(
                     module_id="design",
-                    payload={"data": [{}]} if design else {"data": []},
+                    payload={"data": boq_payload.get("data") or [1]},
                     error=None,
                 )
                 break
@@ -167,7 +167,7 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
     modules.append(
         module_status(
             module_id="brain",
-            payload={"data": [{}]} if design and design["status"] == "active" else {"data": []},
+            payload={"data": [1]} if design and design["status"] == "active" else {"data": []},
         )
     )
 
@@ -193,7 +193,7 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
         names = ", ".join(sorted({t["table"] for t in missing_tables}))
         snapshot["notes"] = (
             (snapshot.get("notes") or "")
-            + f" Missing Supabase table(s): {names}. Apply the matching supabase/*.sql script."
+            + f" Missing Supabase table(s): {names}. Apply the matching supabase/*.sql scripts in the Supabase SQL editor, then refresh."
         ).strip()
         # Ensure ops recommended action is present even if module statuses were only "empty".
         actions = list(snapshot.get("recommended_actions") or [])
