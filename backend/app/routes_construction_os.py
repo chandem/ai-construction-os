@@ -16,7 +16,7 @@ from .construction_os import (
 
 router = APIRouter()
 
-# table -> supabase/*.sql hint for operators
+# Table -> supabase/*.sql hint for operators
 TABLE_SQL_HINTS = {
     "engineering_elements": "supabase/engineering_elements.sql",
     "boq_items": "supabase/boq_items.sql",
@@ -47,9 +47,9 @@ def _looks_like_missing_table(message: str) -> bool:
 
 
 def _safe_get(client, table: str, project_id: str, limit: int = 5) -> dict:
-    # A transient socket/process resource error must not mark a healthy module as broken.
-    # Retry only common transient transport failures; schema and permission errors
-    # should be reported immediately without extra database calls.
+    # Supabase/httpx can briefly raise EAGAIN/Errno 11 under connection pressure.
+    # Retry only transient transport failures; schema and permission errors should
+    # remain visible immediately rather than being mistaken for missing data.
     last_error: Exception | None = None
     for attempt in range(2):
         try:
@@ -69,6 +69,8 @@ def _safe_get(client, table: str, project_id: str, limit: int = 5) -> dict:
                 for marker in (
                     "resource temporarily unavailable",
                     "errno 11",
+                    "eagain",
+                    "temporarily unavailable",
                     "connection reset",
                     "connection refused",
                     "timed out",
@@ -78,7 +80,7 @@ def _safe_get(client, table: str, project_id: str, limit: int = 5) -> dict:
                 )
             )
             if attempt == 0 and transient:
-                time.sleep(0.2)
+                time.sleep(0.25)
                 continue
             break
 
@@ -88,8 +90,8 @@ def _safe_get(client, table: str, project_id: str, limit: int = 5) -> dict:
         sql_hint = TABLE_SQL_HINTS.get(table)
         payload["missing_table"] = table
         payload["warning"] = (
-            f"Table '{table}' is not available."
-            + (f" Apply {sql_hint} in Supabase SQL editor." if sql_hint else " Apply the matching supabase/*.sql script.")
+            f"Table '{table}' is not available. "
+            + (f"Apply {sql_hint} in Supabase SQL editor." if sql_hint else "Apply the matching supabase/*.sql script.")
         )
     return payload
 
@@ -104,8 +106,7 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
     name = None
     try:
         prow = client.table("projects").select("id,name").eq("id", project_id).maybe_single().execute()
-        if prow.data:
-            name = prow.data.get("name")
+        name = prow.data.get("name") if prow.data else None
     except Exception:
         name = None
 
@@ -123,7 +124,7 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
         ("ops", "ops_queue_jobs"),
     ]
 
-    modules = []
+    modules: list[dict] = []
     missing_tables: list[dict] = []
     for mid, table in probes:
         payload = _safe_get(client, table, project_id)
@@ -203,10 +204,10 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
                     "priority": 1,
                     "module": "ops",
                     "title": "Apply Supabase schemas",
-                    "detail": f"Missing tables: {names}. Run the SQL files listed under supabase/ for those tables.",
+                    "detail": f"Missing tables: {names}. Run the SQL files listed under supabase/.",
                 },
             )
-            snapshot["recommended_actions"] = actions
+        snapshot["recommended_actions"] = actions
 
     return {
         "data": snapshot,
@@ -244,11 +245,10 @@ def project_executive_summary(project_id: str, token: str = Depends(get_access_t
             last_error = exc
             if attempt == 0:
                 time.sleep(0.25)
-
     if last_error is not None:
         raise HTTPException(
             status_code=503,
-            detail="Project summary is temporarily unavailable because the database connection failed. Please refresh in a moment.",
+            detail="Project summary is temporarily unavailable because the database connection failed. Retry shortly.",
         ) from last_error
     if not project_result or not project_result.data:
         return {"data": None, "warnings": [{"message": "Project record is unavailable."}]}
