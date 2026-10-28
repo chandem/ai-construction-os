@@ -440,3 +440,54 @@ select:focus, input:focus, textarea:focus { border-color: #6b7c8a; box-shadow: 0
 .planning-dependency-editor select { min-height:96px; padding:7px; font-size:11px; }
 .planning-dependency-editor small { color:var(--muted); font-size:10px; line-height:1.4; }
 .planning-dependency-editor .row.gap { gap:6px; }
+
+
+/* Make recommended-action priority unmistakable on desktop and mobile */
+.action-priority {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  margin: 0 0 9px;
+  padding: 7px 11px;
+  border: 2px solid currentColor;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  line-height: 1.2;
+}
+.action-priority > span {
+  display: inline-grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: currentColor;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+.action-priority-high {
+  border-color: #b42318;
+  background: #fff0ef;
+  color: #b42318;
+}
+.action-priority-normal {
+  border-color: #64788a;
+  background: #f0f4f7;
+  color: #344c60;
+}
+.dashboard-action-card > div > b {
+  display: block;
+  margin: 0 0 5px;
+  color: #1d3143;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.dashboard-action-card > div > span:not(.action-priority) {
+  display: block;
+  color: #596b7a;
+  font-size: 12px;
+  line-height: 1.55;
+}
