@@ -16,7 +16,7 @@ from .construction_os import (
 
 router = APIRouter()
 
-# table -> supabase/*.sql hint for operators
+# Table -> supabase/*.sql hint for operators
 TABLE_SQL_HINTS = {
     "engineering_elements": "supabase/engineering_elements.sql",
     "boq_items": "supabase/boq_items.sql",
@@ -64,29 +64,34 @@ def _safe_get(client, table: str, project_id: str, limit: int = 5) -> dict:
         except Exception as e:
             last_error = e
             message = str(e).lower()
-            transient = (
-                "resource temporarily unavailable" in message
-                or "errno 11" in message
-                or "eagain" in message
-                or "temporarily unavailable" in message
-                or "readerror" in message
-                or "connection reset" in message
-                or "timed out" in message
-                or "timeout" in message
+            transient = any(
+                marker in message
+                for marker in (
+                    "resource temporarily unavailable",
+                    "errno 11",
+                    "eagain",
+                    "temporarily unavailable",
+                    "connection reset",
+                    "connection refused",
+                    "timed out",
+                    "timeout",
+                    "readerror",
+                    "remoteprotocolerror",
+                )
             )
             if attempt == 0 and transient:
                 time.sleep(0.25)
                 continue
             break
 
-    err = str(last_error or "Unknown database error")[:300]
+    err = str(last_error or "Database request failed")[:300]
     payload: dict = {"data": [], "warning": err, "table": table}
     if _looks_like_missing_table(err):
         sql_hint = TABLE_SQL_HINTS.get(table)
         payload["missing_table"] = table
         payload["warning"] = (
-            f"Table '{table}' is not available."
-            + (f" Apply {sql_hint} in Supabase SQL editor." if sql_hint else " Apply the matching supabase/*.sql script.")
+            f"Table '{table}' is not available. "
+            + (f"Apply {sql_hint} in Supabase SQL editor." if sql_hint else "Apply the matching supabase/*.sql script.")
         )
     return payload
 
@@ -101,8 +106,7 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
     name = None
     try:
         prow = client.table("projects").select("id,name").eq("id", project_id).maybe_single().execute()
-        if prow.data:
-            name = prow.data.get("name")
+        name = prow.data.get("name") if prow.data else None
     except Exception:
         name = None
 
@@ -120,7 +124,7 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
         ("ops", "ops_queue_jobs"),
     ]
 
-    modules = []
+    modules: list[dict] = []
     missing_tables: list[dict] = []
     for mid, table in probes:
         payload = _safe_get(client, table, project_id)
@@ -146,15 +150,15 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
                 "message": boq_payload.get("warning"),
             }
         )
-        # If design looked empty only because elements table is fine but BOQ schema is missing,
-        # still recommend schema apply via ops action (missing_tables drives the note).
+    # If design looked empty only because elements table is fine but BOQ schema is missing,
+    # still recommend schema apply via ops action.
     elif boq_payload.get("data") and not any(m["id"] == "design" and m["status"] == "active" for m in modules):
         # Promote design signal when BOQ rows exist even if engineering_elements is empty.
         for i, m in enumerate(modules):
             if m["id"] == "design" and m["status"] == "empty":
                 modules[i] = module_status(
                     module_id="design",
-                    payload={"data": boq_payload.get("data") or [1]},
+                    payload={"data": [{}]} if design else {"data": []},
                     error=None,
                 )
                 break
@@ -163,7 +167,7 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
     modules.append(
         module_status(
             module_id="brain",
-            payload={"data": [1]} if design and design["status"] == "active" else {"data": []},
+            payload={"data": [{}]} if design and design["status"] == "active" else {"data": []},
         )
     )
 
@@ -189,7 +193,7 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
         names = ", ".join(sorted({t["table"] for t in missing_tables}))
         snapshot["notes"] = (
             (snapshot.get("notes") or "")
-            + f" Missing Supabase table(s): {names}. Apply the matching supabase/*.sql scripts in the Supabase SQL editor, then refresh."
+            + f" Missing Supabase table(s): {names}. Apply the matching supabase/*.sql script."
         ).strip()
         # Ensure ops recommended action is present even if module statuses were only "empty".
         actions = list(snapshot.get("recommended_actions") or [])
@@ -200,10 +204,10 @@ def project_os_snapshot(project_id: str, token: str = Depends(get_access_token))
                     "priority": 1,
                     "module": "ops",
                     "title": "Apply Supabase schemas",
-                    "detail": f"Missing tables: {names}. Run the SQL files listed under supabase/ for those tables.",
+                    "detail": f"Missing tables: {names}. Run the SQL files listed under supabase/.",
                 },
             )
-            snapshot["recommended_actions"] = actions
+        snapshot["recommended_actions"] = actions
 
     return {
         "data": snapshot,
@@ -241,11 +245,10 @@ def project_executive_summary(project_id: str, token: str = Depends(get_access_t
             last_error = exc
             if attempt == 0:
                 time.sleep(0.25)
-
     if last_error is not None:
         raise HTTPException(
             status_code=503,
-            detail="Project summary is temporarily unavailable because the database connection failed. Please refresh in a moment.",
+            detail="Project summary is temporarily unavailable because the database connection failed. Retry shortly.",
         ) from last_error
     if not project_result or not project_result.data:
         return {"data": None, "warnings": [{"message": "Project record is unavailable."}]}
