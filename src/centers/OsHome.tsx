@@ -499,8 +499,8 @@ export function OsHome({ projectId, token, documentCount = 0, documents = [], do
                             className={"action-priority " + (Number(a.priority) <= 1 ? "action-priority-high" : "action-priority-normal")}
                             aria-label={"Action priority " + Number(a.priority)}
                           >
-                            <span aria-hidden="true">!</span>
-                            PRIORITY {Number(a.priority)}
+                            <span aria-hidden="true">{Number(a.priority) <= 1 ? "!" : Number(a.priority)}</span>
+                            PRIORITY
                           </span>
                         )}
                         <b>{a.title || a.label || "Recommended action"}</b>
