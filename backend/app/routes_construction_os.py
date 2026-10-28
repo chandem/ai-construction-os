@@ -47,11 +47,11 @@ def _looks_like_missing_table(message: str) -> bool:
 
 
 def _safe_get(client, table: str, project_id: str, limit: int = 5) -> dict:
-    # Supabase/httpx can briefly raise EAGAIN/Errno 11 under connection pressure.
-    # Retry only transient transport failures; schema and permission errors should
-    # remain visible immediately rather than being mistaken for missing data.
+    # Supabase/HTTP connections can briefly fail with EAGAIN (Errno 11) under
+    # resource pressure. Retry transient failures only; schema and permission
+    # errors should surface immediately instead of being misclassified.
     last_error: Exception | None = None
-    for attempt in range(2):
+    for attempt in range(3):
         try:
             result = (
                 client.table(table)
@@ -61,11 +61,11 @@ def _safe_get(client, table: str, project_id: str, limit: int = 5) -> dict:
                 .execute()
             )
             return {"data": result.data or [], "table": table}
-        except Exception as exc:
-            last_error = exc
-            message = str(exc).lower()
+        except Exception as e:
+            last_error = e
+            lowered = str(e).lower()
             transient = any(
-                marker in message
+                marker in lowered
                 for marker in (
                     "resource temporarily unavailable",
                     "errno 11",
@@ -79,10 +79,9 @@ def _safe_get(client, table: str, project_id: str, limit: int = 5) -> dict:
                     "remoteprotocolerror",
                 )
             )
-            if attempt == 0 and transient:
-                time.sleep(0.25)
-                continue
-            break
+            if not transient or attempt == 2:
+                break
+            time.sleep(0.2 * (attempt + 1))
 
     err = str(last_error or "Database request failed")[:300]
     payload: dict = {"data": [], "warning": err, "table": table}
