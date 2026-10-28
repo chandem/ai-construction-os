@@ -496,10 +496,11 @@ export function OsHome({ projectId, token, documentCount = 0, documents = [], do
                       <div>
                         {Number.isFinite(Number(a.priority)) && (
                           <span
-                            className={"dashboard-status " + (Number(a.priority) <= 1 ? "warning" : "neutral")}
+                            className={"action-priority " + (Number(a.priority) <= 1 ? "action-priority-high" : "action-priority-normal")}
                             aria-label={"Action priority " + Number(a.priority)}
                           >
-                            Priority {Number(a.priority)}
+                            <span aria-hidden="true">!</span>
+                            PRIORITY {Number(a.priority)}
                           </span>
                         )}
                         <b>{a.title || a.label || "Recommended action"}</b>
