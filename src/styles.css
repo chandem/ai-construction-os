@@ -463,7 +463,7 @@ select:focus, input:focus, textarea:focus { border-color: #6b7c8a; box-shadow: 0
   width: 19px;
   height: 19px;
   border-radius: 50%;
-  background: currentColor;
+  background: #344c60;
   color: #fff;
   font-size: 13px;
   font-weight: 900;
@@ -477,6 +477,10 @@ select:focus, input:focus, textarea:focus { border-color: #6b7c8a; box-shadow: 0
   border-color: #64788a;
   background: #f0f4f7;
   color: #344c60;
+}
+.action-priority-high > span {
+  background: #b42318;
+  color: #fff;
 }
 .dashboard-action-card > div > b {
   display: block;
