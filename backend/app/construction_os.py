@@ -99,10 +99,10 @@ def recommend_actions(modules: list[dict[str, Any]]) -> list[dict[str, Any]]:
     elif design and design["status"] == "active":
         commercial = by_id.get("commercial")
         if commercial and commercial["status"] in ("empty", "needs_setup", "unknown"):
-            add(2, "commercial", "Package the estimate for tender", "Generate tender packages from the estimate chain.")
+            add(3, "commercial", "Package the estimate for tender", "After the estimate baseline and initial work plan are reviewed, generate tender packages from the estimate chain.")
         planning = by_id.get("planning")
         if planning and planning["status"] in ("empty", "needs_setup", "unknown"):
-            add(2, "planning", "Build WBS and schedule", "Generate planning from estimate sections.")
+            add(2, "planning", "Build WBS and schedule", "Create the work breakdown structure and schedule from reviewed estimate sections before finalizing tender packages.")
 
     field = by_id.get("field")
     quality = by_id.get("quality")
@@ -111,7 +111,7 @@ def recommend_actions(modules: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     prediction = by_id.get("prediction")
     if prediction and prediction["status"] in ("empty", "unknown"):
-        add(3, "prediction", "Run risk & forecast pass", "Generate prediction from schedule, NCRs, and cost signals.")
+        add(4, "prediction", "Run risk & forecast pass", "Run forecasts after schedule, quality, and cost signals are available; review any data gaps first.")
 
     # Give every failed module a direct recovery action, not only Ops.
     # Keep the Ops-specific guidance more useful than a generic module review.

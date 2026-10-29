@@ -102,3 +102,20 @@ def test_safe_get_retries_transient_resource_error():
     result = _safe_get(client, "material_requirements", "project-1")
     assert result["data"] == [{"id": "row-1"}]
     assert client.query.calls == 2
+
+
+def test_recommend_actions_sequences_planning_before_tender_and_forecast():
+    mods = [
+        module_status(module_id="design", payload={"data": [{"id": "estimate-1"}]}),
+        module_status(module_id="commercial", payload={"data": []}),
+        module_status(module_id="planning", payload={"data": []}),
+        module_status(module_id="prediction", payload={"data": []}),
+    ]
+
+    actions = recommend_actions(mods)
+    by_module = {action["module"]: action for action in actions}
+
+    assert by_module["planning"]["priority"] == 2
+    assert by_module["commercial"]["priority"] == 3
+    assert by_module["prediction"]["priority"] == 4
+    assert actions == sorted(actions, key=lambda action: action["priority"])
