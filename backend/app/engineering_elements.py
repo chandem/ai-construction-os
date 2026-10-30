@@ -208,3 +208,49 @@ def persist_engineering_elements(client, rows: list[dict[str, Any]]) -> int:
     except Exception:
         # Table may not exist yet in older schemas; document processing must still complete.
         return 0
+
+
+
+def engineering_elements_from_boq_items(
+    boq_items: list[dict[str, Any]], *, project_id: str
+) -> list[dict[str, Any]]:
+    """Create reviewable element candidates from BOQ rows without inventing measurements."""
+    rows: list[dict[str, Any]] = []
+    for item in boq_items:
+        item_id = _clean_text(item.get("id"))
+        description = _clean_text(item.get("description"))
+        if not item_id or not description:
+            continue
+        quantity = _as_float(item.get("quantity"))
+        if quantity is not None and quantity < 0:
+            quantity = None
+        item_code = _clean_text(item.get("item_code"))
+        work_section = _clean_text(item.get("work_section"))
+        rows.append({
+            "project_id": project_id,
+            "element_type": classify_element_type(
+                item.get("element_type") or description
+            ),
+            "name": description,
+            "identifier": item_code or item_id,
+            "discipline": None,
+            "level": None,
+            "location_description": None,
+            "quantity": quantity,
+            "unit": _clean_text(item.get("unit")),
+            "dimensions": {},
+            "materials": [],
+            "properties": {
+                "source_boq_item_id": item_id,
+                "source_boq_item_code": item_code,
+                "source_boq_work_section": work_section,
+                "source_boq_status": _clean_text(item.get("status")),
+                "requires_engineering_review": True,
+            },
+            "source": "boq_import",
+            "evidence": description,
+            "source_page": None,
+            "confidence": None,
+            "status": "proposed",
+        })
+    return rows
