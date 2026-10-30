@@ -15,6 +15,7 @@ type ElementRow = {
   source?: string | null;
   source_page?: number | null;
   confidence?: number | null;
+  status?: string;
   properties?: Record<string, unknown>;
 };
 
@@ -72,6 +73,8 @@ export function DesignCenter({ projectId, token }: Props) {
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
   const [showElements, setShowElements] = React.useState(true);
+  const [elementSearch, setElementSearch] = React.useState("");
+  const [elementStatusFilter, setElementStatusFilter] = React.useState("all");
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editQuantity, setEditQuantity] = React.useState("");
   const [editUnit, setEditUnit] = React.useState("");
@@ -272,7 +275,20 @@ export function DesignCenter({ projectId, token }: Props) {
   }, [projectId, token]);
 
   const quantityTotal = quantities.reduce((sum, row) => sum + Number(row.total_quantity || 0), 0);
-  const reviewCount = elements.filter((row) => Number(row.confidence ?? 0) < 0.7).length;
+  const reviewCount = elements.filter((row) => (row.status || "proposed").toLowerCase() === "proposed").length;
+  const filteredElements = React.useMemo(() => {
+    const query = elementSearch.trim().toLowerCase();
+    return elements.filter((row) => {
+      const status = (row.status || "proposed").toLowerCase();
+      if (elementStatusFilter !== "all" && status !== elementStatusFilter) return false;
+      if (!query) return true;
+      const sourceBoqId = String(row.properties?.source_boq_item_id || "");
+      const linkedBoq = boq.find((item) => item.id === sourceBoqId);
+      return [row.name, row.element_type, row.identifier, row.discipline, row.level,
+        linkedBoq?.item_code, linkedBoq?.description]
+        .some((value) => String(value || "").toLowerCase().includes(query));
+    });
+  }, [elements, boq, elementSearch, elementStatusFilter]);
 
   const sourceLabel = (source?: string | null) => {
     const value = String(source || "").toLowerCase();
@@ -528,7 +544,23 @@ export function DesignCenter({ projectId, token }: Props) {
           )}
 
           {showElements && elements.length > 0 && (
-            <div className="table-wrap" style={{ marginTop: 16 }}>
+            <div style={{ marginTop: 16 }}>
+              <div className="panel-head">
+                <div>
+                  <h3>Engineering Elements Review</h3>
+                  <p className="muted small">{filteredElements.length} of {elements.length} elements · {reviewCount} proposed for review</p>
+                </div>
+              </div>
+              <div className="boq-toolbar row gap">
+                <input type="search" aria-label="Search engineering elements" placeholder="Search element, BOQ code or description…" value={elementSearch} onChange={(e) => setElementSearch(e.target.value)} style={{ minWidth: 180, flex: 1 }} />
+                <select aria-label="Filter engineering element status" value={elementStatusFilter} onChange={(e) => setElementStatusFilter(e.target.value)} style={{ minWidth: 145 }}>
+                  <option value="all">All statuses</option>
+                  <option value="proposed">Proposed</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -536,19 +568,26 @@ export function DesignCenter({ projectId, token }: Props) {
                     <th>Identifier</th>
                     <th>Qty</th>
                     <th>Unit</th>
+                    <th>Linked BOQ item</th>
                     <th>Source</th>
+                    <th>Status</th>
                     <th>Confidence</th>
                     <th>Review</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {elements.slice(0, 50).map((row, index) => (
+                  {filteredElements.slice(0, 50).map((row, index) => {
+                    const sourceBoqId = String(row.properties?.source_boq_item_id || "");
+                    const linkedBoq = boq.find((item) => item.id === sourceBoqId);
+                    return (
                     <tr key={row.id || index}>
                       <td>{row.name || row.element_type || "Other"}</td>
                       <td>{row.identifier || "—"}</td>
                       <td>{row.quantity == null ? "—" : Number(row.quantity).toLocaleString()}</td>
                       <td>{row.unit || "—"}</td>
+                      <td>{linkedBoq ? <><strong>{linkedBoq.item_code || "BOQ"}</strong><div className="muted small">{linkedBoq.description || "—"}</div><div className="muted small">{linkedBoq.quantity ?? "—"} {linkedBoq.unit || ""}</div></> : sourceBoqId ? "BOQ item " + sourceBoqId : "—"}</td>
                       <td>{row.source_page ? "Page " + row.source_page : row.source || "AI"}</td>
+                      <td><span className="status">{row.status || "proposed"}</span></td>
                       <td>
                         {row.confidence == null ? "—" : Math.round(Number(row.confidence) * 100) + "%"}
                       </td>
@@ -567,15 +606,18 @@ export function DesignCenter({ projectId, token }: Props) {
                           </div>
                         ) : (
                           <button type="button" className="button compact" disabled={busy || !row.id} onClick={() => startEdit(row)}>
-                            {(row as any).status === "approved" ? "Reviewed" : "Review"}
+                            {(row.status || "proposed") === "approved" ? "Reviewed" : "Review"}
                           </button>
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
-              {elements.length > 50 && <p className="muted small">Showing first 50 elements.</p>}
+              {filteredElements.length > 50 && <p className="muted small">Showing first 50 matching elements.</p>}
+              {filteredElements.length === 0 && <p className="muted small">No engineering elements match these filters.</p>}
+              </div>
             </div>
           )}
 
