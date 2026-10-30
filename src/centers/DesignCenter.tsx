@@ -230,6 +230,27 @@ export function DesignCenter({ projectId, token }: Props) {
     }
   }
 
+  async function deriveElementsFromBoq() {
+    if (!projectId || !token || busy) return;
+    if (!window.confirm("Create proposed engineering elements from the stored BOQ? Existing BOQ lines and estimate records will not be changed. Derived quantities and units will need engineering review.")) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await apiPost(
+        "/api/v1/projects/" + projectId + "/engineering/elements/derive-from-boq",
+        token,
+      );
+      setNotice("BOQ derivation completed: " + String(result.created || 0) +
+        " new element(s), " + String(result.skipped || 0) + " already derived. Review all proposed quantities.");
+      await load();
+    } catch (e: any) {
+      setError(e.message || "Could not derive engineering elements from BOQ.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function generate(path: string, label: string) {
     if (!projectId || !token) return;
     setBusy(true);
@@ -385,6 +406,15 @@ export function DesignCenter({ projectId, token }: Props) {
           <p className="muted small">Drawing → AI elements → QTO → BOQ → estimate</p>
         </div>
         <div className="row gap">
+          <button
+            type="button"
+            className="button compact"
+            disabled={loading || busy || boq.length === 0}
+            onClick={deriveElementsFromBoq}
+            title="Create proposed engineering elements from stored BOQ lines"
+          >
+            Derive elements from BOQ
+          </button>
           <button type="button" className="button compact" disabled={loading || busy} onClick={load}>
             Refresh
           </button>
