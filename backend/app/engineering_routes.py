@@ -10,6 +10,7 @@ from .boq import build_boq_lines, persist_boq_items
 from .db import supabase_admin
 from .design_to_cost import build_design_to_cost
 from .estimate import build_estimate_from_boq, persist_estimate_items
+from .engineering_elements import engineering_elements_from_boq_items
 from .quantity_takeoff import enrich_elements, summarize_quantities
 from .routes import _authenticated_client, _project_for_member
 from .routes_helpers import (
@@ -188,6 +189,53 @@ def list_project_engineering_elements(project_id: str, token: str = Depends(get_
         return {"data": result.data or []}
     except Exception:
         return {"data": [], "warning": "engineering_elements table is not available yet"}
+
+
+@router.post("/projects/{project_id}/engineering/elements/derive-from-boq")
+def derive_engineering_elements_from_boq(project_id: str, token: str = Depends(get_access_token)):
+    """Create proposed engineering candidates from stored BOQ rows; never alter the BOQ."""
+    user = get_current_user(token)
+    client = _authenticated_client(token)
+    _project_for_member(project_id, user["id"], client)
+    try:
+        boq_result = (
+            client.table("boq_items")
+            .select("id,item_code,work_section,description,element_type,quantity,unit,status")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        boq_rows = boq_result.data or []
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Stored BOQ items are not available.") from exc
+    if not boq_rows:
+        return {"created": 0, "skipped": 0, "boq_line_count": 0, "message": "No stored BOQ lines found."}
+    try:
+        existing_result = (
+            client.table("engineering_elements")
+            .select("properties")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        existing_ids = {
+            (row.get("properties") or {}).get("source_boq_item_id")
+            for row in (existing_result.data or [])
+            if isinstance(row.get("properties"), dict)
+        }
+        candidates = engineering_elements_from_boq_items(boq_rows, project_id=project_id)
+        new_rows = [
+            row for row in candidates
+            if row["properties"]["source_boq_item_id"] not in existing_ids
+        ]
+        if new_rows:
+            client.table("engineering_elements").insert(new_rows).execute()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Could not derive engineering elements from the BOQ.") from exc
+    return {
+        "created": len(new_rows),
+        "skipped": len(candidates) - len(new_rows),
+        "boq_line_count": len(boq_rows),
+        "message": "Derived rows are proposed and require engineering review. BOQ and estimate records were not changed.",
+    }
 
 
 @router.get("/design/assets/{asset_id}/elements")
