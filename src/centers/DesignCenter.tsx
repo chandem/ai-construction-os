@@ -63,7 +63,10 @@ type EstimateRow = {
 
 export function DesignCenter({ projectId, token }: Props) {
   const [elements, setElements] = React.useState<ElementRow[]>([]);
+  const [qtoElements, setQtoElements] = React.useState<ElementRow[]>([]);
   const [quantities, setQuantities] = React.useState<QuantitySummary[]>([]);
+  const [qtoSearch, setQtoSearch] = React.useState("");
+  const [qtoStatusFilter, setQtoStatusFilter] = React.useState("all");
   const [boq, setBoq] = React.useState<BoqRow[]>([]);
   const [estimate, setEstimate] = React.useState<EstimateSummary | null>(null);
   const [estimateRows, setEstimateRows] = React.useState<EstimateRow[]>([]);
@@ -106,6 +109,7 @@ export function DesignCenter({ projectId, token }: Props) {
         apiGet("/api/v1/projects/" + projectId + "/engineering/estimate", token),
       ]);
       setElements(elementResult.data || []);
+      setQtoElements(quantityResult.data || []);
       setQuantities(quantityResult.summary || []);
       setBoq(boqResult.data || []);
       setEstimate(estimateResult.summary || null);
@@ -275,6 +279,17 @@ export function DesignCenter({ projectId, token }: Props) {
   }, [projectId, token]);
 
   const quantityTotal = quantities.reduce((sum, row) => sum + Number(row.total_quantity || 0), 0);
+  const filteredQtoElements = React.useMemo(() => {
+    const query = qtoSearch.trim().toLowerCase();
+    return qtoElements.filter((row) => {
+      const status = (row.status || "proposed").toLowerCase();
+      if (qtoStatusFilter !== "all" && status !== qtoStatusFilter) return false;
+      if (!query) return true;
+      return [row.name, row.element_type, row.identifier, row.source, row.unit,
+        row.properties?.quantity_method, row.properties?.quantity_notes]
+        .some((value) => String(value || "").toLowerCase().includes(query));
+    });
+  }, [qtoElements, qtoSearch, qtoStatusFilter]);
   const reviewCount = elements.filter((row) => (row.status || "proposed").toLowerCase() === "proposed").length;
   const filteredElements = React.useMemo(() => {
     const query = elementSearch.trim().toLowerCase();
@@ -505,6 +520,91 @@ export function DesignCenter({ projectId, token }: Props) {
               {showElements ? "Hide elements" : "Show elements"}
             </button>
           </div>
+
+          {qtoElements.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div className="panel-head">
+                <div>
+                  <h3>Quantity Takeoff Review</h3>
+                  <p className="muted small">
+                    {filteredQtoElements.length} of {qtoElements.length} elements · derived quantities are indicative until reviewed
+                  </p>
+                </div>
+              </div>
+              <div className="boq-toolbar row gap">
+                <input
+                  type="search"
+                  aria-label="Search quantity takeoff"
+                  placeholder="Search element, method, source…"
+                  value={qtoSearch}
+                  onChange={(e) => setQtoSearch(e.target.value)}
+                  style={{ minWidth: 180, flex: 1 }}
+                />
+                <select
+                  aria-label="Filter quantity takeoff review status"
+                  value={qtoStatusFilter}
+                  onChange={(e) => setQtoStatusFilter(e.target.value)}
+                  style={{ minWidth: 145 }}
+                >
+                  <option value="all">All statuses</option>
+                  <option value="proposed">Proposed</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Element</th>
+                      <th>Quantity</th>
+                      <th>Unit</th>
+                      <th>Method</th>
+                      <th>Confidence</th>
+                      <th>Source</th>
+                      <th>Review status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredQtoElements.slice(0, 50).map((row, index) => {
+                      const rawConfidence = row.properties?.quantity_confidence;
+                      const confidence = rawConfidence == null ? null : Number(rawConfidence);
+                      const method = String(row.properties?.quantity_method || "unknown");
+                      return (
+                        <tr key={row.id || row.identifier || index}>
+                          <td>
+                            <strong>{row.name || row.element_type || "Other"}</strong>
+                            {row.identifier && <div className="muted small">{row.identifier}</div>}
+                            {row.properties?.quantity_notes && (
+                              <div className="muted small">{String(row.properties.quantity_notes)}</div>
+                            )}
+                          </td>
+                          <td>{row.quantity == null ? "—" : Number(row.quantity).toLocaleString()}</td>
+                          <td>{row.unit || "—"}</td>
+                          <td><code>{method.replace(/_/g, " ")}</code></td>
+                          <td>
+                            {confidence === null || !Number.isFinite(confidence)
+                              ? "—"
+                              : Math.round(Math.max(0, Math.min(1, confidence)) * 100) + "%"}
+                          </td>
+                          <td>
+                            {row.source_page ? "Page " + row.source_page : row.source || "Not recorded"}
+                          </td>
+                          <td>{statusBadge(row.status)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {filteredQtoElements.length > 50 && (
+                  <p className="muted small">Showing first 50 matching takeoff elements.</p>
+                )}
+                {filteredQtoElements.length === 0 && (
+                  <p className="muted small">No takeoff elements match these filters.</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {chainEmpty ? (
             <div className="empty empty-card">
