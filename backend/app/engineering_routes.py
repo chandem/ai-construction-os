@@ -10,6 +10,7 @@ from .boq import build_boq_lines, persist_boq_items
 from .db import supabase_admin
 from .design_to_cost import build_design_to_cost
 from .estimate import build_estimate_from_boq, persist_estimate_items
+from .engineering_elements import engineering_elements_from_boq_items
 from .quantity_takeoff import enrich_elements, summarize_quantities
 from .routes import _authenticated_client, _project_for_member
 from .routes_helpers import (
