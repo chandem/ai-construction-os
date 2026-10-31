@@ -105,3 +105,23 @@ def test_negative_dimensions_do_not_produce_column_beam_or_slab_quantities():
     assert column["method"] == "count_fallback"
     assert beam["method"] == "insufficient"
     assert slab["method"] == "insufficient"
+
+
+
+def test_explicit_metric_dimension_units_are_accepted():
+    r = derive_quantity("beam", dimensions={"length": "12.5 m"})
+    assert r["quantity"] == 12.5
+    assert r["method"] == "length"
+
+
+def test_incompatible_dimension_units_are_not_used_for_takeoff():
+    slab = derive_quantity("slab", dimensions={"length": "500 mm", "width": "8 m"})
+    foundation = derive_quantity("foundation", dimensions={"length": "2 m", "width": "2 m", "depth": "150 cm"})
+    area = derive_quantity("slab", dimensions={"area": "80 ft2"})
+
+    assert slab["quantity"] is None
+    assert slab["method"] == "insufficient"
+    assert foundation["quantity"] is None
+    assert foundation["method"] == "insufficient"
+    assert area["quantity"] is None
+    assert area["method"] == "insufficient"
