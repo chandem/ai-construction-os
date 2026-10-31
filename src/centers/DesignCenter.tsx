@@ -67,6 +67,7 @@ export function DesignCenter({ projectId, token }: Props) {
   const [quantities, setQuantities] = React.useState<QuantitySummary[]>([]);
   const [qtoSearch, setQtoSearch] = React.useState("");
   const [qtoStatusFilter, setQtoStatusFilter] = React.useState("all");
+  const [qtoOriginFilter, setQtoOriginFilter] = React.useState("all");
   const [boq, setBoq] = React.useState<BoqRow[]>([]);
   const [estimate, setEstimate] = React.useState<EstimateSummary | null>(null);
   const [estimateRows, setEstimateRows] = React.useState<EstimateRow[]>([]);
@@ -279,17 +280,36 @@ export function DesignCenter({ projectId, token }: Props) {
   }, [projectId, token]);
 
   const quantityTotal = quantities.reduce((sum, row) => sum + Number(row.total_quantity || 0), 0);
+  const quantityOrigin = (row: ElementRow) => {
+    const method = String(row.properties?.quantity_method || "").toLowerCase();
+    if (method === "explicit") return "source";
+    if (method === "count_fallback") return "assumed";
+    if (method === "insufficient" || !method || method === "unknown") return "unavailable";
+    if (method.startsWith("dimension_")) return "measured";
+    return "derived";
+  };
+
+  const quantityOriginLabel = (origin: string) => ({
+    source: "Source-provided",
+    measured: "Dimension-based",
+    derived: "Formula-derived",
+    assumed: "Assumed placeholder",
+    unavailable: "Not available",
+  }[origin] || "Not classified");
+
   const filteredQtoElements = React.useMemo(() => {
     const query = qtoSearch.trim().toLowerCase();
     return qtoElements.filter((row) => {
       const status = (row.status || "proposed").toLowerCase();
       if (qtoStatusFilter !== "all" && status !== qtoStatusFilter) return false;
+      if (qtoOriginFilter !== "all" && quantityOrigin(row) !== qtoOriginFilter) return false;
       if (!query) return true;
       return [row.name, row.element_type, row.identifier, row.source, row.unit,
-        row.properties?.quantity_method, row.properties?.quantity_notes]
+        row.properties?.quantity_method, row.properties?.quantity_notes,
+        quantityOriginLabel(quantityOrigin(row))]
         .some((value) => String(value || "").toLowerCase().includes(query));
     });
-  }, [qtoElements, qtoSearch, qtoStatusFilter]);
+  }, [qtoElements, qtoSearch, qtoStatusFilter, qtoOriginFilter]);
   const reviewCount = elements.filter((row) => (row.status || "proposed").toLowerCase() === "proposed").length;
   const filteredElements = React.useMemo(() => {
     const query = elementSearch.trim().toLowerCase();
@@ -551,6 +571,19 @@ export function DesignCenter({ projectId, token }: Props) {
                   <option value="approved">Approved</option>
                   <option value="rejected">Rejected</option>
                 </select>
+                <select
+                  aria-label="Filter quantity origin"
+                  value={qtoOriginFilter}
+                  onChange={(e) => setQtoOriginFilter(e.target.value)}
+                  style={{ minWidth: 165 }}
+                >
+                  <option value="all">All quantity origins</option>
+                  <option value="source">Source-provided</option>
+                  <option value="measured">Dimension-based</option>
+                  <option value="derived">Formula-derived</option>
+                  <option value="assumed">Assumed placeholder</option>
+                  <option value="unavailable">Not available</option>
+                </select>
               </div>
               <div className="table-wrap">
                 <table>
@@ -559,6 +592,7 @@ export function DesignCenter({ projectId, token }: Props) {
                       <th>Element</th>
                       <th>Quantity</th>
                       <th>Unit</th>
+                      <th>Quantity origin</th>
                       <th>Method</th>
                       <th>Confidence</th>
                       <th>Source</th>
@@ -570,6 +604,7 @@ export function DesignCenter({ projectId, token }: Props) {
                       const rawConfidence = row.properties?.quantity_confidence;
                       const confidence = rawConfidence == null ? null : Number(rawConfidence);
                       const method = String(row.properties?.quantity_method || "unknown");
+                      const origin = quantityOrigin(row);
                       return (
                         <tr key={row.id || row.identifier || index}>
                           <td>
@@ -581,6 +616,7 @@ export function DesignCenter({ projectId, token }: Props) {
                           </td>
                           <td>{row.quantity == null ? "—" : Number(row.quantity).toLocaleString()}</td>
                           <td>{row.unit || "—"}</td>
+                          <td>{quantityOriginLabel(origin)}</td>
                           <td><code>{method.replace(/_/g, " ")}</code></td>
                           <td>
                             {confidence === null || !Number.isFinite(confidence)
