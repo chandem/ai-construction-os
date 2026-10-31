@@ -260,6 +260,12 @@ def enrich_elements(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def summarize_quantities(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     buckets: dict[tuple[str, str], dict[str, Any]] = {}
     for row in rows:
+        # A count_fallback is an explicit placeholder assumption, not a measured
+        # quantity. Keep it visible on the element for review, but never roll it
+        # into grouped QTO totals where it could be mistaken for a real count.
+        props = row.get("properties") or {}
+        if props.get("quantity_method") == "count_fallback":
+            continue
         qty = _as_float(row.get("quantity"))
         if qty is None:
             continue
