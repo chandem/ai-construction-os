@@ -60,17 +60,40 @@ def _as_float(value: Any) -> float | None:
 def _pick_dim(dimensions: dict[str, Any], *groups: str) -> float | None:
     if not isinstance(dimensions, dict):
         return None
+
+    expected_units = {
+        "length": {"m", "meter", "meters", "metre", "metres"},
+        "width": {"m", "meter", "meters", "metre", "metres"},
+        "height": {"m", "meter", "meters", "metre", "metres"},
+        "diameter": {"m", "meter", "meters", "metre", "metres"},
+        "area": {"m2", "m²", "sqm"},
+        "volume": {"m3", "m³", "cum"},
+        "count": {"nos", "no", "each", "unit", "units"},
+    }
     lowered = {str(k).lower().strip(): v for k, v in dimensions.items()}
+
+    def read_value(raw: Any, group: str) -> float | None:
+        value = _as_float(raw)
+        if value is None:
+            return None
+        if isinstance(raw, str):
+            match = re.search(r"\d\s*([a-zA-Z²³]+)\s*$", raw.strip())
+            if match:
+                supplied_unit = match.group(1).lower()
+                if supplied_unit not in expected_units.get(group, set()):
+                    return None
+        return value
+
     for group in groups:
         for key in DIM_KEYS.get(group, ()):
             if key in lowered:
-                val = _as_float(lowered[key])
+                val = read_value(lowered[key], group)
                 if val is not None:
                     return val
     for group in groups:
-        for k, v in lowered.items():
-            if group in k.replace("_", " "):
-                val = _as_float(v)
+        for key, raw in lowered.items():
+            if group in key.replace("_", " "):
+                val = read_value(raw, group)
                 if val is not None:
                     return val
     return None
