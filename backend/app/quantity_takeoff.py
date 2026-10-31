@@ -104,7 +104,7 @@ def derive_quantity(
         }
 
     vol = _pick_dim(dims, "volume")
-    if vol is not None:
+    if vol is not None and vol > 0:
         return {
             "quantity": _round_qty(vol),
             "unit": unit or "m3",
@@ -114,7 +114,7 @@ def derive_quantity(
         }
 
     area = _pick_dim(dims, "area")
-    if area is not None:
+    if area is not None and area > 0:
         return {
             "quantity": _round_qty(area),
             "unit": unit or "m2",
@@ -124,7 +124,7 @@ def derive_quantity(
         }
 
     count = _pick_dim(dims, "count")
-    if count is not None:
+    if count is not None and count > 0:
         return {
             "quantity": count,
             "unit": unit or "nos",
@@ -140,7 +140,7 @@ def derive_quantity(
 
     et = (element_type or "other").lower()
 
-    if et in {"foundation", "footing"} and length and width and height:
+    if et in {"foundation", "footing"} and length is not None and width is not None and height is not None and length > 0 and width > 0 and height > 0:
         return {
             "quantity": _round_qty(length * width * height),
             "unit": "m3",
@@ -178,7 +178,7 @@ def derive_quantity(
         }
 
     if et in {"slab", "room", "opening", "road", "pavement", "wall", "retaining_wall"}:
-        if length and width:
+        if length is not None and width is not None and length > 0 and width > 0:
             return {
                 "quantity": _round_qty(length * width),
                 "unit": "m2",
@@ -186,7 +186,7 @@ def derive_quantity(
                 "confidence": 0.75,
                 "notes": "Area = length × width",
             }
-        if length and height and et in {"wall", "retaining_wall", "opening"}:
+        if length is not None and height is not None and length > 0 and height > 0 and et in {"wall", "retaining_wall", "opening"}:
             return {
                 "quantity": _round_qty(length * height),
                 "unit": "m2",
@@ -195,7 +195,7 @@ def derive_quantity(
                 "notes": "Area = length × height",
             }
 
-    if et in {"beam", "pipe", "culvert", "drainage", "road"} and length is not None:
+    if et in {"beam", "pipe", "culvert", "drainage", "road"} and length is not None and length > 0:
         return {
             "quantity": _round_qty(length),
             "unit": "m",
