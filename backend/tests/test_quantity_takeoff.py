@@ -56,3 +56,26 @@ def test_enrich_and_summarize():
     slab = next(s for s in summary if s["element_type"] == "slab")
     assert slab["total_quantity"] == 60
     assert slab["item_count"] == 2
+
+
+def test_assumed_fallback_count_is_excluded_from_summary():
+    rows = [
+        {
+            "element_type": "column",
+            "name": "C1",
+            "quantity": 1,
+            "unit": "nos",
+            "properties": {"quantity_method": "count_fallback"},
+        },
+        {
+            "element_type": "column",
+            "name": "C2",
+            "quantity": 4,
+            "unit": "nos",
+            "properties": {"quantity_method": "explicit"},
+        },
+    ]
+    summary = summarize_quantities(rows)
+    assert len(summary) == 1
+    assert summary[0]["total_quantity"] == 4
+    assert summary[0]["item_count"] == 1
