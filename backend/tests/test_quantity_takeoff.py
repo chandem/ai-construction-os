@@ -95,3 +95,13 @@ def test_zero_or_negative_dimensions_are_not_used_for_takeoff():
     assert zero_area["method"] == "insufficient"
     assert negative_volume["quantity"] is None
     assert negative_volume["method"] == "insufficient"
+
+
+def test_negative_dimensions_do_not_produce_column_beam_or_slab_quantities():
+    column = derive_quantity("column", dimensions={"length": -2, "width": 0.3, "height": 3})
+    beam = derive_quantity("beam", dimensions={"length": 5, "width": -0.2, "height": 0.4})
+    slab = derive_quantity("slab", dimensions={"length": 5, "width": 4, "height": -0.15})
+
+    assert column["method"] == "count_fallback"
+    assert beam["method"] == "insufficient"
+    assert slab["method"] == "insufficient"

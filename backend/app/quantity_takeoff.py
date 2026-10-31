@@ -149,7 +149,7 @@ def derive_quantity(
             "notes": "Volume = length × width × depth/height",
         }
 
-    if et == "column" and length and width and height:
+    if et == "column" and length is not None and width is not None and height is not None and length > 0 and width > 0 and height > 0:
         return {
             "quantity": _round_qty(length * width * height),
             "unit": "m3",
@@ -158,7 +158,7 @@ def derive_quantity(
             "notes": "Column volume = section × height",
         }
 
-    if et == "beam" and length and width and height:
+    if et == "beam" and length is not None and width is not None and height is not None and length > 0 and width > 0 and height > 0:
         return {
             "quantity": _round_qty(length * width * height),
             "unit": "m3",
@@ -167,7 +167,7 @@ def derive_quantity(
             "notes": "Beam volume = length × breadth × depth",
         }
 
-    if et in {"slab", "wall", "retaining_wall", "pavement"} and length and width and height:
+    if et in {"slab", "wall", "retaining_wall", "pavement"} and length is not None and width is not None and height is not None and length > 0 and width > 0 and height > 0:
         return {
             "quantity": _round_qty(length * width),
             "unit": "m2",
