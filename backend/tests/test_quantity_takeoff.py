@@ -79,3 +79,19 @@ def test_assumed_fallback_count_is_excluded_from_summary():
     assert len(summary) == 1
     assert summary[0]["total_quantity"] == 4
     assert summary[0]["item_count"] == 1
+
+
+def test_zero_or_negative_dimensions_are_not_used_for_takeoff():
+    zero_length = derive_quantity("slab", dimensions={"length": 0, "width": 8})
+    negative_length = derive_quantity("slab", dimensions={"length": -10, "width": 8})
+    zero_area = derive_quantity("slab", dimensions={"area": 0})
+    negative_volume = derive_quantity("foundation", dimensions={"volume": -2})
+
+    assert zero_length["quantity"] is None
+    assert zero_length["method"] == "insufficient"
+    assert negative_length["quantity"] is None
+    assert negative_length["method"] == "insufficient"
+    assert zero_area["quantity"] is None
+    assert zero_area["method"] == "insufficient"
+    assert negative_volume["quantity"] is None
+    assert negative_volume["method"] == "insufficient"
