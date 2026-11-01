@@ -304,10 +304,17 @@ export function DesignCenter({ projectId, token }: Props) {
     const parsed = raw == null || raw === "" ? null : Number(raw);
     const confidence = parsed === null || !Number.isFinite(parsed) ? null : (parsed > 1 ? parsed / 100 : parsed);
     const hasEvidence = Boolean(row.source || row.source_page);
-    if (origin === "assumed" || origin === "unavailable" || !hasEvidence || confidence === null || confidence < 0.5) return "attention";
-    return "normal";
+    const proposed = (row.status || "proposed").toLowerCase() === "proposed";
+    const reasons: string[] = [];
+    if (origin === "assumed") reasons.push("Assumed placeholder");
+    if (origin === "unavailable") reasons.push("Quantity method unavailable");
+    if (!hasEvidence) reasons.push("Source evidence not recorded");
+    if (confidence === null) reasons.push("Confidence not recorded");
+    else if (confidence < 0.5) reasons.push("Low confidence");
+    if (proposed) reasons.push("Awaiting review");
+    return { level: reasons.some((reason) => reason !== "Awaiting review") ? "attention" : "normal", reasons };
   };
-  const qtoAttentionCount = qtoElements.filter((row) => quantityReviewPriority(row) === "attention").length;
+  const qtoAttentionCount = qtoElements.filter((row) => quantityReviewPriority(row).level === "attention").length;
 
   const filteredQtoElements = React.useMemo(() => {
     const query = qtoSearch.trim().toLowerCase();
@@ -315,14 +322,14 @@ export function DesignCenter({ projectId, token }: Props) {
       const status = (row.status || "proposed").toLowerCase();
       if (qtoStatusFilter !== "all" && status !== qtoStatusFilter) return false;
       if (qtoOriginFilter !== "all" && quantityOrigin(row) !== qtoOriginFilter) return false;
-      if (qtoPriorityFilter !== "all" && quantityReviewPriority(row) !== qtoPriorityFilter) return false;
+      if (qtoPriorityFilter !== "all" && quantityReviewPriority(row).level !== qtoPriorityFilter) return false;
       if (!query) return true;
       return [row.name, row.element_type, row.identifier, row.source, row.unit,
         row.properties?.quantity_method, row.properties?.quantity_notes,
         quantityOriginLabel(quantityOrigin(row))]
         .some((value) => String(value || "").toLowerCase().includes(query));
     }).sort((a, b) => {
-      const priorityOrder = Number(quantityReviewPriority(b) === "attention") - Number(quantityReviewPriority(a) === "attention");
+      const priorityOrder = Number(quantityReviewPriority(b).level === "attention") - Number(quantityReviewPriority(a).level === "attention");
       if (priorityOrder !== 0) return priorityOrder;
       const statusOrder = Number((a.status || "proposed").toLowerCase() !== "proposed") -
         Number((b.status || "proposed").toLowerCase() !== "proposed");
@@ -647,7 +654,12 @@ export function DesignCenter({ projectId, token }: Props) {
                           </td>
                           <td>{row.quantity == null ? "—" : Number(row.quantity).toLocaleString()}</td>
                           <td>{row.unit || "—"}</td>
-                          <td>{quantityReviewPriority(row) === "attention" ? "Needs attention" : "Review normally"}</td>
+                          <td>
+                            <strong>{quantityReviewPriority(row).level === "attention" ? "Needs attention" : "Review normally"}</strong>
+                            {quantityReviewPriority(row).reasons.length > 0 && (
+                              <div className="muted small">{quantityReviewPriority(row).reasons.join("; ")}</div>
+                            )}
+                          </td>
                           <td>{quantityOriginLabel(origin)}</td>
                           <td><code>{method.replace(/_/g, " ")}</code></td>
                           <td>
