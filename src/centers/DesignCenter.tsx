@@ -309,6 +309,7 @@ export function DesignCenter({ projectId, token }: Props) {
     if (origin === "assumed") reasons.push("Assumed placeholder");
     if (origin === "unavailable") reasons.push("Quantity method unavailable");
     if (!hasEvidence) reasons.push("Source evidence not recorded");
+    else if (!row.source_page) reasons.push("Source page not recorded");
     if (confidence === null) reasons.push("Confidence not recorded");
     else if (confidence < 0.5) reasons.push("Low confidence");
     if (proposed) reasons.push("Awaiting review");
