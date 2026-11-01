@@ -68,6 +68,7 @@ export function DesignCenter({ projectId, token }: Props) {
   const [qtoSearch, setQtoSearch] = React.useState("");
   const [qtoStatusFilter, setQtoStatusFilter] = React.useState("all");
   const [qtoOriginFilter, setQtoOriginFilter] = React.useState("all");
+  const [qtoPriorityFilter, setQtoPriorityFilter] = React.useState("all");
   const [boq, setBoq] = React.useState<BoqRow[]>([]);
   const [estimate, setEstimate] = React.useState<EstimateSummary | null>(null);
   const [estimateRows, setEstimateRows] = React.useState<EstimateRow[]>([]);
@@ -297,19 +298,31 @@ export function DesignCenter({ projectId, token }: Props) {
     unavailable: "Not available",
   }[origin] || "Not classified");
 
+  const quantityReviewPriority = (row: ElementRow) => {
+    const origin = quantityOrigin(row);
+    const raw = row.properties?.quantity_confidence ?? row.confidence;
+    const parsed = raw == null || raw === "" ? null : Number(raw);
+    const confidence = parsed === null || !Number.isFinite(parsed) ? null : (parsed > 1 ? parsed / 100 : parsed);
+    const hasEvidence = Boolean(row.source || row.source_page);
+    if (origin === "assumed" || origin === "unavailable" || !hasEvidence || confidence === null || confidence < 0.5) return "attention";
+    return "normal";
+  };
+  const qtoAttentionCount = qtoElements.filter((row) => quantityReviewPriority(row) === "attention").length;
+
   const filteredQtoElements = React.useMemo(() => {
     const query = qtoSearch.trim().toLowerCase();
     return qtoElements.filter((row) => {
       const status = (row.status || "proposed").toLowerCase();
       if (qtoStatusFilter !== "all" && status !== qtoStatusFilter) return false;
       if (qtoOriginFilter !== "all" && quantityOrigin(row) !== qtoOriginFilter) return false;
+      if (qtoPriorityFilter !== "all" && quantityReviewPriority(row) !== qtoPriorityFilter) return false;
       if (!query) return true;
       return [row.name, row.element_type, row.identifier, row.source, row.unit,
         row.properties?.quantity_method, row.properties?.quantity_notes,
         quantityOriginLabel(quantityOrigin(row))]
         .some((value) => String(value || "").toLowerCase().includes(query));
     });
-  }, [qtoElements, qtoSearch, qtoStatusFilter, qtoOriginFilter]);
+  }, [qtoElements, qtoSearch, qtoStatusFilter, qtoOriginFilter, qtoPriorityFilter]);
   const reviewCount = elements.filter((row) => (row.status || "proposed").toLowerCase() === "proposed").length;
   const filteredElements = React.useMemo(() => {
     const query = elementSearch.trim().toLowerCase();
@@ -585,6 +598,17 @@ export function DesignCenter({ projectId, token }: Props) {
                   <option value="unavailable">Not available</option>
                 </select>
               </div>
+              <p className="muted small">{qtoAttentionCount} of {qtoElements.length} takeoff item(s) flagged for review attention. Flags are advisory; they do not change quantities or approval status.</p>
+              <select
+                aria-label="Filter review priority"
+                value={qtoPriorityFilter}
+                onChange={(e) => setQtoPriorityFilter(e.target.value)}
+                style={{ minWidth: 170, marginBottom: 12 }}
+              >
+                <option value="all">All review priorities</option>
+                <option value="attention">Needs attention</option>
+                <option value="normal">Review normally</option>
+              </select>
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -592,6 +616,7 @@ export function DesignCenter({ projectId, token }: Props) {
                       <th>Element</th>
                       <th>Quantity</th>
                       <th>Unit</th>
+                      <th>Review priority</th>
                       <th>Quantity origin</th>
                       <th>Method</th>
                       <th>Confidence</th>
@@ -616,6 +641,7 @@ export function DesignCenter({ projectId, token }: Props) {
                           </td>
                           <td>{row.quantity == null ? "—" : Number(row.quantity).toLocaleString()}</td>
                           <td>{row.unit || "—"}</td>
+                          <td>{quantityReviewPriority(row) === "attention" ? "Needs attention" : "Review normally"}</td>
                           <td>{quantityOriginLabel(origin)}</td>
                           <td><code>{method.replace(/_/g, " ")}</code></td>
                           <td>
