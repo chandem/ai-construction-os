@@ -639,8 +639,11 @@ export function DesignCenter({ projectId, token }: Props) {
                   </thead>
                   <tbody>
                     {filteredQtoElements.slice(0, 50).map((row, index) => {
-                      const rawConfidence = row.properties?.quantity_confidence;
-                      const confidence = rawConfidence == null ? null : Number(rawConfidence);
+                      const rawConfidence = row.properties?.quantity_confidence ?? row.confidence;
+                      const parsedConfidence = rawConfidence == null || rawConfidence === "" ? null : Number(rawConfidence);
+                      const confidence = parsedConfidence === null || !Number.isFinite(parsedConfidence)
+                        ? null
+                        : (parsedConfidence > 1 ? parsedConfidence / 100 : parsedConfidence);
                       const method = String(row.properties?.quantity_method || "unknown");
                       const origin = quantityOrigin(row);
                       return (
