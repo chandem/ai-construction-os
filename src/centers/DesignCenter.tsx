@@ -321,6 +321,12 @@ export function DesignCenter({ projectId, token }: Props) {
         row.properties?.quantity_method, row.properties?.quantity_notes,
         quantityOriginLabel(quantityOrigin(row))]
         .some((value) => String(value || "").toLowerCase().includes(query));
+    }).sort((a, b) => {
+      const priorityOrder = Number(quantityReviewPriority(b) === "attention") - Number(quantityReviewPriority(a) === "attention");
+      if (priorityOrder !== 0) return priorityOrder;
+      const statusOrder = Number((a.status || "proposed").toLowerCase() !== "proposed") -
+        Number((b.status || "proposed").toLowerCase() !== "proposed");
+      return statusOrder;
     });
   }, [qtoElements, qtoSearch, qtoStatusFilter, qtoOriginFilter, qtoPriorityFilter]);
   const reviewCount = elements.filter((row) => (row.status || "proposed").toLowerCase() === "proposed").length;
