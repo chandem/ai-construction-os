@@ -324,9 +324,10 @@ export function DesignCenter({ projectId, token }: Props) {
       if (qtoOriginFilter !== "all" && quantityOrigin(row) !== qtoOriginFilter) return false;
       if (qtoPriorityFilter !== "all" && quantityReviewPriority(row).level !== qtoPriorityFilter) return false;
       if (!query) return true;
-      return [row.name, row.element_type, row.identifier, row.source, row.unit,
+      return [row.name, row.element_type, row.identifier, row.source, row.source_page, row.unit,
         row.properties?.quantity_method, row.properties?.quantity_notes,
-        quantityOriginLabel(quantityOrigin(row))]
+        quantityOriginLabel(quantityOrigin(row)),
+        ...quantityReviewPriority(row).reasons]
         .some((value) => String(value || "").toLowerCase().includes(query));
     }).sort((a, b) => {
       const priorityOrder = Number(quantityReviewPriority(b).level === "attention") - Number(quantityReviewPriority(a).level === "attention");
