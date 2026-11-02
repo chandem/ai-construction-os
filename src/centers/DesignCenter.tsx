@@ -316,6 +316,15 @@ export function DesignCenter({ projectId, token }: Props) {
     return { level: reasons.some((reason) => reason !== "Awaiting review") ? "attention" : "normal", reasons };
   };
   const qtoAttentionCount = qtoElements.filter((row) => quantityReviewPriority(row).level === "attention").length;
+  const qtoReviewReasonCounts = qtoElements.reduce<Record<string, number>>((counts, row) => {
+    quantityReviewPriority(row).reasons.forEach((reason) => {
+      if (reason !== "Awaiting review") counts[reason] = (counts[reason] || 0) + 1;
+    });
+    return counts;
+  }, {});
+  const qtoTopReviewReasons = Object.entries(qtoReviewReasonCounts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 4);
 
   const filteredQtoElements = React.useMemo(() => {
     const query = qtoSearch.trim().toLowerCase();
@@ -614,6 +623,11 @@ export function DesignCenter({ projectId, token }: Props) {
                 </select>
               </div>
               <p className="muted small">{qtoAttentionCount} of {qtoElements.length} takeoff item(s) flagged for review attention. Flags are advisory; they do not change quantities or approval status.</p>
+              {qtoTopReviewReasons.length > 0 && (
+                <p className="muted small">
+                  Common review reasons: {qtoTopReviewReasons.map(([reason, count]) => `${reason} (${count})`).join(" · ")}.
+                </p>
+              )}
               <select
                 aria-label="Filter review priority"
                 value={qtoPriorityFilter}
