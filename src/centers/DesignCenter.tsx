@@ -700,7 +700,8 @@ export function DesignCenter({ projectId, token }: Props) {
                               : Math.round(Math.max(0, Math.min(1, confidence)) * 100) + "%"}
                           </td>
                           <td>
-                            {row.source_page ? "Page " + row.source_page : row.source || "Not recorded"}
+                            <div>{row.source || "Source not recorded"}</div>
+                            <div className="muted small">{row.source_page ? "Page " + row.source_page : "Page not recorded"}</div>
                           </td>
                           <td>{statusBadge(row.status)}</td>
                         </tr>
