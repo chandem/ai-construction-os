@@ -69,6 +69,7 @@ export function DesignCenter({ projectId, token }: Props) {
   const [qtoStatusFilter, setQtoStatusFilter] = React.useState("all");
   const [qtoOriginFilter, setQtoOriginFilter] = React.useState("all");
   const [qtoPriorityFilter, setQtoPriorityFilter] = React.useState("all");
+  const [qtoReasonFilter, setQtoReasonFilter] = React.useState("all");
   const [boq, setBoq] = React.useState<BoqRow[]>([]);
   const [estimate, setEstimate] = React.useState<EstimateSummary | null>(null);
   const [estimateRows, setEstimateRows] = React.useState<EstimateRow[]>([]);
@@ -333,6 +334,7 @@ export function DesignCenter({ projectId, token }: Props) {
       if (qtoStatusFilter !== "all" && status !== qtoStatusFilter) return false;
       if (qtoOriginFilter !== "all" && quantityOrigin(row) !== qtoOriginFilter) return false;
       if (qtoPriorityFilter !== "all" && quantityReviewPriority(row).level !== qtoPriorityFilter) return false;
+      if (qtoReasonFilter !== "all" && !quantityReviewPriority(row).reasons.includes(qtoReasonFilter)) return false;
       if (!query) return true;
       return [row.name, row.element_type, row.identifier, row.source, row.source_page, row.unit,
         row.properties?.quantity_method, row.properties?.quantity_notes,
@@ -346,7 +348,7 @@ export function DesignCenter({ projectId, token }: Props) {
         Number((b.status || "proposed").toLowerCase() !== "proposed");
       return statusOrder;
     });
-  }, [qtoElements, qtoSearch, qtoStatusFilter, qtoOriginFilter, qtoPriorityFilter]);
+  }, [qtoElements, qtoSearch, qtoStatusFilter, qtoOriginFilter, qtoPriorityFilter, qtoReasonFilter]);
   const reviewCount = elements.filter((row) => (row.status || "proposed").toLowerCase() === "proposed").length;
   const filteredElements = React.useMemo(() => {
     const query = elementSearch.trim().toLowerCase();
@@ -637,6 +639,17 @@ export function DesignCenter({ projectId, token }: Props) {
                 <option value="all">All review priorities</option>
                 <option value="attention">Needs attention</option>
                 <option value="normal">Review normally</option>
+              </select>
+              <select
+                aria-label="Filter review reason"
+                value={qtoReasonFilter}
+                onChange={(e) => setQtoReasonFilter(e.target.value)}
+                style={{ minWidth: 210, marginBottom: 12 }}
+              >
+                <option value="all">All review reasons</option>
+                {Array.from(new Set(qtoElements.flatMap((row) => quantityReviewPriority(row).reasons)))
+                  .sort((a, b) => a.localeCompare(b))
+                  .map((reason) => <option key={reason} value={reason}>{reason}</option>)}
               </select>
               <div className="table-wrap">
                 <table>
