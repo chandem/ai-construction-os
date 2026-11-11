@@ -126,7 +126,9 @@ def _from_mapping(item: dict[str, Any]) -> dict[str, Any]:
         "identifier": _clean_text(item.get("identifier") or item.get("mark") or item.get("tag") or item.get("id")),
         "level": _clean_text(item.get("level") or item.get("storey") or item.get("floor")),
         "location_description": _clean_text(item.get("location_description") or item.get("location")),
-        "quantity": _as_float(item.get("quantity") or item.get("count")),
+        "quantity": _as_float(
+            item.get("quantity") if item.get("quantity") is not None else item.get("count")
+        ),
         "unit": _clean_text(item.get("unit")),
         "dimensions": dimensions,
         "materials": [str(m).strip() for m in materials if str(m).strip()],
