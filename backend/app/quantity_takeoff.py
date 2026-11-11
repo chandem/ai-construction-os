@@ -118,6 +118,14 @@ def derive_quantity(
     dims = dimensions or {}
     explicit_qty = _as_float(quantity)
     if explicit_qty is not None:
+        if explicit_qty <= 0:
+            return {
+                "quantity": None,
+                "unit": (unit or DEFAULT_UNITS.get(element_type) or "nos"),
+                "method": "invalid_explicit",
+                "confidence": 0.0,
+                "notes": "Source quantity is zero or negative; verify the source before takeoff",
+            }
         return {
             "quantity": explicit_qty,
             "unit": (unit or DEFAULT_UNITS.get(element_type) or "nos"),
