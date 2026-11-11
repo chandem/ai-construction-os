@@ -159,7 +159,7 @@ def normalize_engineering_elements(
         raw_list = [raw_elements]
 
     rows: list[dict[str, Any]] = []
-    seen: set[tuple[str | None, str | None, str | None]] = set()
+    seen: set[tuple[str, str, str]] = {}
     for item in raw_list:
         if isinstance(item, str):
             parsed = _from_string(item)
@@ -171,10 +171,9 @@ def normalize_engineering_elements(
         identifier = parsed.get("identifier")
         if not name and not identifier:
             continue
-        key = (parsed["element_type"], identifier, name)
-        if key in seen:
-            continue
-        seen.add(key)
+        normalized_identifier = " ".join(str(identifier or "").casefold().split())
+        duplicate_key = (parsed["element_type"], normalized_identifier, str(parsed.get("level") or "").casefold())
+        prior_index = seen.get(duplicate_key) if normalized_identifier else None
         row = {
             "project_id": project_id,
             "design_asset_id": design_asset_id,
@@ -190,13 +189,25 @@ def normalize_engineering_elements(
             "unit": parsed.get("unit"),
             "dimensions": parsed.get("dimensions") or {},
             "materials": parsed.get("materials") or [],
-            "properties": parsed.get("properties") or {},
+            "properties": dict(parsed.get("properties") or {}),
             "source": source,
             "evidence": parsed.get("evidence"),
             "source_page": source_page,
             "confidence": parsed.get("confidence"),
             "status": "proposed",
         }
+        if prior_index is not None:
+            prior = rows[prior_index]
+            prior_props = dict(prior.get("properties") or {})
+            prior_props["duplicate_identifier"] = True
+            prior_props["duplicate_identifier_primary"] = True
+            prior_props["quantity_review_reason"] = "Identifier is repeated for the same element type and level"
+            prior["properties"] = prior_props
+            row["properties"]["duplicate_identifier"] = True
+            row["properties"]["duplicate_identifier_primary"] = False
+            row["properties"]["quantity_review_reason"] = "Identifier is repeated for the same element type and level"
+        elif normalized_identifier:
+            seen[duplicate_key] = len(rows)
         rows.append(enrich_element_with_quantity(row))
     return rows
 
