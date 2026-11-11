@@ -297,6 +297,10 @@ def summarize_quantities(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         props = row.get("properties") or {}
         if props.get("quantity_method") == "count_fallback":
             continue
+        # Keep the first occurrence in totals; later rows with a repeated identifier
+        # remain visible for review but must not inflate grouped quantities.
+        if props.get("duplicate_identifier") and not props.get("duplicate_identifier_primary"):
+            continue
         qty = _as_float(row.get("quantity"))
         if qty is None:
             continue
