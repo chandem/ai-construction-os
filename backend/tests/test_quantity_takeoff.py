@@ -125,3 +125,27 @@ def test_incompatible_dimension_units_are_not_used_for_takeoff():
     assert foundation["method"] == "insufficient"
     assert area["quantity"] is None
     assert area["method"] == "insufficient"
+
+
+
+def test_zero_and_negative_explicit_quantities_are_flagged_not_derived():
+    zero = derive_quantity("column", quantity=0, unit="nos", dimensions={"count": 4})
+    negative = derive_quantity("slab", quantity=-12, unit="m2", dimensions={"length": 5, "width": 4})
+
+    assert zero["quantity"] is None
+    assert zero["method"] == "invalid_explicit"
+    assert zero["confidence"] == 0.0
+    assert negative["quantity"] is None
+    assert negative["method"] == "invalid_explicit"
+    assert negative["confidence"] == 0.0
+
+
+def test_normalization_preserves_zero_quantity_for_validation():
+    rows = normalize_engineering_elements(
+        [{"type": "column", "name": "C-zero", "quantity": 0, "unit": "nos"}],
+        project_id="p1",
+    )
+    assert len(rows) == 1
+    assert rows[0]["quantity"] is None
+    assert rows[0]["properties"]["quantity_method"] == "invalid_explicit"
+    assert rows[0]["properties"]["quantity_confidence"] == 0.0
