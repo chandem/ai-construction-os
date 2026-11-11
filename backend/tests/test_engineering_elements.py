@@ -36,7 +36,7 @@ def test_normalize_mixed_payloads():
         discipline="structural",
         source="ai_extraction",
     )
-    assert len(rows) == 2
+    assert len(rows) == 3
     types = {row["element_type"] for row in rows}
     assert types == {"beam", "slab"}
     slab = next(row for row in rows if row["element_type"] == "slab")
@@ -53,3 +53,22 @@ def test_normalize_empty_and_nested():
     rows = normalize_engineering_elements(nested, project_id="p")
     assert len(rows) == 1
     assert rows[0]["element_type"] == "pipe"
+
+
+
+def test_repeated_identifier_is_flagged_without_dropping_candidate():
+    rows = normalize_engineering_elements(
+        [
+            {"type": "column", "name": "Column C1", "identifier": "C1", "quantity": 1, "unit": "nos", "level": "Ground"},
+            {"type": "column", "name": "Column C-1", "identifier": " c1 ", "quantity": 1, "unit": "nos", "level": "Ground"},
+            {"type": "column", "name": "Column C1", "identifier": "C1", "quantity": 1, "unit": "nos", "level": "First"},
+        ],
+        project_id="p1",
+    )
+
+    assert len(rows) == 3
+    ground = [row for row in rows if row.get("level") == "Ground"]
+    assert all(row["properties"]["duplicate_identifier"] for row in ground)
+    assert ground[0]["properties"]["duplicate_identifier_primary"] is True
+    assert ground[1]["properties"]["duplicate_identifier_primary"] is False
+    assert not rows[2]["properties"].get("duplicate_identifier", False)
