@@ -61,7 +61,7 @@ export function AuthScreen() {
     <main className="center auth-shell">
       <section className="card login auth-panel">
         <div className="auth-hero">
-          <div className="logo">AI</div>
+          <div className="logo" aria-label="Construction OS">CO</div>
           <div>
             <p className="eyebrow small">General construction OS</p>
             <h1>AI Construction OS</h1>
