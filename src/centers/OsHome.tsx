@@ -202,6 +202,14 @@ export function OsHome({ projectId, token, documentCount = 0, documents = [], do
   const problemDocuments = documentReadiness.filter((status) => status === "partial" || status === "failed").length;
   const allDocumentsReady = docTotal > 0 && readyDocuments === docTotal;
   const summary = data?.summary;
+  const progressVariance =
+    projectSummary?.activities?.comparable_progress_count > 0
+      ? Number(projectSummary.activities.average_actual_percent) - Number(projectSummary.activities.average_planned_percent)
+      : null;
+  const progressStatus =
+    progressVariance === null ? "Insufficient progress data" :
+    progressVariance < -5 ? "Behind plan" :
+    progressVariance > 5 ? "Ahead of plan" : " broadly on plan";
   const mods = snap?.modules || [];
   const active =
     summary?.module_counts?.active ??
@@ -384,11 +392,11 @@ export function OsHome({ projectId, token, documentCount = 0, documents = [], do
               <div className="kpi-label">Work progress</div>
               <div className="kpi-value">{projectSummary.activities?.comparable_progress_count ? Number(projectSummary.activities.average_actual_percent).toFixed(1) + "%" : "—"}</div>
               <div className="kpi-foot">
-                {projectSummary.activities?.comparable_progress_count
-                  ? "Actual average · " + Number(projectSummary.activities.average_planned_percent).toFixed(1) + "% planned"
-                  : projectSummary.activities?.count
+                {progressVariance === null
+                  ? projectSummary.activities?.count
                     ? "Record planned and actual progress for the same activities"
-                    : "No activity records"}
+                    : "No activity records"
+                  : progressStatus + " · " + (progressVariance > 0 ? "+" : "") + progressVariance.toFixed(1) + " percentage points vs plan"}
               </div>
             </article>
             <article className={ "dashboard-kpi " + (Number(projectSummary.materials?.at_or_below_reorder_level || 0) ? "kpi-warning" : "") }>
