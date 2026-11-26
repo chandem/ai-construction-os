@@ -209,7 +209,7 @@ export function OsHome({ projectId, token, documentCount = 0, documents = [], do
   const progressStatus =
     progressVariance === null ? "Insufficient progress data" :
     progressVariance < -5 ? "Behind plan" :
-    progressVariance > 5 ? "Ahead of plan" : " broadly on plan";
+    progressVariance > 5 ? "Ahead of plan" : "Broadly on plan";
   const mods = snap?.modules || [];
   const active =
     summary?.module_counts?.active ??
